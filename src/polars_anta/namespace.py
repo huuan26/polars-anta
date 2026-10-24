@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 import polars as pl
 
-from . import alpha, momentum, stats, trend, volatility, volume
+from . import alpha, momentum, resample, stats, trend, volatility, volume
 
 if TYPE_CHECKING:
     from .core import IntoExpr
+
+FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
 
 
 @pl.api.register_expr_namespace("anta")
@@ -952,3 +955,788 @@ class TechnicalAnalysisExpr:
     def hurst_exponent(self, period: int = 50) -> pl.Expr:
         """Rolling Hurst Exponent."""
         return alpha.hurst_exponent(close=self._expr, period=period)
+
+
+@pl.api.register_dataframe_namespace("anta")
+@pl.api.register_dataframe_namespace("ta")
+@pl.api.register_lazyframe_namespace("anta")
+@pl.api.register_lazyframe_namespace("ta")
+class TechnicalAnalysisFrame(Generic[FrameType]):
+    """Namespace for technical analysis operations on Polars DataFrames and LazyFrames.
+
+    Allows chaining indicators, multi-timeframe resampling, and data integrity validation
+    directly on `df.anta...` or `df.ta...` (and `lf.anta...` or `lf.ta...`).
+    """
+
+    def __init__(self, df: FrameType) -> None:
+        self._df = df
+
+    # =========================================================================
+    # Resampling & Validation
+    # =========================================================================
+
+    def resample(
+        self,
+        every: str,
+        time_col: str = "timestamp",
+        group_by: str | Sequence[str] | None = None,
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        close_col: str = "close",
+        volume_col: str | None = "volume",
+        closed: Literal["left", "right"] = "left",
+        label: Literal["left", "right", "datapoint"] = "left",
+        additional_aggs: Sequence[pl.Expr] | None = None,
+        sort: bool = True,
+    ) -> FrameType:
+        """Resample lower-timeframe OHLCV data into higher-timeframe bars.
+
+        Supports single-asset and multi-ticker datasets (`group_by='symbol'`).
+        """
+        return resample.resample_ohlcv(
+            self._df,
+            every=every,
+            time_col=time_col,
+            group_by=group_by,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            close_col=close_col,
+            volume_col=volume_col,
+            closed=closed,
+            label=label,
+            additional_aggs=additional_aggs,
+            sort=sort,
+        )
+
+    def validate_ohlcv(
+        self,
+        time_col: str | None = "timestamp",
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        close_col: str = "close",
+        volume_col: str | None = "volume",
+        group_by: str | Sequence[str] | None = None,
+        check_data: bool = True,
+        return_report: bool = False,
+    ) -> FrameType | dict[str, Any]:
+        """Validate OHLCV schema, structural integrity, and price consistency."""
+        return resample.validate_ohlcv(
+            self._df,
+            time_col=time_col,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            close_col=close_col,
+            volume_col=volume_col,
+            group_by=group_by,
+            check_data=check_data,
+            return_report=return_report,
+        )
+
+    # =========================================================================
+    # Batch Indicator Builders
+    # =========================================================================
+
+    def add_indicators(
+        self,
+        *exprs: pl.Expr | Sequence[pl.Expr],
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Append one or more indicator expressions in a single vectorized pass.
+
+        :param exprs: Expressions or lists of expressions to append.
+        :param group_by: Optional column(s) to evaluate expressions over groups.
+        :return: DataFrame or LazyFrame with new columns.
+        """
+        flat_exprs: list[pl.Expr] = []
+        for item in exprs:
+            if isinstance(item, (list, tuple)):
+                flat_exprs.extend(item)
+            else:
+                flat_exprs.append(item)
+        if group_by is not None:
+            flat_exprs = [e.over(group_by) for e in flat_exprs]
+        return self._df.with_columns(flat_exprs)
+
+    def add_all(
+        self,
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        close_col: str = "close",
+        volume_col: str | None = "volume",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Compute and append a comprehensive standard set of technical indicators in one pass.
+
+        Computes in parallel within Polars' query engine:
+        - Trend: SMA(10, 20, 50), EMA(12, 26), ADX(14), SuperTrend(10, 3.0)
+        - Momentum: RSI(14), MACD(12, 26, 9), Stochastic(14, 3, 3), Williams %R(14), CCI(20), ROC(10)
+        - Volatility: ATR(14), Bollinger Bands(20, 2.0), Keltner Channels(20, 10, 2.0)
+        - Volume (if volume_col present): OBV, VWAP, CMF(20), MFI(14)
+        - Stats & Alpha: Z-Score(20), Percentile Rank(20), TS Rank(10)
+        """
+        schema = (
+            self._df.collect_schema() if isinstance(self._df, pl.LazyFrame) else self._df.schema
+        )
+        has_volume = volume_col is not None and volume_col in schema
+
+        exprs: list[pl.Expr] = [
+            trend.sma(close_col, period=10).alias("sma_10"),
+            trend.sma(close_col, period=20).alias("sma_20"),
+            trend.sma(close_col, period=50).alias("sma_50"),
+            trend.ema(close_col, period=12).alias("ema_12"),
+            trend.ema(close_col, period=26).alias("ema_26"),
+            trend.adx(high=high_col, low=low_col, close=close_col, period=14).alias("adx_14"),
+            trend.supertrend(
+                high=high_col, low=low_col, close=close_col, period=10, multiplier=3.0
+            ).alias("supertrend"),
+            momentum.rsi(close_col, period=14).alias("rsi_14"),
+            momentum.macd(close_col, fast_period=12, slow_period=26, signal_period=9).alias("macd"),
+            momentum.stochastic(
+                high=high_col, low=low_col, close=close_col, k_period=14, d_period=3, smooth_k=3
+            ).alias("stochastic"),
+            momentum.williams_r(high=high_col, low=low_col, close=close_col, period=14).alias(
+                "williams_r_14"
+            ),
+            momentum.cci(high=high_col, low=low_col, close=close_col, period=20).alias("cci_20"),
+            momentum.roc(close_col, period=10).alias("roc_10"),
+            volatility.atr(high=high_col, low=low_col, close=close_col, period=14).alias("atr_14"),
+            volatility.bollinger_bands(close_col, period=20, num_std=2.0).alias("bollinger_bands"),
+            volatility.keltner_channels(
+                high=high_col,
+                low=low_col,
+                close=close_col,
+                ema_period=20,
+                atr_period=10,
+                multiplier=2.0,
+            ).alias("keltner_channels"),
+            stats.zscore(close_col, period=20).alias("zscore_20"),
+            stats.percentile_rank(close_col, period=20).alias("percentile_rank_20"),
+            alpha.ts_rank(close_col, period=10).alias("ts_rank_10"),
+        ]
+
+        if has_volume and volume_col is not None:
+            exprs.extend(
+                [
+                    volume.obv(close=close_col, volume=volume_col).alias("obv"),
+                    volume.vwap(
+                        high=high_col, low=low_col, close=close_col, volume=volume_col
+                    ).alias("vwap"),
+                    volume.cmf(
+                        high=high_col, low=low_col, close=close_col, volume=volume_col, period=20
+                    ).alias("cmf_20"),
+                    volume.mfi(
+                        high=high_col, low=low_col, close=close_col, volume=volume_col, period=14
+                    ).alias("mfi_14"),
+                ]
+            )
+
+        return self.add_indicators(exprs, group_by=group_by)
+
+    def _apply_expr(
+        self,
+        expr: pl.Expr,
+        alias: str,
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        if group_by is not None:
+            expr = expr.over(group_by)
+        df_res = self._df.with_columns(expr.alias(alias))
+        if unnest:
+            schema = df_res.collect_schema() if isinstance(df_res, pl.LazyFrame) else df_res.schema
+            if isinstance(schema[alias], pl.Struct):
+                if prefix is not None:
+                    return df_res.with_columns(
+                        pl.col(alias).struct.field("*").name.prefix(prefix)
+                    ).drop(alias)
+                return df_res.unnest(alias)
+        return df_res
+
+    # =========================================================================
+    # Trend Indicators
+    # =========================================================================
+
+    def sma(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Simple Moving Average (SMA)."""
+        alias_name = alias or f"sma_{period}"
+        return self._apply_expr(trend.sma(col, period=period), alias_name, group_by=group_by)
+
+    def ema(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Exponential Moving Average (EMA)."""
+        alias_name = alias or f"ema_{period}"
+        return self._apply_expr(trend.ema(col, period=period), alias_name, group_by=group_by)
+
+    def wma(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Weighted Moving Average (WMA)."""
+        alias_name = alias or f"wma_{period}"
+        return self._apply_expr(trend.wma(col, period=period), alias_name, group_by=group_by)
+
+    def hma(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Hull Moving Average (HMA)."""
+        alias_name = alias or f"hma_{period}"
+        return self._apply_expr(trend.hma(col, period=period), alias_name, group_by=group_by)
+
+    def dema(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Double Exponential Moving Average (DEMA)."""
+        alias_name = alias or f"dema_{period}"
+        return self._apply_expr(trend.dema(col, period=period), alias_name, group_by=group_by)
+
+    def tema(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Triple Exponential Moving Average (TEMA)."""
+        alias_name = alias or f"tema_{period}"
+        return self._apply_expr(trend.tema(col, period=period), alias_name, group_by=group_by)
+
+    def zlema(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Zero-Lag Exponential Moving Average (ZLEMA)."""
+        alias_name = alias or f"zlema_{period}"
+        return self._apply_expr(trend.zlema(col, period=period), alias_name, group_by=group_by)
+
+    def supertrend(
+        self,
+        period: int = 10,
+        multiplier: float = 3.0,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "supertrend",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """SuperTrend Indicator."""
+        expr = trend.supertrend(
+            high=high, low=low, close=close, period=period, multiplier=multiplier
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def ssl_channel(
+        self,
+        period: int = 10,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "ssl_channel",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """SSL Channel (Securement Stop Loss Channel)."""
+        expr = trend.ssl_channel(high=high, low=low, close=close, period=period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def adx(
+        self,
+        period: int = 14,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "adx",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Average Directional Index (ADX) and (+DI, -DI)."""
+        expr = trend.adx(high=high, low=low, close=close, period=period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def aroon(
+        self,
+        period: int = 25,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        alias: str = "aroon",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Aroon Indicator and Oscillator."""
+        expr = trend.aroon(high=high, low=low, period=period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def trend_intensity_index(
+        self,
+        period: int = 30,
+        signal_period: int | None = None,
+        col: IntoExpr = "close",
+        alias: str = "tii",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Trend Intensity Index (TII)."""
+        expr = trend.trend_intensity_index(close=col, period=period, signal_period=signal_period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    # =========================================================================
+    # Momentum Indicators
+    # =========================================================================
+
+    def rsi(
+        self,
+        period: int = 14,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Relative Strength Index (RSI)."""
+        alias_name = alias or f"rsi_{period}"
+        return self._apply_expr(momentum.rsi(col, period=period), alias_name, group_by=group_by)
+
+    def macd(
+        self,
+        fast_period: int = 12,
+        slow_period: int = 26,
+        signal_period: int = 9,
+        col: IntoExpr = "close",
+        alias: str = "macd",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Moving Average Convergence Divergence (MACD)."""
+        expr = momentum.macd(
+            col,
+            fast_period=fast_period,
+            slow_period=slow_period,
+            signal_period=signal_period,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def stochastic(
+        self,
+        k_period: int = 14,
+        d_period: int = 3,
+        smooth_k: int = 3,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "stochastic",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Stochastic Oscillator (%K, %D)."""
+        expr = momentum.stochastic(
+            high=high,
+            low=low,
+            close=close,
+            k_period=k_period,
+            d_period=d_period,
+            smooth_k=smooth_k,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def stoch_rsi(
+        self,
+        rsi_period: int = 14,
+        stoch_period: int = 14,
+        k_period: int = 3,
+        d_period: int = 3,
+        col: IntoExpr = "close",
+        alias: str = "stoch_rsi",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Stochastic RSI (StochRSI)."""
+        expr = momentum.stoch_rsi(
+            col,
+            rsi_period=rsi_period,
+            stoch_period=stoch_period,
+            k_period=k_period,
+            d_period=d_period,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def squeeze_momentum(
+        self,
+        bb_period: int = 20,
+        bb_mult: float = 2.0,
+        kc_period: int = 20,
+        kc_mult: float = 1.5,
+        mom_period: int | None = None,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "squeeze_momentum",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Squeeze Momentum Indicator (John Carter / LazyBear)."""
+        expr = momentum.squeeze_momentum(
+            high=high,
+            low=low,
+            close=close,
+            bb_period=bb_period,
+            bb_mult=bb_mult,
+            kc_period=kc_period,
+            kc_mult=kc_mult,
+            mom_period=mom_period,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def williams_r(
+        self,
+        period: int = 14,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Williams %R."""
+        alias_name = alias or f"williams_r_{period}"
+        return self._apply_expr(
+            momentum.williams_r(high=high, low=low, close=close, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def cci(
+        self,
+        period: int = 20,
+        constant: float = 0.015,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Commodity Channel Index (CCI)."""
+        alias_name = alias or f"cci_{period}"
+        return self._apply_expr(
+            momentum.cci(high=high, low=low, close=close, period=period, constant=constant),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def roc(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Rate of Change (ROC)."""
+        alias_name = alias or f"roc_{period}"
+        return self._apply_expr(momentum.roc(col, period=period), alias_name, group_by=group_by)
+
+    # =========================================================================
+    # Volatility Indicators
+    # =========================================================================
+
+    def bollinger_bands(
+        self,
+        period: int = 20,
+        num_std: float = 2.0,
+        col: IntoExpr = "close",
+        alias: str = "bollinger_bands",
+        unnest: bool = False,
+        prefix: str | None = "bb_",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Bollinger Bands."""
+        expr = volatility.bollinger_bands(col, period=period, num_std=num_std)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def keltner_channels(
+        self,
+        ema_period: int = 20,
+        atr_period: int = 10,
+        multiplier: float = 2.0,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "keltner_channels",
+        unnest: bool = False,
+        prefix: str | None = "kc_",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Keltner Channels."""
+        expr = volatility.keltner_channels(
+            high=high,
+            low=low,
+            close=close,
+            ema_period=ema_period,
+            atr_period=atr_period,
+            multiplier=multiplier,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def donchian_channels(
+        self,
+        period: int = 20,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        alias: str = "donchian_channels",
+        unnest: bool = False,
+        prefix: str | None = "dc_",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Donchian Channels."""
+        expr = volatility.donchian_channels(high=high, low=low, period=period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def atr(
+        self,
+        period: int = 14,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Average True Range (ATR)."""
+        alias_name = alias or f"atr_{period}"
+        return self._apply_expr(
+            volatility.atr(high=high, low=low, close=close, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def true_range(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """True Range (TR)."""
+        alias_name = alias or "true_range"
+        return self._apply_expr(
+            volatility.true_range(high=high, low=low, close=close),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def stddev(
+        self,
+        period: int = 20,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Rolling Standard Deviation."""
+        alias_name = alias or f"stddev_{period}"
+        return self._apply_expr(
+            volatility.stddev(col, period=period), alias_name, group_by=group_by
+        )
+
+    # =========================================================================
+    # Volume Indicators
+    # =========================================================================
+
+    def obv(
+        self,
+        close: IntoExpr = "close",
+        volume_col: IntoExpr = "volume",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """On-Balance Volume (OBV)."""
+        alias_name = alias or "obv"
+        return self._apply_expr(
+            volume.obv(close=close, volume=volume_col), alias_name, group_by=group_by
+        )
+
+    def vwap(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume_col: IntoExpr = "volume",
+        period: int | None = None,
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Volume-Weighted Average Price (VWAP)."""
+        alias_name = alias or "vwap"
+        return self._apply_expr(
+            volume.vwap(high=high, low=low, close=close, volume=volume_col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def vwap_bands(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume_col: IntoExpr = "volume",
+        period: int | None = None,
+        mult1: float = 1.0,
+        mult2: float = 2.0,
+        mult3: float = 3.0,
+        alias: str = "vwap_bands",
+        unnest: bool = False,
+        prefix: str | None = "vwap_",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Volume-Weighted Average Price with Standard Deviation Bands."""
+        expr = volume.vwap_bands(
+            high=high,
+            low=low,
+            close=close,
+            volume=volume_col,
+            period=period,
+            mult1=mult1,
+            mult2=mult2,
+            mult3=mult3,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def cmf(
+        self,
+        period: int = 20,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume_col: IntoExpr = "volume",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Chaikin Money Flow (CMF)."""
+        alias_name = alias or f"cmf_{period}"
+        return self._apply_expr(
+            volume.cmf(high=high, low=low, close=close, volume=volume_col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def mfi(
+        self,
+        period: int = 14,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume_col: IntoExpr = "volume",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Money Flow Index (MFI)."""
+        alias_name = alias or f"mfi_{period}"
+        return self._apply_expr(
+            volume.mfi(high=high, low=low, close=close, volume=volume_col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    # =========================================================================
+    # Stats & Alpha Indicators
+    # =========================================================================
+
+    def zscore(
+        self,
+        period: int = 20,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Rolling Z-Score."""
+        alias_name = alias or f"zscore_{period}"
+        return self._apply_expr(stats.zscore(col, period=period), alias_name, group_by=group_by)
+
+    def percentile_rank(
+        self,
+        period: int = 20,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Rolling Percentile Rank."""
+        alias_name = alias or f"percentile_rank_{period}"
+        return self._apply_expr(
+            stats.percentile_rank(col, period=period), alias_name, group_by=group_by
+        )
+
+    def ts_rank(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Rank."""
+        alias_name = alias or f"ts_rank_{period}"
+        return self._apply_expr(alpha.ts_rank(col, period=period), alias_name, group_by=group_by)
+
+    def fractal_dimension(
+        self,
+        period: int = 20,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Ehlers' Fractal Dimension."""
+        alias_name = alias or f"fractal_dimension_{period}"
+        return self._apply_expr(
+            alpha.fractal_dimension(high=high, low=low, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def hurst_exponent(
+        self,
+        period: int = 50,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Rolling Hurst Exponent."""
+        alias_name = alias or f"hurst_{period}"
+        return self._apply_expr(
+            alpha.hurst_exponent(close=col, period=period),
+            alias_name,
+            group_by=group_by,
+        )

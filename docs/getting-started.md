@@ -83,3 +83,27 @@ result = df.with_columns(
     bollinger_bands("close", period=3).alias("bb"),
 )
 ```
+
+---
+
+### 4. Fluent DataFrame & LazyFrame Chaining
+
+In addition to expression-level calls, `polars-anta` provides direct DataFrame and LazyFrame chaining via `.anta` and `.ta`:
+
+```python
+import polars as pl
+import polars_anta
+
+# Validate data, resample, and chain indicators directly:
+features = (
+    df.anta.validate_ohlcv()
+    .anta.resample("15m", group_by="symbol")
+    .anta.sma(20)
+    .anta.rsi(14)
+    .anta.macd(unnest=True)
+    .anta.bollinger_bands(unnest=True)
+)
+
+# Or batch generate a complete feature suite:
+all_features = df.anta.add_all(group_by="symbol")
+```

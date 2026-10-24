@@ -41,6 +41,10 @@ from .momentum import (
     ultimate_oscillator,
     williams_r,
 )
+from .resample import (
+    resample_ohlcv,
+    validate_ohlcv,
+)
 from .stats import (
     kurtosis,
     linear_regression_angle,
@@ -237,4 +241,7 @@ __all__ = [
     "entropy",
     "fractal_dimension",
     "hurst_exponent",
+    # Multi-Timeframe Resampling & Validation
+    "resample_ohlcv",
+    "validate_ohlcv",
 ]

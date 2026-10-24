@@ -63,11 +63,13 @@ nav:
   - Benchmarks: benchmarks.md
   - Indicators:
       - Catalog Overview: indicators/index.md
-      - Trend & Overlays (25): indicators/trend.md
-      - Momentum Oscillators (19): indicators/momentum.md
+      - Trend & Overlays (27): indicators/trend.md
+      - Momentum Oscillators (20): indicators/momentum.md
       - Volatility & Channels (18): indicators/volatility.md
-      - Volume Dynamics (14): indicators/volume.md
+      - Volume Dynamics (15): indicators/volume.md
       - Quantitative Statistics (12): indicators/stats.md
-      - Alpha Factor Primitives (12): indicators/alpha.md
-  - Multi-Asset Scaling: guides/multi-asset.md
+      - Alpha Factor Primitives (14): indicators/alpha.md
+  - Guides:
+      - Multi-Asset Scaling: guides/multi-asset.md
+      - Resampling & DataFrame API: guides/resampling-and-dataframe-api.md
   - Contributing: contributing.md

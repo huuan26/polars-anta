@@ -33,6 +33,8 @@ Quantitative researchers and financial engineers have historically faced a trade
 | **Execution Engine** | Single-threaded C loops | Single-threaded Pandas / GIL | **Multi-threaded Rust** query engine |
 | **Multi-Asset Scaling** | Manual sequential loops | Slow `.groupby().apply()` | **Native `.over("ticker")`** parallelization |
 | **Dual Expression Namespace** | Unsupported | Unsupported | **Both `.anta` & `.ta`** supported |
+| **DataFrame & LazyFrame API** | Unsupported | Limited | **Fluent `.anta` & `.ta` chaining** |
+| **Multi-Timeframe Resampling** | Unsupported | Slow resampling | **Zero-copy `resample_ohlcv` & validation** |
 | **Lazy Evaluation** | Unsupported | Unsupported | **Full `pl.LazyFrame`** streaming support |
 | **Memory Layout** | Array conversion overhead | High Pandas memory footprint | **Zero-copy Arrow memory format** |
 
@@ -65,13 +67,15 @@ Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a *
 
 ## Key Features
 
-- **Dual Expression Namespaces**: Call indicators via `pl.col("close").anta.<indicator>()` or the classic shorthand `pl.col("close").ta.<indicator>()`.
+- **Dual Namespaces**: Call indicators via `pl.col("close").anta.<indicator>()` or the classic shorthand `pl.col("close").ta.<indicator>()` on expressions, DataFrames, and LazyFrames.
+- **Fluent DataFrame & LazyFrame API**: Chain indicators and operations directly on `df.anta...` or `df.ta...` (and `lf.anta...` or `lf.ta...`), including batch feature generation via `df.anta.add_all()`.
+- **Multi-Timeframe Resampling & OHLCV Validation**: Built-in `resample_ohlcv` and `validate_ohlcv` supporting both single-asset and multi-ticker universes (`group_by="symbol"`).
 - **Expression-First Design**: Compose indicators directly within `.select()`, `.with_columns()`, and lazy query plans.
 - **Parallel Multi-Asset Computation**: Compute indicators across thousands of tickers in parallel using Polars' native window context:
   ```python
   pl.col("close").anta.rsi(14).over("symbol")
   ```
-- **Structured Outputs**: Multi-component indicators (MACD, Bollinger Bands, Stochastic, Keltner Channels) return typed `pl.Struct` expressions that maintain clean schemas.
+- **Structured Outputs**: Multi-component indicators (MACD, Bollinger Bands, Stochastic, Keltner Channels) return typed `pl.Struct` expressions that maintain clean schemas, with 1-click unnesting.
 - **Zero-C Compilation**: `pip install polars-anta` works out of the box across Linux, macOS, and Windows.
 
 ---
@@ -88,7 +92,27 @@ pip install polars-anta
 
 ## Quickstart
 
-### 1. Modern Chained Expression Syntax (`.anta` or `.ta`)
+### 1. Fluent DataFrame & LazyFrame Chaining (`.anta` or `.ta`)
+
+```python
+import polars as pl
+import polars_anta  # Registers .anta and .ta on Expressions, DataFrames, and LazyFrames
+
+# Resample 1m data to 15m, validate price integrity, and chain indicators:
+df_features = (
+    df.anta.validate_ohlcv()
+    .anta.resample("15m", group_by="symbol")
+    .anta.sma(20)
+    .anta.rsi(14)
+    .anta.macd(unnest=True)
+    .anta.bollinger_bands(period=20, unnest=True)
+)
+
+# Or generate a complete quant feature suite in a single call:
+df_all = df.anta.add_all(group_by="symbol")
+```
+
+### 2. Expression Syntax (`pl.col(...).anta` or `.ta`)
 
 ```python
 import polars as pl

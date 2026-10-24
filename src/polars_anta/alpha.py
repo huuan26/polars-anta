@@ -37,7 +37,7 @@ def ts_rank(
             last = window[-1]
             count = np.sum(window <= last)
             out[i] = count / float(period)
-        return pl.Series(out, dtype=pl.Float64)
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_rank, return_dtype=pl.Float64)
 
@@ -74,7 +74,7 @@ def ts_argmax(
                     idx_from_end = float(len(window) - 1 - k)
                     break
             out[i] = idx_from_end
-        return pl.Series(out, dtype=pl.Float64)
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_argmax, return_dtype=pl.Float64)
 
@@ -109,7 +109,7 @@ def ts_argmin(
                     idx_from_end = float(len(window) - 1 - k)
                     break
             out[i] = idx_from_end
-        return pl.Series(out, dtype=pl.Float64)
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_argmin, return_dtype=pl.Float64)
 
@@ -324,6 +324,94 @@ def entropy(
                     p = cnt / total
                     ent -= p * math.log2(p)
             out[i] = ent
-        return pl.Series(out, dtype=pl.Float64)
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_entropy, return_dtype=pl.Float64)
+
+
+def fractal_dimension(
+    high: IntoExpr,
+    low: IntoExpr,
+    period: int = 20,
+) -> pl.Expr:
+    """Ehlers' Fractal Dimension (FRAMA component).
+
+    Quantifies the fractal dimension of a price series between 1.0 (pure trend / straight line)
+    and 2.0 (pure noise / plane-filling random walk).
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param period: lookback period (default 20, should be an even integer)
+    :return: Polars expression producing fractal dimension values in [1.0, 2.0]
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+
+    half_period = max(1, period // 2)
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+
+    n1 = (
+        hi.rolling_max(window_size=half_period) - lo.rolling_min(window_size=half_period)
+    ) / float(half_period)
+    n2 = (
+        hi.rolling_max(window_size=half_period).shift(half_period)
+        - lo.rolling_min(window_size=half_period).shift(half_period)
+    ) / float(half_period)
+    n3 = (hi.rolling_max(window_size=period) - lo.rolling_min(window_size=period)) / float(period)
+
+    sum_n1_n2 = n1 + n2
+    log2 = math.log(2.0)
+
+    null_mask = n3.is_null() | (n3 <= 0.0) | (sum_n1_n2 <= 0.0)
+    dim = (
+        pl.when(null_mask)
+        .then(None)
+        .otherwise(((sum_n1_n2.log() - n3.log()) / log2).clip(1.0, 2.0))
+    )
+    return dim
+
+
+def hurst_exponent(
+    close: IntoExpr,
+    period: int = 50,
+) -> pl.Expr:
+    """Rolling Hurst Exponent (Rescaled Range Analysis).
+
+    Quantifies the long-term memory and persistence of a time series:
+        - H < 0.5: Mean-reverting / anti-persistent regime
+        - H = 0.5: Random walk / Geometric Brownian motion
+        - H > 0.5: Trending / persistent regime
+
+    :param close: price column or expression
+    :param period: lookback window (default 50)
+    :return: Polars expression producing Hurst exponent in [0.0, 1.0]
+    """
+    if period < 4:
+        raise ValueError("period must be an integer greater than or equal to 4")
+
+    c = parse_expr(close)
+    log_half_n = math.log(float(period) * 0.5)
+
+    def _calc_hurst(s: pl.Series) -> pl.Series:
+        vals = s.to_numpy()
+        n = len(vals)
+        out = np.full(n, np.nan, dtype=np.float64)
+
+        for i in range(period - 1, n):
+            w = vals[i - period + 1 : i + 1]
+            if np.isnan(w).any():
+                continue
+            mean_val = np.mean(w)
+            cum_dev = np.cumsum(w - mean_val)
+            r_val = float(np.max(cum_dev) - np.min(cum_dev))
+            s_val = float(np.std(w, ddof=1))
+            if s_val > 1e-12 and r_val > 1e-12:
+                h_val = math.log(r_val / s_val) / log_half_n
+                out[i] = min(max(h_val, 0.0), 1.0)
+            elif s_val <= 1e-12:
+                out[i] = 0.5
+
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
+
+    return c.map_batches(_calc_hurst, return_dtype=pl.Float64)

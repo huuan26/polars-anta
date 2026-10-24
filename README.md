@@ -15,7 +15,7 @@
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Zero C Dependencies](https://img.shields.io/badge/dependencies-pure%20polars-brightgreen)](#)
 
-[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-102-indicators) • [Development](#development--testing)
+[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-106-indicators) • [Development](#development--testing)
 
 </div>
 
@@ -143,11 +143,12 @@ Run our interactive tutorials directly in your browser with zero setup:
 
 ---
 
-## Supported Indicators (102 Indicators)
+## Supported Indicators (106 Indicators)
 
-### Trend & Overlays (26 Indicators)
+### Trend & Overlays (27 Indicators)
 - **`sma(close, period=10)`**: Simple Moving Average
 - **`ssl_channel(high, low, close, period=10)`**: SSL Channel (`ssl_up`, `ssl_down`, `hlv`)
+- **`trend_intensity_index(close, period=30, signal_period=None)`**: Trend Intensity Index (TII & signal line)
 - **`ema(close, period=10)`**: Exponential Moving Average
 - **`wma(close, period=10)`**: Linearly-Weighted Moving Average
 - **`hma(close, period=10)`**: Hull Moving Average
@@ -215,9 +216,10 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`bollinger_delta(close, period=20, num_std=2.0)`**: Bollinger Band Spread ($2 \cdot k \cdot \sigma$)
 - **`starc_bands(high, low, close, period=20, atr_period=15, multiplier=2.0)`**: STARC Bands (Stoller Average Range Channels)
 
-### Volume (14 Indicators)
+### Volume (15 Indicators)
 - **`obv(close, volume)`**: On-Balance Volume
 - **`vwap(high, low, close, volume, period=None)`**: Volume Weighted Average Price (Cumulative or Rolling)
+- **`vwap_bands(high, low, close, volume, period=None, mult1=1.0, mult2=2.0, mult3=3.0)`**: VWAP with Standard Deviation Bands
 - **`vwma(close, volume, period=20)`**: Volume Weighted Moving Average
 - **`cmf(high, low, close, volume, period=20)`**: Chaikin Money Flow
 - **`adl(high, low, close, volume)`**: Accumulation/Distribution Line
@@ -245,7 +247,7 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`linear_regression_angle(close, period=14)`**: Linear Regression Trend Angle in degrees
 - **`linear_regression_forecast(close, period=14)`**: Linear Regression Current/Next-Bar Value Forecast
 
-### Alpha Factor Primitives (12 Indicators)
+### Alpha Factor Primitives (14 Indicators)
 - **`ts_rank(close, period=10)`**: Time-Series Rank (WorldQuant Alpha 101 primitive)
 - **`ts_argmax(close, period=10)`**: Time-Series ArgMax (lookback bars ago of window peak)
 - **`ts_argmin(close, period=10)`**: Time-Series ArgMin (lookback bars ago of window trough)
@@ -258,6 +260,8 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`relative_spread(high, low, close)`**: Normalized Bar Range $(\text{High} - \text{Low}) / \text{Close}$
 - **`twap(high, low, close, period=20)`**: Rolling Time-Weighted Average Price
 - **`entropy(close, period=20, bins=5)`**: Rolling Shannon Information Entropy (Regime detector)
+- **`fractal_dimension(high, low, period=20)`**: Ehlers' Fractal Dimension $[1.0, 2.0]$ (Market roughness/efficiency)
+- **`hurst_exponent(close, period=50)`**: Rolling Hurst Exponent $[0.0, 1.0]$ (Persistence & memory)
 
 ---
 

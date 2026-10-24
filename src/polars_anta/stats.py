@@ -55,7 +55,7 @@ def percentile_rank(
             last = window[-1]
             count = np.sum(window <= last)
             out[i] = count / float(period)
-        return pl.Series(out, dtype=pl.Float64)
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_rank, return_dtype=pl.Float64)
 

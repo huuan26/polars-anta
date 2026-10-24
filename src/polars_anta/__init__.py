@@ -7,7 +7,9 @@ from .alpha import (
     co_ratio,
     decay_linear,
     entropy,
+    fractal_dimension,
     hl_ratio,
+    hurst_exponent,
     relative_spread,
     returns_divergence,
     ts_argmax,
@@ -75,6 +77,7 @@ from .trend import (
     supertrend,
     t3,
     tema,
+    trend_intensity_index,
     vidya,
     vortex,
     wma,
@@ -115,15 +118,17 @@ from .volume import (
     vpci,
     vr,
     vwap,
+    vwap_bands,
     vwma,
 )
 
 __version__ = "0.1.0"
 
 __all__ = [
-    # Trend (26)
+    # Trend (27)
     "sma",
     "ssl_channel",
+    "trend_intensity_index",
     "ema",
     "wma",
     "hma",
@@ -188,9 +193,10 @@ __all__ = [
     "keltner_width",
     "bollinger_delta",
     "starc_bands",
-    # Volume (14)
+    # Volume (15)
     "obv",
     "vwap",
+    "vwap_bands",
     "vwma",
     "cmf",
     "adl",
@@ -216,7 +222,7 @@ __all__ = [
     "linear_regression_intercept",
     "linear_regression_angle",
     "linear_regression_forecast",
-    # Alpha Factor Primitives (12)
+    # Alpha Factor Primitives (14)
     "ts_rank",
     "ts_argmax",
     "ts_argmin",
@@ -229,4 +235,6 @@ __all__ = [
     "relative_spread",
     "twap",
     "entropy",
+    "fractal_dimension",
+    "hurst_exponent",
 ]

@@ -610,7 +610,7 @@ def kama(
                 break
 
         if first_valid == -1:
-            return pl.Series(kama_vals)
+            return pl.Series(kama_vals).fill_nan(None)
 
         current = c_vals[first_valid]
         kama_vals[first_valid] = current
@@ -624,7 +624,7 @@ def kama(
                 current = current + sc_i * (c_i - current)
                 kama_vals[i] = current
 
-        return pl.Series(kama_vals)
+        return pl.Series(kama_vals).fill_nan(None)
 
     combined = pl.struct([c.alias("close"), sc.alias("sc")])
     return combined.map_batches(_calc_kama, return_dtype=pl.Float64)
@@ -661,7 +661,7 @@ def mcginley_dynamic(
                 break
 
         if first_valid == -1:
-            return pl.Series(md_vals)
+            return pl.Series(md_vals).fill_nan(None)
 
         curr = vals[first_valid]
         md_vals[first_valid] = curr
@@ -673,7 +673,7 @@ def mcginley_dynamic(
                 curr = curr + (c_i - curr) / (k * float(period) * (ratio**4))
                 md_vals[i] = curr
 
-        return pl.Series(md_vals)
+        return pl.Series(md_vals).fill_nan(None)
 
     return c.map_batches(_calc_md, return_dtype=pl.Float64)
 
@@ -721,7 +721,7 @@ def vidya(
                 break
 
         if first_valid == -1:
-            return pl.Series(vidya_vals)
+            return pl.Series(vidya_vals).fill_nan(None)
 
         curr = c_vals[first_valid]
         vidya_vals[first_valid] = curr
@@ -735,7 +735,7 @@ def vidya(
                 curr = a_i * c_i + (1.0 - a_i) * curr
                 vidya_vals[i] = curr
 
-        return pl.Series(vidya_vals)
+        return pl.Series(vidya_vals).fill_nan(None)
 
     combined = pl.struct([c.alias("close"), alpha.alias("alpha")])
     return combined.map_batches(_calc_vidya, return_dtype=pl.Float64)
@@ -1029,5 +1029,59 @@ def ssl_channel(
             ssl_up.alias("ssl_up"),
             ssl_down.alias("ssl_down"),
             hlv_out.alias("hlv"),
+        ]
+    )
+
+
+def trend_intensity_index(
+    close: IntoExpr,
+    period: int = 30,
+    signal_period: int | None = None,
+) -> pl.Expr:
+    """Trend Intensity Index (TII) by M.H. Pee.
+
+    Measures the strength of a trend by calculating the percentage of price deviations
+    that lie above the moving average versus total deviations.
+
+    Returns a struct with fields:
+        - 'tii': Trend Intensity Index value [0, 100] (values > 80 indicate strong uptrend, < 20 strong downtrend)
+        - 'signal': EMA of TII (default 9-period EMA)
+
+    :param close: price column or expression
+    :param period: lookback period for the base SMA (default 30)
+    :param signal_period: lookback period for deviation sum (default None, uses period // 2)
+    :return: Polars Struct expression
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+    dev_period = signal_period if signal_period is not None else max(1, period // 2)
+    if dev_period <= 0:
+        raise ValueError("signal_period must be a positive integer greater than zero")
+
+    c = parse_expr(close)
+    base_sma = c.rolling_mean(window_size=period)
+    dev = c - base_sma
+
+    pos_dev = pl.when(dev > 0.0).then(dev).otherwise(0.0)
+    neg_dev = pl.when(dev < 0.0).then(-dev).otherwise(0.0)
+
+    sum_pos = pos_dev.rolling_sum(window_size=dev_period)
+    sum_neg = neg_dev.rolling_sum(window_size=dev_period)
+    sum_total = sum_pos + sum_neg
+
+    null_mask = base_sma.is_null() | sum_pos.is_null()
+    tii = (
+        pl.when(null_mask)
+        .then(None)
+        .when(sum_total > 0.0)
+        .then(100.0 * (sum_pos / sum_total))
+        .otherwise(50.0)
+    )
+    sig = ema(tii, period=9)
+
+    return pl.struct(
+        [
+            tii.alias("tii"),
+            sig.alias("signal"),
         ]
     )

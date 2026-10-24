@@ -204,6 +204,18 @@ class TechnicalAnalysisExpr:
         """SSL Channel (Securement Stop Loss Channel)."""
         return trend.ssl_channel(high=high, low=low, close=self._expr, period=period)
 
+    def trend_intensity_index(
+        self,
+        period: int = 30,
+        signal_period: int | None = None,
+    ) -> pl.Expr:
+        """Trend Intensity Index (TII)."""
+        return trend.trend_intensity_index(
+            close=self._expr,
+            period=period,
+            signal_period=signal_period,
+        )
+
     # =========================================================================
     # Momentum Indicators (20)
     # =========================================================================
@@ -673,6 +685,28 @@ class TechnicalAnalysisExpr:
             period=period,
         )
 
+    def vwap_bands(
+        self,
+        high: IntoExpr,
+        low: IntoExpr,
+        volume_col: IntoExpr,
+        period: int | None = None,
+        mult1: float = 1.0,
+        mult2: float = 2.0,
+        mult3: float = 3.0,
+    ) -> pl.Expr:
+        """Volume-Weighted Average Price with Standard Deviation Bands."""
+        return volume.vwap_bands(
+            high=high,
+            low=low,
+            close=self._expr,
+            volume=volume_col,
+            period=period,
+            mult1=mult1,
+            mult2=mult2,
+            mult3=mult3,
+        )
+
     def vwma(self, volume_col: IntoExpr, period: int = 20) -> pl.Expr:
         """Volume-Weighted Moving Average (VWMA)."""
         return volume.vwma(close=self._expr, volume=volume_col, period=period)
@@ -910,3 +944,11 @@ class TechnicalAnalysisExpr:
     def entropy(self, period: int = 20, bins: int = 5) -> pl.Expr:
         """Rolling Shannon Entropy of returns."""
         return alpha.entropy(self._expr, period=period, bins=bins)
+
+    def fractal_dimension(self, low: IntoExpr, period: int = 20) -> pl.Expr:
+        """Ehlers' Fractal Dimension."""
+        return alpha.fractal_dimension(high=self._expr, low=low, period=period)
+
+    def hurst_exponent(self, period: int = 50) -> pl.Expr:
+        """Rolling Hurst Exponent."""
+        return alpha.hurst_exponent(close=self._expr, period=period)

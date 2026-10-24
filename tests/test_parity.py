@@ -9,10 +9,12 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from polars_anta.alpha import fractal_dimension
 from polars_anta.momentum import squeeze_momentum
 from polars_anta.stats import linear_regression_slope, zscore
-from polars_anta.trend import dema, ema, sma, ssl_channel, wma
+from polars_anta.trend import dema, ema, sma, ssl_channel, trend_intensity_index, wma
 from polars_anta.volatility import bollinger_bands
+from polars_anta.volume import vwap_bands
 
 
 @pytest.fixture
@@ -250,3 +252,64 @@ def test_squeeze_momentum_mathematical_parity():
     assert sqz_on[idx] == expected_on
     assert sqz_off[idx] == expected_off
     assert momentum[idx] is not None
+
+
+def test_vwap_bands_mathematical_parity():
+    highs = [10.5, 11.5, 12.0, 11.8, 12.5]
+    lows = [9.5, 10.2, 11.0, 10.9, 11.8]
+    closes = [10.0, 11.0, 11.5, 11.2, 12.0]
+    volumes = [100.0, 150.0, 200.0, 120.0, 180.0]
+
+    df = pl.DataFrame({"high": highs, "low": lows, "close": closes, "volume": volumes})
+    res = df.select(vwap_bands("high", "low", "close", "volume").alias("vb")).unnest("vb")
+
+    tps = [(h + lo_val + c) / 3.0 for h, lo_val, c in zip(highs, lows, closes, strict=False)]
+    for i in range(len(closes)):
+        cum_pv = sum(tp * v for tp, v in zip(tps[: i + 1], volumes[: i + 1], strict=False))
+        cum_v = sum(volumes[: i + 1])
+        expected_vwap = cum_pv / cum_v
+
+        # Weighted variance
+        cum_dev_sq = sum(
+            v * ((tp - expected_vwap) ** 2)
+            for tp, v in zip(tps[: i + 1], volumes[: i + 1], strict=False)
+        )
+        expected_std = (cum_dev_sq / cum_v) ** 0.5
+
+        assert pytest.approx(res["vwap"][i], abs=1e-7) == expected_vwap
+        assert pytest.approx(res["upper_1"][i], abs=1e-7) == expected_vwap + expected_std
+        assert pytest.approx(res["lower_1"][i], abs=1e-7) == expected_vwap - expected_std
+        assert pytest.approx(res["upper_2"][i], abs=1e-7) == expected_vwap + 2.0 * expected_std
+        assert pytest.approx(res["lower_2"][i], abs=1e-7) == expected_vwap - 2.0 * expected_std
+
+
+def test_trend_intensity_index_mathematical_parity():
+    closes = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0]
+    period = 4
+    signal_period = 2
+
+    df = pl.DataFrame({"close": closes})
+    res = df.select(
+        trend_intensity_index("close", period=period, signal_period=signal_period).alias("tii")
+    ).unnest("tii")
+
+    # For strictly increasing sequence, close is always > SMA(close, 4)
+    # dev is strictly positive, neg_dev is 0 -> TII must be 100.0 for all valid bars
+    tii_vals = res["tii"].to_list()
+    for i in range(period - 1, len(closes)):
+        assert tii_vals[i] == 100.0
+
+
+def test_fractal_dimension_mathematical_parity():
+    # Linear trend should have low fractal dimension (~1.0)
+    highs = [10.0 + i * 1.0 for i in range(30)]
+    lows = [9.0 + i * 1.0 for i in range(30)]
+
+    df = pl.DataFrame({"high": highs, "low": lows})
+    res = df.select(fractal_dimension("high", "low", period=10).alias("fd"))
+
+    vals = [x for x in res["fd"].to_list() if x is not None]
+    assert len(vals) > 0
+    # On straight linear diagonal line, fractal dimension is close to 1.0
+    for v in vals:
+        assert 1.0 <= v <= 1.2

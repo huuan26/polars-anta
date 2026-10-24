@@ -61,6 +61,75 @@ def vwap(
     return pv.rolling_sum(window_size=period) / v.rolling_sum(window_size=period)
 
 
+def vwap_bands(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    period: int | None = None,
+    mult1: float = 1.0,
+    mult2: float = 2.0,
+    mult3: float = 3.0,
+) -> pl.Expr:
+    """Volume-Weighted Average Price (VWAP) with Standard Deviation Bands.
+
+    Computes institutional VWAP along with 1, 2, and 3 standard deviation bands.
+    If `period` is None, computes cumulative session VWAP; otherwise computes rolling VWAP.
+
+    Returns a struct with fields:
+        - 'vwap': Volume-Weighted Average Price
+        - 'upper_1', 'lower_1': +/- mult1 * standard deviation
+        - 'upper_2', 'lower_2': +/- mult2 * standard deviation
+        - 'upper_3', 'lower_3': +/- mult3 * standard deviation
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param volume: volume column or expression
+    :param period: lookback window size, or None for cumulative session VWAP
+    :param mult1: first band multiplier (default 1.0)
+    :param mult2: second band multiplier (default 2.0)
+    :param mult3: third band multiplier (default 3.0)
+    :return: Polars Struct expression
+    """
+    if period is not None and period <= 0:
+        raise ValueError("period must be a positive integer greater than zero")
+
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+    v = parse_expr(volume)
+
+    tp = (hi + lo + c) / 3.0
+    pv = tp * v
+    pv2 = (tp**2) * v
+
+    if period is None:
+        cum_v = v.cum_sum()
+        vwap_val = pv.cum_sum() / cum_v
+        vwap2_val = pv2.cum_sum() / cum_v
+    else:
+        roll_v = v.rolling_sum(window_size=period)
+        vwap_val = pv.rolling_sum(window_size=period) / roll_v
+        vwap2_val = pv2.rolling_sum(window_size=period) / roll_v
+
+    # Weighted variance = E[X^2] - (E[X])^2
+    variance = (vwap2_val - vwap_val**2).clip(0.0)
+    std_val = variance.sqrt()
+
+    return pl.struct(
+        [
+            vwap_val.alias("vwap"),
+            (vwap_val + float(mult1) * std_val).alias("upper_1"),
+            (vwap_val - float(mult1) * std_val).alias("lower_1"),
+            (vwap_val + float(mult2) * std_val).alias("upper_2"),
+            (vwap_val - float(mult2) * std_val).alias("lower_2"),
+            (vwap_val + float(mult3) * std_val).alias("upper_3"),
+            (vwap_val - float(mult3) * std_val).alias("lower_3"),
+        ]
+    )
+
+
 def vwma(
     close: IntoExpr,
     volume: IntoExpr,

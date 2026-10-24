@@ -27,6 +27,7 @@ from polars_anta.trend import (
     supertrend,
     t3,
     tema,
+    trend_intensity_index,
     vidya,
     vortex,
     wma,
@@ -337,3 +338,39 @@ def test_ssl_channel(sample_ohlcv_df: pl.DataFrame):
     # Invalid period
     with pytest.raises(ValueError, match="period must be a positive integer"):
         sample_ohlcv_df.select(ssl_channel("high", "low", "close", period=0))
+
+
+def test_trend_intensity_index(sample_ohlcv_df: pl.DataFrame):
+    # Direct function call
+    result = sample_ohlcv_df.select(
+        trend_intensity_index("close", period=10, signal_period=5).alias("tii")
+    ).unnest("tii")
+
+    assert "tii" in result.columns
+    assert "signal" in result.columns
+
+    vals = [x for x in result["tii"].to_list() if x is not None]
+    sigs = [x for x in result["signal"].to_list() if x is not None]
+
+    assert len(vals) > 0
+    assert len(sigs) > 0
+
+    for v in vals:
+        assert 0.0 <= v <= 100.0
+
+    # Namespace expression test (.anta and .ta)
+    res_anta = sample_ohlcv_df.select(
+        pl.col("close").anta.trend_intensity_index(period=10).alias("tii")
+    ).unnest("tii")
+    assert "tii" in res_anta.columns
+
+    res_ta = sample_ohlcv_df.select(
+        pl.col("close").ta.trend_intensity_index(period=10).alias("tii")
+    ).unnest("tii")
+    assert "signal" in res_ta.columns
+
+    # Invalid period
+    with pytest.raises(ValueError, match="period must be an integer greater than 1"):
+        sample_ohlcv_df.select(trend_intensity_index("close", period=1))
+    with pytest.raises(ValueError, match="signal_period must be a positive integer"):
+        sample_ohlcv_df.select(trend_intensity_index("close", period=10, signal_period=0))

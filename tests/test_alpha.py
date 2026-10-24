@@ -7,7 +7,9 @@ from polars_anta.alpha import (
     co_ratio,
     decay_linear,
     entropy,
+    fractal_dimension,
     hl_ratio,
+    hurst_exponent,
     relative_spread,
     returns_divergence,
     ts_argmax,
@@ -77,3 +79,48 @@ def test_ratios_and_divergence(sample_ohlcv: pl.DataFrame):
     assert res["spread"][-1] > 0.0
     assert res["twap"][-1] > 0.0
     assert res["entropy"][-1] is not None
+
+
+def test_fractal_dimension(sample_ohlcv: pl.DataFrame):
+    res = sample_ohlcv.select(fractal_dimension("high", "low", period=6).alias("fd"))
+    vals = [x for x in res["fd"].to_list() if x is not None]
+    assert len(vals) > 0
+    for v in vals:
+        assert 1.0 <= v <= 2.0
+
+    # Namespace expressions (.anta and .ta)
+    res_anta = sample_ohlcv.select(
+        pl.col("high").anta.fractal_dimension("low", period=6).alias("fd")
+    )
+    assert res_anta["fd"][-1] is not None
+
+    res_ta = sample_ohlcv.select(pl.col("high").ta.fractal_dimension("low", period=6).alias("fd"))
+    assert res_ta["fd"][-1] is not None
+
+    # Invalid period
+    with pytest.raises(ValueError, match="period must be an integer greater than 1"):
+        sample_ohlcv.select(fractal_dimension("high", "low", period=1))
+
+
+def test_hurst_exponent(sample_ohlcv: pl.DataFrame):
+    res = sample_ohlcv.select(hurst_exponent("close", period=6).alias("h"))
+    vals = [x for x in res["h"].to_list() if x is not None]
+    assert len(vals) > 0
+    for v in vals:
+        assert 0.0 <= v <= 1.0
+
+    # Namespace expressions (.anta and .ta)
+    res_anta = sample_ohlcv.select(pl.col("close").anta.hurst_exponent(period=6).alias("h"))
+    assert res_anta["h"][-1] is not None
+
+    res_ta = sample_ohlcv.select(pl.col("close").ta.hurst_exponent(period=6).alias("h"))
+    assert res_ta["h"][-1] is not None
+
+    # Invalid period
+    with pytest.raises(ValueError, match="period must be an integer greater than or equal to 4"):
+        sample_ohlcv.select(hurst_exponent("close", period=3))
+
+    # Flat line test (zero variance edge case)
+    flat_df = pl.DataFrame({"close": [10.0] * 10})
+    flat_res = flat_df.select(hurst_exponent("close", period=5).alias("h"))
+    assert flat_res["h"][-1] == 0.5

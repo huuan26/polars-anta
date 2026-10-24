@@ -1,4 +1,4 @@
-# Volume Indicators (14 Indicators)
+# Volume Indicators (15 Indicators)
 
 Volume indicators evaluate institutional buying and selling pressure, money flow, and volume-price divergence.
 
@@ -9,6 +9,9 @@ On-Balance Volume. Cumulative volume added on up bars and subtracted on down bar
 
 ### `vwap(high, low, close, volume, period=None)`
 Volume Weighted Average Price. Computes cumulative VWAP (default) or rolling VWAP when `period` is specified.
+
+### `vwap_bands(high, low, close, volume, period=None, mult1=1.0, mult2=2.0, mult3=3.0)`
+Volume Weighted Average Price with Standard Deviation Bands. Returns Struct: `vwap`, `upper_1`, `lower_1`, `upper_2`, `lower_2`, `upper_3`, `lower_3`.
 
 ### `vwma(close, volume, period=20)`
 Volume Weighted Moving Average. Moving average weighted by bar volume.

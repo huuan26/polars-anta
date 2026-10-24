@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import polars as pl
+import pytest
 
 from polars_anta.volume import (
     adl,
@@ -18,6 +19,7 @@ from polars_anta.volume import (
     vpci,
     vr,
     vwap,
+    vwap_bands,
     vwma,
 )
 
@@ -135,3 +137,48 @@ def test_vr(sample_ohlcv_df: pl.DataFrame):
     assert len(vals) > 0
     for v in vals:
         assert v >= 0.0
+
+
+def test_vwap_bands(sample_ohlcv_df: pl.DataFrame):
+    # Cumulative mode
+    res_cum = sample_ohlcv_df.select(
+        vwap_bands("high", "low", "close", "volume").alias("vb")
+    ).unnest("vb")
+
+    expected_cols = ["vwap", "upper_1", "lower_1", "upper_2", "lower_2", "upper_3", "lower_3"]
+    for col in expected_cols:
+        assert col in res_cum.columns
+
+    # Verify band ordering
+    for row in res_cum.to_dicts():
+        assert (
+            row["lower_3"]
+            <= row["lower_2"]
+            <= row["lower_1"]
+            <= row["vwap"]
+            <= row["upper_1"]
+            <= row["upper_2"]
+            <= row["upper_3"]
+        )
+
+    # Rolling mode
+    res_roll = sample_ohlcv_df.select(
+        vwap_bands("high", "low", "close", "volume", period=10).alias("vb")
+    ).unnest("vb")
+    assert "vwap" in res_roll.columns
+    assert res_roll["vwap"][0] is None
+
+    # Namespace expressions (.anta and .ta)
+    anta_res = sample_ohlcv_df.select(
+        pl.col("close").anta.vwap_bands("high", "low", "volume", period=10).alias("vb")
+    ).unnest("vb")
+    assert "upper_1" in anta_res.columns
+
+    ta_res = sample_ohlcv_df.select(
+        pl.col("close").ta.vwap_bands("high", "low", "volume", period=10).alias("vb")
+    ).unnest("vb")
+    assert "lower_1" in ta_res.columns
+
+    # Invalid period
+    with pytest.raises(ValueError, match="period must be a positive integer"):
+        sample_ohlcv_df.select(vwap_bands("high", "low", "close", "volume", period=0))

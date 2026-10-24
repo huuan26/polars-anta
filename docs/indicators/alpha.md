@@ -1,4 +1,4 @@
-# Alpha Factor Primitives (12 Indicators)
+# Alpha Factor Primitives (14 Indicators)
 
 Inspired by WorldQuant 101 Alphas and modern factor investing literature, these building blocks allow quantitative analysts to compose complex multi-asset predictive alphas.
 
@@ -41,3 +41,9 @@ Time-Weighted Average Price. Rolling mean of typical price $(H + L + C) / 3$.
 
 ### `entropy(close, period=20, bins=5)`
 Rolling Shannon Information Entropy of return distribution. Quantifies regime uncertainty: low entropy signifies strong directional trending, while high entropy indicates choppy market noise.
+
+### `fractal_dimension(high, low, period=20)`
+Ehlers' Fractal Dimension (FRAMA component). Measures the fractal roughness of price motion bounded between $1.0$ (smooth directional trend) and $2.0$ (random noise).
+
+### `hurst_exponent(close, period=50)`
+Rolling Hurst Exponent via Rescaled Range (R/S) analysis. Measures long-term memory: $H > 0.5$ indicates persistent trending, $H < 0.5$ indicates mean-reverting, and $H \approx 0.5$ indicates random walk.

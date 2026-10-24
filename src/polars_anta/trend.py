@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import polars as pl
 
 from .core import IntoExpr, parse_expr, true_range, wilder_smooth
@@ -420,21 +421,21 @@ def supertrend(
 
     def _calc_supertrend(s_struct: pl.Series) -> pl.Series:
         df_chunk = s_struct.struct.unnest()
-        c_vals = df_chunk["close"].to_list()
-        ub_vals = df_chunk["upper_basic"].to_list()
-        lb_vals = df_chunk["lower_basic"].to_list()
+        c_vals = df_chunk["close"].to_numpy()
+        ub_vals = df_chunk["upper_basic"].to_numpy()
+        lb_vals = df_chunk["lower_basic"].to_numpy()
         n = len(c_vals)
 
-        upper_final = [0.0] * n
-        lower_final = [0.0] * n
-        st_vals = [0.0] * n
-        direction = [1] * n
+        upper_final = np.zeros(n, dtype=np.float64)
+        lower_final = np.zeros(n, dtype=np.float64)
+        st_vals = np.zeros(n, dtype=np.float64)
+        direction = np.ones(n, dtype=np.int64)
 
         for i in range(n):
             c_i = c_vals[i]
             ub_i = ub_vals[i]
             lb_i = lb_vals[i]
-            if c_i is None or ub_i is None or lb_i is None:
+            if np.isnan(c_i) or np.isnan(ub_i) or np.isnan(lb_i):
                 continue
 
             if i == 0:
@@ -444,7 +445,9 @@ def supertrend(
                 direction[i] = 1
                 continue
 
-            prev_c = c_vals[i - 1] or c_i
+            prev_c = c_vals[i - 1]
+            if np.isnan(prev_c):
+                prev_c = c_i
             prev_uf = upper_final[i - 1]
             prev_lf = lower_final[i - 1]
 
@@ -474,7 +477,7 @@ def supertrend(
                     st_vals[i] = lower_final[i]
                     direction[i] = 1
 
-        return pl.Series([{"supertrend": st_vals[i], "direction": direction[i]} for i in range(n)])
+        return pl.DataFrame({"supertrend": st_vals, "direction": direction}).to_struct("st")
 
     combined = pl.struct(
         [
@@ -512,13 +515,13 @@ def psar(
 
     def _calc_psar(s_struct: pl.Series) -> pl.Series:
         df_chunk = s_struct.struct.unnest()
-        h_vals = df_chunk["high"].to_list()
-        l_vals = df_chunk["low"].to_list()
+        h_vals = df_chunk["high"].to_numpy()
+        l_vals = df_chunk["low"].to_numpy()
         n = len(h_vals)
         if n == 0:
-            return pl.Series([])
+            return pl.Series([], dtype=pl.Float64)
 
-        sar_vals = [0.0] * n
+        sar_vals = np.zeros(n, dtype=np.float64)
         is_long = True
         ep = h_vals[0]
         af = af_step
@@ -595,14 +598,14 @@ def kama(
 
     def _calc_kama(s_struct: pl.Series) -> pl.Series:
         df_chunk = s_struct.struct.unnest()
-        c_vals = df_chunk["close"].to_list()
-        sc_vals = df_chunk["sc"].to_list()
+        c_vals = df_chunk["close"].to_numpy()
+        sc_vals = df_chunk["sc"].to_numpy()
         n = len(c_vals)
 
-        kama_vals = [None] * n
+        kama_vals = np.full(n, np.nan, dtype=np.float64)
         first_valid = -1
         for i in range(n):
-            if c_vals[i] is not None and sc_vals[i] is not None:
+            if not np.isnan(c_vals[i]) and not np.isnan(sc_vals[i]):
                 first_valid = i
                 break
 
@@ -614,8 +617,10 @@ def kama(
 
         for i in range(first_valid + 1, n):
             c_i = c_vals[i]
-            sc_i = sc_vals[i] or slow_sc
-            if c_i is not None:
+            sc_i = sc_vals[i]
+            if np.isnan(sc_i):
+                sc_i = slow_sc
+            if not np.isnan(c_i):
                 current = current + sc_i * (c_i - current)
                 kama_vals[i] = current
 
@@ -645,11 +650,16 @@ def mcginley_dynamic(
     c = parse_expr(close)
 
     def _calc_md(s: pl.Series) -> pl.Series:
-        vals = s.to_list()
+        vals = s.to_numpy()
         n = len(vals)
-        md_vals = [None] * n
+        md_vals = np.full(n, np.nan, dtype=np.float64)
 
-        first_valid = next((i for i, v in enumerate(vals) if v is not None), -1)
+        first_valid = -1
+        for i in range(n):
+            if not np.isnan(vals[i]):
+                first_valid = i
+                break
+
         if first_valid == -1:
             return pl.Series(md_vals)
 
@@ -658,7 +668,7 @@ def mcginley_dynamic(
 
         for i in range(first_valid + 1, n):
             c_i = vals[i]
-            if c_i is not None and curr > 0.0:
+            if not np.isnan(c_i) and curr > 0.0:
                 ratio = c_i / curr
                 curr = curr + (c_i - curr) / (k * float(period) * (ratio**4))
                 md_vals[i] = curr
@@ -699,12 +709,17 @@ def vidya(
 
     def _calc_vidya(s_struct: pl.Series) -> pl.Series:
         df_chunk = s_struct.struct.unnest()
-        c_vals = df_chunk["close"].to_list()
-        a_vals = df_chunk["alpha"].to_list()
+        c_vals = df_chunk["close"].to_numpy()
+        a_vals = df_chunk["alpha"].to_numpy()
         n = len(c_vals)
 
-        vidya_vals = [None] * n
-        first_valid = next((i for i, v in enumerate(c_vals) if v is not None), -1)
+        vidya_vals = np.full(n, np.nan, dtype=np.float64)
+        first_valid = -1
+        for i in range(n):
+            if not np.isnan(c_vals[i]):
+                first_valid = i
+                break
+
         if first_valid == -1:
             return pl.Series(vidya_vals)
 
@@ -713,8 +728,10 @@ def vidya(
 
         for i in range(first_valid + 1, n):
             c_i = c_vals[i]
-            a_i = a_vals[i] or 0.0
-            if c_i is not None:
+            a_i = a_vals[i]
+            if np.isnan(a_i):
+                a_i = 0.0
+            if not np.isnan(c_i):
                 curr = a_i * c_i + (1.0 - a_i) * curr
                 vidya_vals[i] = curr
 
@@ -959,5 +976,58 @@ def woodie_pivots(
             s1.alias("s1"),
             r2.alias("r2"),
             s2.alias("s2"),
+        ]
+    )
+
+
+def ssl_channel(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """SSL Channel (Securement Stop Loss Channel).
+
+    Returns a struct with fields:
+        - 'ssl_up': trailing upper channel line
+        - 'ssl_down': trailing lower channel line
+        - 'hlv': trend direction signal (1 for bullish / uptrend, -1 for bearish / downtrend)
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param period: lookback period for SMA (default 10)
+    :return: Polars Struct expression
+    """
+    if period <= 0:
+        raise ValueError("period must be a positive integer greater than zero")
+
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+
+    sma_high = hi.rolling_mean(window_size=period)
+    sma_low = lo.rolling_mean(window_size=period)
+
+    hlv = (
+        pl.when(c > sma_high)
+        .then(1)
+        .when(c < sma_low)
+        .then(-1)
+        .otherwise(None)
+        .forward_fill()
+        .fill_null(1)
+    )
+
+    null_mask = sma_high.is_null() | sma_low.is_null()
+    ssl_up = pl.when(null_mask).then(None).when(hlv < 0).then(sma_low).otherwise(sma_high)
+    ssl_down = pl.when(null_mask).then(None).when(hlv < 0).then(sma_high).otherwise(sma_low)
+    hlv_out = pl.when(null_mask).then(None).otherwise(hlv)
+
+    return pl.struct(
+        [
+            ssl_up.alias("ssl_up"),
+            ssl_down.alias("ssl_down"),
+            hlv_out.alias("hlv"),
         ]
     )

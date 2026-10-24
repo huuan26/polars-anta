@@ -15,7 +15,7 @@
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Zero C Dependencies](https://img.shields.io/badge/dependencies-pure%20polars-brightgreen)](#)
 
-[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-100-indicators) • [Development](#development--testing)
+[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-102-indicators) • [Development](#development--testing)
 
 </div>
 
@@ -143,10 +143,11 @@ Run our interactive tutorials directly in your browser with zero setup:
 
 ---
 
-## Supported Indicators (100 Indicators)
+## Supported Indicators (102 Indicators)
 
-### Trend & Overlays (25 Indicators)
+### Trend & Overlays (26 Indicators)
 - **`sma(close, period=10)`**: Simple Moving Average
+- **`ssl_channel(high, low, close, period=10)`**: SSL Channel (`ssl_up`, `ssl_down`, `hlv`)
 - **`ema(close, period=10)`**: Exponential Moving Average
 - **`wma(close, period=10)`**: Linearly-Weighted Moving Average
 - **`hma(close, period=10)`**: Hull Moving Average
@@ -172,10 +173,11 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`camarilla_pivots(high, low, close)`**: Camarilla Intraday Pivot Points (`r1-r4`, `s1-s4`)
 - **`woodie_pivots(open, high, low, close)`**: Woodie's Heavy-Close Pivot Points
 
-### Momentum (19 Indicators)
+### Momentum (20 Indicators)
 - **`rsi(close, period=14)`**: Relative Strength Index (Wilder's smoothing)
 - **`macd(close, fast=12, slow=26, signal=9)`**: Moving Average Convergence Divergence (`macd`, `signal`, `histogram`)
 - **`stochastic(high, low, close, k=14, d=3)`**: Stochastic Oscillator (%K, %D)
+- **`squeeze_momentum(high, low, close, bb_period=20, bb_mult=2.0, kc_period=20, kc_mult=1.5)`**: Squeeze Momentum Indicator (`squeeze_on`, `squeeze_off`, `no_squeeze`, `momentum`)
 - **`williams_r(high, low, close, period=14)`**: Williams %R
 - **`cci(high, low, close, period=20)`**: Commodity Channel Index
 - **`roc(close, period=10)`**: Rate of Change (Momentum %)

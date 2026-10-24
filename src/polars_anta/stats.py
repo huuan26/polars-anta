@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 
+import numpy as np
 import polars as pl
 
 from .core import IntoExpr, parse_expr
+from .trend import wma as _wma
 
 
 def zscore(
@@ -44,15 +45,15 @@ def percentile_rank(
     c = parse_expr(close)
 
     def _calc_rank(s: pl.Series) -> pl.Series:
-        vals = s.to_list()
+        vals = s.to_numpy()
         n = len(vals)
-        out = [None] * n
+        out = np.full(n, np.nan, dtype=np.float64)
         for i in range(period - 1, n):
             window = vals[i - period + 1 : i + 1]
-            if any(x is None for x in window):
+            if np.isnan(window).any():
                 continue
             last = window[-1]
-            count = sum(1 for x in window if x <= last)
+            count = np.sum(window <= last)
             out[i] = count / float(period)
         return pl.Series(out, dtype=pl.Float64)
 
@@ -208,8 +209,7 @@ def linear_regression_slope(
     """
     c = parse_expr(close)
     sma = c.rolling_mean(window_size=period)
-    weights: Sequence[float] = list(range(1, period + 1))
-    wma = c.rolling_mean(window_size=period, weights=weights)
+    wma = _wma(c, period=period)
     return (wma - sma) * (6.0 / float(period - 1))
 
 
@@ -227,8 +227,7 @@ def linear_regression_intercept(
     """
     c = parse_expr(close)
     sma = c.rolling_mean(window_size=period)
-    weights: Sequence[float] = list(range(1, period + 1))
-    wma = c.rolling_mean(window_size=period, weights=weights)
+    wma = _wma(c, period=period)
     return 4.0 * sma - 3.0 * wma
 
 
@@ -262,6 +261,5 @@ def linear_regression_forecast(
     """
     c = parse_expr(close)
     sma = c.rolling_mean(window_size=period)
-    weights: Sequence[float] = list(range(1, period + 1))
-    wma = c.rolling_mean(window_size=period, weights=weights)
+    wma = _wma(c, period=period)
     return 3.0 * wma - 2.0 * sma

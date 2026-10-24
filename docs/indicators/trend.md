@@ -1,4 +1,4 @@
-# Trend Indicators & Overlays (25 Indicators)
+# Trend Indicators & Overlays (26 Indicators)
 
 Trend indicators identify the direction and momentum of price movements, smooth market noise, and generate trailing stop and support/resistance levels.
 
@@ -66,6 +66,9 @@ SuperTrend Volatility Stop. Returns Struct: `supertrend`, `direction` ($1$ for b
 
 ### `psar(high, low, af_step=0.02, af_max=0.2)`
 Parabolic Stop and Reverse (Trailing SAR).
+
+### `ssl_channel(high, low, close, period=10)`
+SSL Channel (Securement Stop Loss Channel). Returns Struct: `ssl_up`, `ssl_down`, `hlv` ($1$ for bull, $-1$ for bear).
 
 ### `center_of_gravity(close, period=10)`
 John Ehlers' Center of Gravity Oscillator. Detects cycle turning points with zero lag.

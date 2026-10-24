@@ -1,4 +1,4 @@
-# Momentum Oscillators (19 Indicators)
+# Momentum Oscillators (20 Indicators)
 
 Momentum indicators measure the velocity, acceleration, and overbought/oversold extremes of price movements.
 
@@ -60,3 +60,6 @@ Balance of Market Power: $(Close - Open) / (High - Low)$.
 
 ### `cfo(close, period=14)`
 Chande Forecast Oscillator. Percentage difference between actual price and linear regression forecast.
+
+### `squeeze_momentum(high, low, close, bb_period=20, bb_mult=2.0, kc_period=20, kc_mult=1.5, mom_period=None)`
+John Carter's Squeeze Momentum Indicator (popularized by LazyBear). Identifies compression consolidations and explosive breakouts using Bollinger Bands and Keltner Channels, accompanied by an OLS linear regression momentum histogram. Returns Struct: `squeeze_on`, `squeeze_off`, `no_squeeze`, `momentum`.

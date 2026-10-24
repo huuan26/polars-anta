@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from .core import IntoExpr, parse_expr, wilder_smooth
+from .core import IntoExpr, parse_expr, true_range, wilder_smooth
 from .trend import ema, wma
 
 
@@ -650,3 +650,84 @@ def cfo(close: IntoExpr, period: int = 14) -> pl.Expr:
     forecast = c.rolling_mean(window_size=period) + slope * (n - 1.0 - mean_x)
 
     return pl.when(c != 0.0).then(100.0 * (c - forecast) / c).otherwise(0.0)
+
+
+def squeeze_momentum(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    bb_period: int = 20,
+    bb_mult: float = 2.0,
+    kc_period: int = 20,
+    kc_mult: float = 1.5,
+    mom_period: int | None = None,
+) -> pl.Expr:
+    """Squeeze Momentum Indicator (John Carter / LazyBear).
+
+    Combines Bollinger Bands and Keltner Channels to identify periods of consolidation
+    (the squeeze) followed by volatility expansion breakouts, accompanied by a momentum histogram.
+
+    Returns a struct with fields:
+        - 'squeeze_on': True when Bollinger Bands are inside Keltner Channels (consolidation)
+        - 'squeeze_off': True when Bollinger Bands have expanded outside Keltner Channels (breakout)
+        - 'no_squeeze': True when neither squeeze_on nor squeeze_off
+        - 'momentum': Linear regression endpoint of price relative to the average of Donchian midline and SMA
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param bb_period: Bollinger Bands lookback period (default 20)
+    :param bb_mult: Bollinger Bands standard deviation multiplier (default 2.0)
+    :param kc_period: Keltner Channels lookback period (default 20)
+    :param kc_mult: Keltner Channels range multiplier (default 1.5)
+    :param mom_period: Momentum linear regression lookback period (default None, uses kc_period)
+    :return: Polars Struct expression
+    """
+    if bb_period <= 0 or kc_period <= 0:
+        raise ValueError("periods must be positive integers greater than zero")
+    effective_mom = mom_period if mom_period is not None else kc_period
+    if effective_mom <= 0:
+        raise ValueError("mom_period must be a positive integer greater than zero")
+
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+
+    # 1. Bollinger Bands
+    basis_bb = c.rolling_mean(window_size=bb_period)
+    dev_bb = c.rolling_std(window_size=bb_period) * float(bb_mult)
+    upper_bb = basis_bb + dev_bb
+    lower_bb = basis_bb - dev_bb
+
+    # 2. Keltner Channels
+    basis_kc = c.rolling_mean(window_size=kc_period)
+    tr = true_range(hi, lo, c)
+    range_kc = tr.rolling_mean(window_size=kc_period) * float(kc_mult)
+    upper_kc = basis_kc + range_kc
+    lower_kc = basis_kc - range_kc
+
+    # Squeeze states
+    null_mask = upper_bb.is_null() | upper_kc.is_null()
+    sqz_on = pl.when(null_mask).then(None).otherwise((lower_bb > lower_kc) & (upper_bb < upper_kc))
+    sqz_off = pl.when(null_mask).then(None).otherwise((lower_bb < lower_kc) & (upper_bb > upper_kc))
+    no_sqz = pl.when(null_mask).then(None).otherwise((~sqz_on) & (~sqz_off))
+
+    # 3. Momentum Histogram
+    highest_h = hi.rolling_max(window_size=kc_period)
+    lowest_l = lo.rolling_min(window_size=kc_period)
+    avg_hl = (highest_h + lowest_l) / 2.0
+    avg_mid = (avg_hl + basis_kc) / 2.0
+    delta = c - avg_mid
+
+    sma_delta = delta.rolling_mean(window_size=effective_mom)
+    wma_delta = wma(delta, period=effective_mom)
+    momentum = 3.0 * wma_delta - 2.0 * sma_delta
+
+    return pl.struct(
+        [
+            sqz_on.alias("squeeze_on"),
+            sqz_off.alias("squeeze_off"),
+            no_sqz.alias("no_squeeze"),
+            momentum.alias("momentum"),
+        ]
+    )

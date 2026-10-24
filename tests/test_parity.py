@@ -9,8 +9,9 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from polars_anta.momentum import squeeze_momentum
 from polars_anta.stats import linear_regression_slope, zscore
-from polars_anta.trend import dema, ema, sma, wma
+from polars_anta.trend import dema, ema, sma, ssl_channel, wma
 from polars_anta.volatility import bollinger_bands
 
 
@@ -158,3 +159,94 @@ def test_zscore_parity(golden_price_series: list[float]):
         std = variance**0.5
         expected_z = (golden_price_series[i] - mean) / std
         assert pytest.approx(res[i], abs=1e-6) == expected_z
+
+
+def test_ssl_channel_mathematical_parity():
+    # Synthetic test sequence with predictable state transitions
+    highs = [12.0, 13.0, 14.0, 15.0, 16.0, 15.0, 14.0, 13.0, 12.0, 11.0]
+    lows = [8.0, 9.0, 10.0, 11.0, 12.0, 11.0, 10.0, 9.0, 8.0, 7.0]
+    closes = [10.0, 11.0, 15.5, 14.0, 13.0, 8.5, 9.0, 9.5, 6.0, 7.0]
+    period = 3
+
+    df = pl.DataFrame({"high": highs, "low": lows, "close": closes})
+    res = df.select(ssl_channel("high", "low", "close", period=period).alias("ssl")).unnest("ssl")
+
+    ssl_up = res["ssl_up"].to_list()
+    ssl_down = res["ssl_down"].to_list()
+    hlv = res["hlv"].to_list()
+
+    # Manual step-by-step verification
+    state_hlv = 1
+    for i in range(len(closes)):
+        if i < period - 1:
+            assert ssl_up[i] is None
+            assert ssl_down[i] is None
+            assert hlv[i] is None
+            continue
+
+        sma_h = sum(highs[i - period + 1 : i + 1]) / float(period)
+        sma_l = sum(lows[i - period + 1 : i + 1]) / float(period)
+        c = closes[i]
+
+        if c > sma_h:
+            state_hlv = 1
+        elif c < sma_l:
+            state_hlv = -1
+
+        expected_up = sma_l if state_hlv < 0 else sma_h
+        expected_down = sma_h if state_hlv < 0 else sma_l
+
+        assert hlv[i] == state_hlv
+        assert pytest.approx(ssl_up[i], abs=1e-7) == expected_up
+        assert pytest.approx(ssl_down[i], abs=1e-7) == expected_down
+
+
+def test_squeeze_momentum_mathematical_parity():
+    # Synthetic test sequence
+    highs = [10.0 + i * 0.2 for i in range(40)]
+    lows = [8.0 + i * 0.2 for i in range(40)]
+    closes = [9.0 + i * 0.2 for i in range(40)]
+
+    df = pl.DataFrame({"high": highs, "low": lows, "close": closes})
+    res = df.select(
+        squeeze_momentum(
+            "high",
+            "low",
+            "close",
+            bb_period=10,
+            bb_mult=2.0,
+            kc_period=10,
+            kc_mult=1.5,
+            mom_period=10,
+        ).alias("sqz")
+    ).unnest("sqz")
+
+    sqz_on = res["squeeze_on"].to_list()
+    sqz_off = res["squeeze_off"].to_list()
+    momentum = res["momentum"].to_list()
+
+    # Manual check at the final index
+    idx = 39
+    c_win = closes[idx - 9 : idx + 1]
+    bb_mean = sum(c_win) / 10.0
+    bb_std = (sum((x - bb_mean) ** 2 for x in c_win) / 9.0) ** 0.5
+    up_bb = bb_mean + 2.0 * bb_std
+    lo_bb = bb_mean - 2.0 * bb_std
+
+    kc_mean = bb_mean
+    tr_win = [
+        max(highs[k] - lows[k], abs(highs[k] - closes[k - 1]), abs(lows[k] - closes[k - 1]))
+        if k > 0
+        else highs[k] - lows[k]
+        for k in range(idx - 9, idx + 1)
+    ]
+    kc_range = (sum(tr_win) / 10.0) * 1.5
+    up_kc = kc_mean + kc_range
+    lo_kc = kc_mean - kc_range
+
+    expected_on = lo_bb > lo_kc and up_bb < up_kc
+    expected_off = lo_bb < lo_kc and up_bb > up_kc
+
+    assert sqz_on[idx] == expected_on
+    assert sqz_off[idx] == expected_off
+    assert momentum[idx] is not None

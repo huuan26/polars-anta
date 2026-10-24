@@ -23,6 +23,7 @@ from polars_anta.trend import (
     pivot_points,
     psar,
     sma,
+    ssl_channel,
     supertrend,
     t3,
     tema,
@@ -296,3 +297,43 @@ def test_pivots(sample_ohlcv_df: pl.DataFrame):
     ).unnest("p")
     assert "pivot" in res_wd.columns
     assert "r2" in res_wd.columns
+
+
+def test_ssl_channel(sample_ohlcv_df: pl.DataFrame):
+    # Direct function call
+    result = sample_ohlcv_df.select(
+        ssl_channel("high", "low", "close", period=10).alias("ssl")
+    ).unnest("ssl")
+
+    assert "ssl_up" in result.columns
+    assert "ssl_down" in result.columns
+    assert "hlv" in result.columns
+
+    up_vals = [x for x in result["ssl_up"].to_list() if x is not None]
+    down_vals = [x for x in result["ssl_down"].to_list() if x is not None]
+    hlv_vals = [x for x in result["hlv"].to_list() if x is not None]
+
+    assert len(up_vals) > 0
+    assert len(down_vals) > 0
+    assert len(hlv_vals) > 0
+
+    for h in hlv_vals:
+        assert h in (1, -1)
+    for u, d in zip(up_vals, down_vals, strict=False):
+        assert u > 0.0
+        assert d > 0.0
+
+    # Namespace expression test (.anta and .ta)
+    res_anta = sample_ohlcv_df.select(
+        pl.col("close").anta.ssl_channel("high", "low", period=10).alias("ssl")
+    ).unnest("ssl")
+    assert "ssl_up" in res_anta.columns
+
+    res_ta = sample_ohlcv_df.select(
+        pl.col("close").ta.ssl_channel("high", "low", period=10).alias("ssl")
+    ).unnest("ssl")
+    assert "ssl_down" in res_ta.columns
+
+    # Invalid period
+    with pytest.raises(ValueError, match="period must be a positive integer"):
+        sample_ohlcv_df.select(ssl_channel("high", "low", "close", period=0))

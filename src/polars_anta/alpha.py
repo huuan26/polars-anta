@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 
+import numpy as np
 import polars as pl
 
 from .core import IntoExpr, parse_expr
+from .trend import wma
 
 
 def ts_rank(
@@ -26,15 +27,15 @@ def ts_rank(
     c = parse_expr(close)
 
     def _calc_rank(s: pl.Series) -> pl.Series:
-        vals = s.to_list()
+        vals = s.to_numpy()
         n = len(vals)
-        out = [None] * n
+        out = np.full(n, np.nan, dtype=np.float64)
         for i in range(period - 1, n):
             window = vals[i - period + 1 : i + 1]
-            if any(x is None for x in window):
+            if np.isnan(window).any():
                 continue
             last = window[-1]
-            count = sum(1 for x in window if x <= last)
+            count = np.sum(window <= last)
             out[i] = count / float(period)
         return pl.Series(out, dtype=pl.Float64)
 
@@ -57,22 +58,22 @@ def ts_argmax(
     c = parse_expr(close)
 
     def _calc_argmax(s: pl.Series) -> pl.Series:
-        vals = s.to_list()
+        vals = s.to_numpy()
         n = len(vals)
-        out = [None] * n
+        out = np.full(n, np.nan, dtype=np.float64)
         for i in range(period - 1, n):
             window = vals[i - period + 1 : i + 1]
-            if any(x is None for x in window):
+            if np.isnan(window).any():
                 continue
-            max_val = max(window)
+            max_val = np.max(window)
             # Find the most recent bar index with this max value
             # window[-1] is 0 bars ago, window[0] is period-1 bars ago
-            idx_from_end = 0
+            idx_from_end = 0.0
             for k in range(len(window) - 1, -1, -1):
                 if window[k] == max_val:
-                    idx_from_end = len(window) - 1 - k
+                    idx_from_end = float(len(window) - 1 - k)
                     break
-            out[i] = float(idx_from_end)
+            out[i] = idx_from_end
         return pl.Series(out, dtype=pl.Float64)
 
     return c.map_batches(_calc_argmax, return_dtype=pl.Float64)
@@ -94,20 +95,20 @@ def ts_argmin(
     c = parse_expr(close)
 
     def _calc_argmin(s: pl.Series) -> pl.Series:
-        vals = s.to_list()
+        vals = s.to_numpy()
         n = len(vals)
-        out = [None] * n
+        out = np.full(n, np.nan, dtype=np.float64)
         for i in range(period - 1, n):
             window = vals[i - period + 1 : i + 1]
-            if any(x is None for x in window):
+            if np.isnan(window).any():
                 continue
-            min_val = min(window)
-            idx_from_end = 0
+            min_val = np.min(window)
+            idx_from_end = 0.0
             for k in range(len(window) - 1, -1, -1):
                 if window[k] == min_val:
-                    idx_from_end = len(window) - 1 - k
+                    idx_from_end = float(len(window) - 1 - k)
                     break
-            out[i] = float(idx_from_end)
+            out[i] = idx_from_end
         return pl.Series(out, dtype=pl.Float64)
 
     return c.map_batches(_calc_argmin, return_dtype=pl.Float64)
@@ -126,8 +127,7 @@ def decay_linear(
     :return: Polars expression
     """
     c = parse_expr(close)
-    weights: Sequence[float] = list(range(1, period + 1))
-    return c.rolling_mean(window_size=period, weights=weights)
+    return wma(c, period=period)
 
 
 def ts_zscore(
@@ -292,18 +292,18 @@ def entropy(
     c = parse_expr(close)
 
     def _calc_entropy(s: pl.Series) -> pl.Series:
-        vals = s.to_list()
+        vals = s.to_numpy()
         n = len(vals)
-        out = [None] * n
+        out = np.full(n, np.nan, dtype=np.float64)
         for i in range(period, n):
             window = vals[i - period : i + 1]
-            if any(x is None for x in window):
+            if np.isnan(window).any():
                 continue
             rets = []
             for j in range(1, len(window)):
                 p0 = window[j - 1]
                 p1 = window[j]
-                if p0 is not None and p1 is not None and p0 > 0 and p1 > 0:
+                if p0 > 0 and p1 > 0:
                     rets.append(math.log(p1 / p0))
             if len(rets) < bins:
                 continue

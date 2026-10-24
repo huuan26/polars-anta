@@ -20,6 +20,7 @@ from polars_anta.momentum import (
     roc,
     rsi,
     rvi,
+    squeeze_momentum,
     stoch_rsi,
     stochastic,
     tsi,
@@ -224,3 +225,59 @@ def test_cfo(sample_ohlcv_df: pl.DataFrame):
     result = sample_ohlcv_df.select(cfo("close", period=5).alias("cfo"))
     vals = [x for x in result["cfo"].to_list() if x is not None]
     assert len(vals) > 0
+
+
+def test_squeeze_momentum(sample_ohlcv_df: pl.DataFrame):
+    # Direct function call
+    result = sample_ohlcv_df.select(
+        squeeze_momentum(
+            "high",
+            "low",
+            "close",
+            bb_period=10,
+            bb_mult=2.0,
+            kc_period=10,
+            kc_mult=1.5,
+            mom_period=10,
+        ).alias("sqz")
+    ).unnest("sqz")
+
+    assert "squeeze_on" in result.columns
+    assert "squeeze_off" in result.columns
+    assert "no_squeeze" in result.columns
+    assert "momentum" in result.columns
+
+    sqz_on = [x for x in result["squeeze_on"].to_list() if x is not None]
+    sqz_off = [x for x in result["squeeze_off"].to_list() if x is not None]
+    no_sqz = [x for x in result["no_squeeze"].to_list() if x is not None]
+    mom = [x for x in result["momentum"].to_list() if x is not None]
+
+    assert len(sqz_on) > 0
+    assert len(sqz_off) > 0
+    assert len(no_sqz) > 0
+    assert len(mom) > 0
+
+    # Mutual consistency: on and off cannot both be true simultaneously
+    for on, off in zip(sqz_on, sqz_off, strict=False):
+        assert not (on and off)
+
+    # Namespace expression test (.anta and .ta)
+    res_anta = sample_ohlcv_df.select(
+        pl.col("close")
+        .anta.squeeze_momentum("high", "low", bb_period=10, kc_period=10)
+        .alias("sqz")
+    ).unnest("sqz")
+    assert "momentum" in res_anta.columns
+
+    res_ta = sample_ohlcv_df.select(
+        pl.col("close").ta.squeeze_momentum("high", "low", bb_period=10, kc_period=10).alias("sqz")
+    ).unnest("sqz")
+    assert "squeeze_on" in res_ta.columns
+
+    # Invalid arguments
+    with pytest.raises(ValueError, match="periods must be positive integers"):
+        sample_ohlcv_df.select(squeeze_momentum("high", "low", "close", bb_period=0))
+    with pytest.raises(ValueError, match="mom_period must be a positive integer"):
+        sample_ohlcv_df.select(
+            squeeze_momentum("high", "low", "close", bb_period=10, kc_period=10, mom_period=-1)
+        )

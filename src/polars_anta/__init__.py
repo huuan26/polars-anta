@@ -32,6 +32,7 @@ from .momentum import (
     roc,
     rsi,
     rvi,
+    squeeze_momentum,
     stoch_rsi,
     stochastic,
     tsi,
@@ -70,6 +71,7 @@ from .trend import (
     pivot_points,
     psar,
     sma,
+    ssl_channel,
     supertrend,
     t3,
     tema,
@@ -119,8 +121,9 @@ from .volume import (
 __version__ = "0.1.0"
 
 __all__ = [
-    # Trend (25)
+    # Trend (26)
     "sma",
+    "ssl_channel",
     "ema",
     "wma",
     "hma",
@@ -145,10 +148,11 @@ __all__ = [
     "fibonacci_pivots",
     "camarilla_pivots",
     "woodie_pivots",
-    # Momentum (19)
+    # Momentum (20)
     "rsi",
     "macd",
     "stochastic",
+    "squeeze_momentum",
     "williams_r",
     "cci",
     "roc",

@@ -195,8 +195,17 @@ class TechnicalAnalysisExpr:
         """Woodie's Pivot Points."""
         return trend.woodie_pivots(open_=open_, high=high, low=low, close=self._expr)
 
+    def ssl_channel(
+        self,
+        high: IntoExpr,
+        low: IntoExpr,
+        period: int = 10,
+    ) -> pl.Expr:
+        """SSL Channel (Securement Stop Loss Channel)."""
+        return trend.ssl_channel(high=high, low=low, close=self._expr, period=period)
+
     # =========================================================================
-    # Momentum Indicators (19)
+    # Momentum Indicators (20)
     # =========================================================================
 
     def rsi(self, period: int = 14) -> pl.Expr:
@@ -420,6 +429,28 @@ class TechnicalAnalysisExpr:
     def cfo(self, period: int = 14) -> pl.Expr:
         """Chande Forecast Oscillator (CFO)."""
         return momentum.cfo(self._expr, period=period)
+
+    def squeeze_momentum(
+        self,
+        high: IntoExpr,
+        low: IntoExpr,
+        bb_period: int = 20,
+        bb_mult: float = 2.0,
+        kc_period: int = 20,
+        kc_mult: float = 1.5,
+        mom_period: int | None = None,
+    ) -> pl.Expr:
+        """Squeeze Momentum Indicator (John Carter / LazyBear)."""
+        return momentum.squeeze_momentum(
+            high=high,
+            low=low,
+            close=self._expr,
+            bb_period=bb_period,
+            bb_mult=bb_mult,
+            kc_period=kc_period,
+            kc_mult=kc_mult,
+            mom_period=mom_period,
+        )
 
     # =========================================================================
     # Volatility Indicators (14)

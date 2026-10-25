@@ -313,3 +313,10 @@ def test_fractal_dimension_mathematical_parity():
     # On straight linear diagonal line, fractal dimension is close to 1.0
     for v in vals:
         assert 1.0 <= v <= 1.2
+
+
+def test_package_version_and_metadata():
+    """Verify package version is 0.2.0 and matches project release."""
+    import polars_anta
+
+    assert polars_anta.__version__ == "0.2.0"

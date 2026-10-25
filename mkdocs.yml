@@ -68,7 +68,7 @@ nav:
       - Volatility & Channels (18): indicators/volatility.md
       - Volume Dynamics (15): indicators/volume.md
       - Quantitative Statistics (12): indicators/stats.md
-      - Alpha Factor Primitives (14): indicators/alpha.md
+      - Alpha Factor Primitives (31): indicators/alpha.md
   - Guides:
       - Multi-Asset Scaling: guides/multi-asset.md
       - Resampling & DataFrame API: guides/resampling-and-dataframe-api.md

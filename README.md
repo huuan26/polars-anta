@@ -15,7 +15,7 @@
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Zero C Dependencies](https://img.shields.io/badge/dependencies-pure%20polars-brightgreen)](#)
 
-[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-106-indicators) • [Development](#development--testing)
+[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-123-indicators--alpha-primitives) • [Development](#development--testing)
 
 </div>
 
@@ -167,7 +167,7 @@ Run our interactive tutorials directly in your browser with zero setup:
 
 ---
 
-## Supported Indicators (106 Indicators)
+## Supported Indicators (123 Indicators & Alpha Primitives)
 
 ### Trend & Overlays (27 Indicators)
 - **`sma(close, period=10)`**: Simple Moving Average
@@ -271,7 +271,20 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`linear_regression_angle(close, period=14)`**: Linear Regression Trend Angle in degrees
 - **`linear_regression_forecast(close, period=14)`**: Linear Regression Current/Next-Bar Value Forecast
 
-### Alpha Factor Primitives (14 Indicators)
+### Alpha Factor Primitives & Formulaic Alphas (31 Primitives)
+- **`cs_rank(expr, over=None, method="average", percentile=True)`**: Cross-Sectional Rank (WorldQuant `rank(x)`)
+- **`neutralize(expr, by, over=None, standardize=False)`**: Group / Sector Neutralization (WorldQuant `indneutralize(x, g)`)
+- **`ts_scale(expr, a=1.0, over=None)`**: L1 Portfolio Weight Scaling (WorldQuant `scale(x, a)`)
+- **`ts_delta(expr, period=1)`**: Time-Series Delta (WorldQuant `delta(x, d)`)
+- **`ts_delay(expr, period=1)`**: Time-Series Lag / Delay (WorldQuant `delay(x, d)`)
+- **`signed_power(expr, exponent=2.0)`**: Signed Power Transformation (WorldQuant `signed_power(x, a)`)
+- **`ts_min(expr, period=10)`**: Rolling Time-Series Minimum (WorldQuant `ts_min(x, d)`)
+- **`ts_max(expr, period=10)`**: Rolling Time-Series Maximum (WorldQuant `ts_max(x, d)`)
+- **`ts_sum(expr, period=10)`**: Rolling Time-Series Sum (WorldQuant `ts_sum(x, d)`)
+- **`ts_std(expr, period=10)`**: Rolling Time-Series Standard Deviation (WorldQuant `ts_std(x, d)`)
+- **`ts_correlation(x, y, period=10)`**: Rolling Pearson Correlation (WorldQuant `correlation(x, y, d)`)
+- **`ts_covariance(x, y, period=10)`**: Rolling Sample Covariance (WorldQuant `covariance(x, y, d)`)
+- **`ts_product(expr, period=10)`**: Rolling Time-Series Product (WorldQuant `product(x, d)`)
 - **`ts_rank(close, period=10)`**: Time-Series Rank (WorldQuant Alpha 101 primitive)
 - **`ts_argmax(close, period=10)`**: Time-Series ArgMax (lookback bars ago of window peak)
 - **`ts_argmin(close, period=10)`**: Time-Series ArgMin (lookback bars ago of window trough)
@@ -286,6 +299,10 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`entropy(close, period=20, bins=5)`**: Rolling Shannon Information Entropy (Regime detector)
 - **`fractal_dimension(high, low, period=20)`**: Ehlers' Fractal Dimension $[1.0, 2.0]$ (Market roughness/efficiency)
 - **`hurst_exponent(close, period=50)`**: Rolling Hurst Exponent $[0.0, 1.0]$ (Persistence & memory)
+- **`alpha_001(close, returns=None, over=None)`**: WorldQuant Formulaic Alpha #1
+- **`alpha_041(high, low, close, volume)`**: WorldQuant Formulaic Alpha #41
+- **`alpha_054(open, high, low, close)`**: WorldQuant Formulaic Alpha #54
+- **`alpha_101(open, high, low, close)`**: WorldQuant Formulaic Alpha #101
 
 ---
 

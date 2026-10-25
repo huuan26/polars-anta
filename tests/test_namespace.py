@@ -226,6 +226,23 @@ def test_namespace_alpha(sample_ohlcv_df: pl.DataFrame):
             pl.col("high").ta.relative_spread(low="low", close="close").alias("rel_spread"),
             pl.col("high").ta.twap(low="low", close="close", period=5).alias("twap"),
             pl.col("close").ta.entropy(period=10, bins=3).alias("entropy"),
+            pl.col("close").ta.cs_rank().alias("cs_rank"),
+            pl.col("close").ta.neutralize(by="open").alias("neut"),
+            pl.col("close").ta.ts_scale(a=1.0).alias("scale"),
+            pl.col("close").ta.ts_delta(period=2).alias("delta"),
+            pl.col("close").ta.ts_delay(period=2).alias("delay"),
+            pl.col("close").ta.signed_power(exponent=2.0).alias("sp"),
+            pl.col("close").ta.ts_min(5).alias("min5"),
+            pl.col("close").ta.ts_max(5).alias("max5"),
+            pl.col("close").ta.ts_sum(5).alias("sum5"),
+            pl.col("close").ta.ts_std(5).alias("std5"),
+            pl.col("close").ta.ts_correlation("volume", period=5).alias("corr5"),
+            pl.col("close").ta.ts_covariance("volume", period=5).alias("cov5"),
+            pl.col("close").ta.ts_product(3).alias("prod3"),
+            pl.col("close").ta.alpha_001().alias("a001"),
+            pl.col("high").ta.alpha_041(low="low", close="close", volume="volume").alias("a041"),
+            pl.col("open").ta.alpha_054(high="high", low="low", close="close").alias("a054"),
+            pl.col("open").ta.alpha_101(high="high", low="low", close="close").alias("a101"),
         ]
     )
 
@@ -235,6 +252,16 @@ def test_namespace_alpha(sample_ohlcv_df: pl.DataFrame):
     assert "hl_r" in df_res.columns
     assert "twap" in df_res.columns
     assert "entropy" in df_res.columns
+    assert "cs_rank" in df_res.columns
+    assert "neut" in df_res.columns
+    assert "scale" in df_res.columns
+    assert "delta" in df_res.columns
+    assert "sp" in df_res.columns
+    assert "min5" in df_res.columns
+    assert "corr5" in df_res.columns
+    assert "prod3" in df_res.columns
+    assert "a001" in df_res.columns
+    assert "a101" in df_res.columns
 
 
 def test_namespace_anta_prefix(sample_ohlcv_df: pl.DataFrame):

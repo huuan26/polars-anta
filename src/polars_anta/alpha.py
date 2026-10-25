@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
+from typing import Literal
 
 import numpy as np
 import polars as pl
 
 from .core import IntoExpr, parse_expr
+from .stats import rolling_corr, rolling_cov
 from .trend import wma
+from .volume import vwap as _calc_vwap
 
 
 def ts_rank(
@@ -415,3 +419,361 @@ def hurst_exponent(
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_hurst, return_dtype=pl.Float64)
+
+
+def cs_rank(
+    expr: IntoExpr,
+    over: IntoExpr | Sequence[str] | None = None,
+    method: Literal["average", "min", "max", "dense", "ordinal", "random"] = "average",
+    percentile: bool = True,
+) -> pl.Expr:
+    """Cross-Sectional Rank (WorldQuant Alpha primitive 'rank(x)').
+
+    Computes the cross-sectional rank of values across assets at each point in time.
+    When `percentile=True`, scales the ranks between 1/N and 1.0 (or 0.0 to 1.0).
+
+    :param expr: Feature column or expression to rank.
+    :param over: Column name(s) identifying the cross-section window (typically timestamp/date).
+    :param method: Ranking method for ties ('average', 'min', 'max', 'dense', 'ordinal', 'random').
+    :param percentile: If True, returns percentile rank in (0, 1]; if False, returns integer rank.
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    if over is not None:
+        over_cols = [over] if isinstance(over, str) else list(over)
+        ranked = e.rank(method=method).over(over_cols)
+        if percentile:
+            count = e.count().over(over_cols)
+            return ranked / count
+        return ranked
+    else:
+        ranked = e.rank(method=method)
+        if percentile:
+            count = e.count()
+            return ranked / count
+        return ranked
+
+
+def neutralize(
+    expr: IntoExpr,
+    by: IntoExpr | Sequence[str],
+    over: IntoExpr | Sequence[str] | None = None,
+    standardize: bool = False,
+) -> pl.Expr:
+    """Group / Industry / Sector Neutralization (WorldQuant Alpha primitive 'indneutralize(x, g)').
+
+    Demeans (or standardizes) an alpha signal within categorical groups (e.g. industry, sector),
+    ensuring the resulting signal is dollar-neutral or risk-neutral with respect to that classification.
+
+    :param expr: Alpha signal column or expression to neutralize.
+    :param by: Grouping column(s) representing industry, sector, or market-cap classification.
+    :param over: Optional cross-sectional time column (e.g., 'timestamp' or 'date').
+    :param standardize: When True, also divides by group standard deviation to yield z-scores.
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    group_cols: list[str] = []
+    if over is not None:
+        if isinstance(over, str):
+            group_cols.append(over)
+        else:
+            group_cols.extend(over)
+    if isinstance(by, str):
+        group_cols.append(by)
+    else:
+        group_cols.extend(by)
+
+    mean = e.mean().over(group_cols)
+    demeaned = e - mean
+    if standardize:
+        std = e.std().over(group_cols)
+        return pl.when(std == 0.0).then(0.0).otherwise(demeaned / std)
+    return demeaned
+
+
+def ts_scale(
+    expr: IntoExpr,
+    a: float = 1.0,
+    over: IntoExpr | Sequence[str] | None = None,
+) -> pl.Expr:
+    """Scale Primitive (WorldQuant Alpha primitive 'scale(x, a)').
+
+    Rescales values such that the sum of their absolute values equals `a`:
+    `a * x / sum(abs(x))`. Commonly used to size portfolio positions or L1 normalize.
+
+    :param expr: Signal column or expression to scale.
+    :param a: Target sum of absolute values (default 1.0).
+    :param over: Optional cross-sectional grouping column (e.g. 'timestamp').
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    if over is not None:
+        over_cols = [over] if isinstance(over, str) else list(over)
+        abs_sum = e.abs().sum().over(over_cols)
+    else:
+        abs_sum = e.abs().sum()
+    return pl.when(abs_sum == 0.0).then(0.0).otherwise((float(a) * e) / abs_sum)
+
+
+def ts_delta(
+    expr: IntoExpr,
+    period: int = 1,
+) -> pl.Expr:
+    """Time-series Delta (WorldQuant Alpha primitive 'delta(x, d)').
+
+    Computes x[t] - x[t - period].
+
+    :param expr: Feature column or expression.
+    :param period: Lag distance (default 1).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    return e - e.shift(period)
+
+
+def ts_delay(
+    expr: IntoExpr,
+    period: int = 1,
+) -> pl.Expr:
+    """Time-series Delay (WorldQuant Alpha primitive 'delay(x, d)').
+
+    Returns the lagged value x[t - period].
+
+    :param expr: Feature column or expression.
+    :param period: Lag distance (default 1).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    return e.shift(period)
+
+
+def signed_power(
+    expr: IntoExpr,
+    exponent: float = 2.0,
+) -> pl.Expr:
+    """Signed Power (WorldQuant Alpha primitive 'signed_power(x, a)').
+
+    Computes sign(x) * (|x| ** exponent). Preserves the direction/sign of the signal
+    while non-linearly expanding or contracting magnitudes.
+
+    :param expr: Signal column or expression.
+    :param exponent: Exponent power (default 2.0).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    return e.sign() * (e.abs() ** float(exponent))
+
+
+def ts_min(
+    expr: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """Time-series Rolling Minimum (WorldQuant Alpha primitive 'ts_min(x, d)').
+
+    :param expr: Feature column or expression.
+    :param period: Lookback window (default 10).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    return e.rolling_min(window_size=period)
+
+
+def ts_max(
+    expr: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """Time-series Rolling Maximum (WorldQuant Alpha primitive 'ts_max(x, d)').
+
+    :param expr: Feature column or expression.
+    :param period: Lookback window (default 10).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    return e.rolling_max(window_size=period)
+
+
+def ts_sum(
+    expr: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """Time-series Rolling Sum (WorldQuant Alpha primitive 'ts_sum(x, d)').
+
+    :param expr: Feature column or expression.
+    :param period: Lookback window (default 10).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    return e.rolling_sum(window_size=period)
+
+
+def ts_std(
+    expr: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """Time-series Rolling Standard Deviation (WorldQuant Alpha primitive 'ts_std(x, d)').
+
+    :param expr: Feature column or expression.
+    :param period: Lookback window (default 10).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+    return e.rolling_std(window_size=period)
+
+
+def ts_correlation(
+    x: IntoExpr,
+    y: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """Time-series Correlation (WorldQuant Alpha primitive 'correlation(x, y, d)').
+
+    Rolling Pearson correlation between x and y over lookback window.
+
+    :param x: First feature column or expression.
+    :param y: Second feature column or expression.
+    :param period: Lookback window (default 10).
+    :return: Polars expression.
+    """
+    return rolling_corr(x, y, period=period)
+
+
+def ts_covariance(
+    x: IntoExpr,
+    y: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """Time-series Covariance (WorldQuant Alpha primitive 'covariance(x, y, d)').
+
+    Rolling sample covariance between x and y over lookback window.
+
+    :param x: First feature column or expression.
+    :param y: Second feature column or expression.
+    :param period: Lookback window (default 10).
+    :return: Polars expression.
+    """
+    return rolling_cov(x, y, period=period)
+
+
+def ts_product(
+    expr: IntoExpr,
+    period: int = 10,
+) -> pl.Expr:
+    """Time-series Rolling Product (WorldQuant Alpha primitive 'product(x, d)').
+
+    Computes the rolling product of values over lookback window.
+
+    :param expr: Feature column or expression.
+    :param period: Lookback window (default 10).
+    :return: Polars expression.
+    """
+    e = parse_expr(expr)
+
+    def _calc_prod(s: pl.Series) -> pl.Series:
+        vals = s.to_numpy()
+        n = len(vals)
+        out = np.full(n, np.nan, dtype=np.float64)
+        for i in range(period - 1, n):
+            w = vals[i - period + 1 : i + 1]
+            if np.isnan(w).any():
+                continue
+            out[i] = float(np.prod(w))
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
+
+    return e.map_batches(_calc_prod, return_dtype=pl.Float64)
+
+
+def alpha_001(
+    close: IntoExpr,
+    returns: IntoExpr | None = None,
+    over: IntoExpr | Sequence[str] | None = None,
+) -> pl.Expr:
+    """WorldQuant Formulaic Alpha #1.
+
+    Formula:
+    `rank(ts_argmax(signed_power(returns < 0 ? ts_std(returns, 20) : close, 2), 5)) - 0.5`
+
+    :param close: Close price column or expression.
+    :param returns: Optional returns column or expression; if None, computed as close.pct_change().
+    :param over: Cross-sectional grouping column (e.g. 'timestamp').
+    :return: Polars expression.
+    """
+    c = parse_expr(close)
+    ret = parse_expr(returns) if returns is not None else c.pct_change()
+    ret_std = ret.rolling_std(window_size=20)
+    inner = pl.when(ret < 0.0).then(ret_std).otherwise(c)
+    pow_inner = signed_power(inner, 2.0)
+    argmax_inner = ts_argmax(pow_inner, period=5)
+    return cs_rank(argmax_inner, over=over) - 0.5
+
+
+def alpha_041(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+) -> pl.Expr:
+    """WorldQuant Formulaic Alpha #41.
+
+    Formula:
+    `(((high * low) ** 0.5) - vwap(high, low, close, volume))`
+
+    :param high: High price column or expression.
+    :param low: Low price column or expression.
+    :param close: Close price column or expression.
+    :param volume: Volume column or expression.
+    :return: Polars expression.
+    """
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+    v = parse_expr(volume)
+    vwap_val = _calc_vwap(hi, lo, c, v)
+    return ((hi * lo) ** 0.5) - vwap_val
+
+
+def alpha_054(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+) -> pl.Expr:
+    """WorldQuant Formulaic Alpha #54.
+
+    Formula:
+    `-(low - close) * (open ** 5) / ((low - high) * (close ** 5) + 1e-4)`
+
+    :param open_: Open price column or expression.
+    :param high: High price column or expression.
+    :param low: Low price column or expression.
+    :param close: Close price column or expression.
+    :return: Polars expression.
+    """
+    o = parse_expr(open_)
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+    return -(lo - c) * (o**5) / (((lo - hi) * (c**5)) + 1e-4)
+
+
+def alpha_101(
+    open_: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+) -> pl.Expr:
+    """WorldQuant Formulaic Alpha #101.
+
+    Formula:
+    `(close - open) / ((high - low) + 1e-4)`
+
+    :param open_: Open price column or expression.
+    :param high: High price column or expression.
+    :param low: Low price column or expression.
+    :param close: Close price column or expression.
+    :return: Polars expression.
+    """
+    o = parse_expr(open_)
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+    return (c - o) / ((hi - lo) + 1e-4)

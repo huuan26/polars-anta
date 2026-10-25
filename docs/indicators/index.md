@@ -1,6 +1,6 @@
-# Indicator Catalog (106 Indicators)
+# Indicator Catalog (123 Indicators & Alpha Primitives)
 
-`polars-anta` provides 106 high-performance financial indicators categorized into six specialized domains:
+`polars-anta` provides 123 high-performance financial indicators and alpha primitives categorized into six specialized domains:
 
 | Category | Count | Key Features | Documentation |
 | :--- | :---: | :--- | :--- |
@@ -9,8 +9,8 @@
 | **Volatility & Channels** | **18** | Bollinger, Keltner, Donchian, ATR, Parkinson, Garman-Klass, Envelopes | [View Volatility Docs](volatility.md) |
 | **Volume Dynamics** | **15** | OBV, VWAP, VWAP Bands, VWMA, CMF, Klinger, NVI, PVI, Elder's Force Index | [View Volume Docs](volume.md) |
 | **Quantitative Statistics** | **12** | Z-score, Skewness, Kurtosis, Rolling Cov/Corr, Rolling Beta/Alpha, OLS | [View Statistics Docs](stats.md) |
-| **Alpha Factor Primitives** | **14** | WorldQuant 101 Alphas, ts_rank, ts_argmax, Decay Linear, Entropy, Fractal Dimension, Hurst | [View Alpha Docs](alpha.md) |
-| **Total Catalog** | **106** | Pure Polars Expressions (`pl.Expr`) with `.over("ticker")` support | |
+| **Alpha Factor Primitives** | **31** | WorldQuant 101 Alphas, cs_rank, neutralize, ts_scale, ts_delta, ts_delay, decay_linear, signed_power, ts_rank, Entropy, Fractal Dimension, Hurst, Alpha 1, 41, 54, 101 | [View Alpha Docs](alpha.md) |
+| **Total Catalog** | **123** | Pure Polars Expressions (`pl.Expr`) with `.over("ticker")` support | |
 
 ---
 

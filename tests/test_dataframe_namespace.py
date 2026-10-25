@@ -219,3 +219,45 @@ def test_namespace_ta_vs_anta_equivalence(sample_time_ohlcv_df: pl.DataFrame):
     df_ta = sample_time_ohlcv_df.ta.sma(5).ta.rsi(10).ta.obv()
 
     assert df_anta.equals(df_ta)
+
+
+def test_df_namespace_alpha_primitives(sample_time_ohlcv_df: pl.DataFrame):
+    """Test all Alpha factor primitives on DataFrame namespace."""
+    df_with_sector = sample_time_ohlcv_df.with_columns(pl.lit("Tech").alias("sector"))
+    res = (
+        df_with_sector.anta.cs_rank(over="timestamp")
+        .anta.neutralize(by="sector")
+        .anta.ts_scale(a=1.0)
+        .anta.ts_delta(period=2)
+        .anta.ts_delay(period=2)
+        .anta.signed_power(exponent=2.0)
+        .anta.ts_min(period=5)
+        .anta.ts_max(period=5)
+        .anta.ts_sum(period=5)
+        .anta.ts_std(period=5)
+        .anta.ts_correlation(other="volume", period=5)
+        .anta.ts_covariance(other="volume", period=5)
+        .anta.ts_product(period=3)
+        .anta.alpha_001()
+        .anta.alpha_041()
+        .anta.alpha_054()
+        .anta.alpha_101()
+    )
+
+    assert "cs_rank" in res.columns
+    assert "neutralized" in res.columns
+    assert "scaled" in res.columns
+    assert "delta_2" in res.columns
+    assert "delay_2" in res.columns
+    assert "signed_power_2.0" in res.columns
+    assert "ts_min_5" in res.columns
+    assert "ts_max_5" in res.columns
+    assert "ts_sum_5" in res.columns
+    assert "ts_std_5" in res.columns
+    assert "ts_corr_5" in res.columns
+    assert "ts_cov_5" in res.columns
+    assert "ts_prod_3" in res.columns
+    assert "alpha_001" in res.columns
+    assert "alpha_041" in res.columns
+    assert "alpha_054" in res.columns
+    assert "alpha_101" in res.columns

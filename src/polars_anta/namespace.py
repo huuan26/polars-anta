@@ -956,6 +956,107 @@ class TechnicalAnalysisExpr:
         """Rolling Hurst Exponent."""
         return alpha.hurst_exponent(close=self._expr, period=period)
 
+    def cs_rank(
+        self,
+        over: IntoExpr | Sequence[str] | None = None,
+        method: Literal["average", "min", "max", "dense", "ordinal", "random"] = "average",
+        percentile: bool = True,
+    ) -> pl.Expr:
+        """Cross-Sectional Rank (WorldQuant Alpha primitive 'rank(x)')."""
+        return alpha.cs_rank(self._expr, over=over, method=method, percentile=percentile)
+
+    def neutralize(
+        self,
+        by: IntoExpr | Sequence[str],
+        over: IntoExpr | Sequence[str] | None = None,
+        standardize: bool = False,
+    ) -> pl.Expr:
+        """Group / Industry Neutralization (WorldQuant Alpha primitive 'indneutralize(x, g)')."""
+        return alpha.neutralize(self._expr, by=by, over=over, standardize=standardize)
+
+    def ts_scale(
+        self,
+        a: float = 1.0,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """Scale Primitive (WorldQuant Alpha primitive 'scale(x, a)')."""
+        return alpha.ts_scale(self._expr, a=a, over=over)
+
+    def ts_delta(self, period: int = 1) -> pl.Expr:
+        """Time-series Delta (WorldQuant Alpha primitive 'delta(x, d)')."""
+        return alpha.ts_delta(self._expr, period=period)
+
+    def ts_delay(self, period: int = 1) -> pl.Expr:
+        """Time-series Delay (WorldQuant Alpha primitive 'delay(x, d)')."""
+        return alpha.ts_delay(self._expr, period=period)
+
+    def signed_power(self, exponent: float = 2.0) -> pl.Expr:
+        """Signed Power (WorldQuant Alpha primitive 'signed_power(x, a)')."""
+        return alpha.signed_power(self._expr, exponent=exponent)
+
+    def ts_min(self, period: int = 10) -> pl.Expr:
+        """Time-series Rolling Minimum (WorldQuant Alpha primitive 'ts_min(x, d)')."""
+        return alpha.ts_min(self._expr, period=period)
+
+    def ts_max(self, period: int = 10) -> pl.Expr:
+        """Time-series Rolling Maximum (WorldQuant Alpha primitive 'ts_max(x, d)')."""
+        return alpha.ts_max(self._expr, period=period)
+
+    def ts_sum(self, period: int = 10) -> pl.Expr:
+        """Time-series Rolling Sum (WorldQuant Alpha primitive 'ts_sum(x, d)')."""
+        return alpha.ts_sum(self._expr, period=period)
+
+    def ts_std(self, period: int = 10) -> pl.Expr:
+        """Time-series Rolling Standard Deviation (WorldQuant Alpha primitive 'ts_std(x, d)')."""
+        return alpha.ts_std(self._expr, period=period)
+
+    def ts_correlation(self, other: IntoExpr, period: int = 10) -> pl.Expr:
+        """Time-series Correlation (WorldQuant Alpha primitive 'correlation(x, y, d)')."""
+        return alpha.ts_correlation(self._expr, other, period=period)
+
+    def ts_covariance(self, other: IntoExpr, period: int = 10) -> pl.Expr:
+        """Time-series Covariance (WorldQuant Alpha primitive 'covariance(x, y, d)')."""
+        return alpha.ts_covariance(self._expr, other, period=period)
+
+    def ts_product(self, period: int = 10) -> pl.Expr:
+        """Time-series Rolling Product (WorldQuant Alpha primitive 'product(x, d)')."""
+        return alpha.ts_product(self._expr, period=period)
+
+    def alpha_001(
+        self,
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #1."""
+        return alpha.alpha_001(close=self._expr, returns=returns, over=over)
+
+    def alpha_041(
+        self,
+        low: IntoExpr,
+        close: IntoExpr,
+        volume: IntoExpr,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #41."""
+        return alpha.alpha_041(high=self._expr, low=low, close=close, volume=volume)
+
+    def alpha_054(
+        self,
+        high: IntoExpr,
+        low: IntoExpr,
+        close: IntoExpr,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #54."""
+        return alpha.alpha_054(open_=self._expr, high=high, low=low, close=close)
+
+    def alpha_101(
+        self,
+        high: IntoExpr,
+        low: IntoExpr,
+        close: IntoExpr,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #101."""
+        return alpha.alpha_101(open_=self._expr, high=high, low=low, close=close)
+
 
 @pl.api.register_dataframe_namespace("anta")
 @pl.api.register_dataframe_namespace("ta")
@@ -1739,4 +1840,255 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             alpha.hurst_exponent(close=col, period=period),
             alias_name,
             group_by=group_by,
+        )
+
+    def cs_rank(
+        self,
+        col: IntoExpr = "close",
+        over: IntoExpr | Sequence[str] | None = None,
+        method: Literal["average", "min", "max", "dense", "ordinal", "random"] = "average",
+        percentile: bool = True,
+        alias: str | None = None,
+    ) -> FrameType:
+        """Cross-Sectional Rank (WorldQuant Alpha primitive 'rank(x)')."""
+        alias_name = alias or "cs_rank"
+        return self._apply_expr(
+            alpha.cs_rank(col, over=over, method=method, percentile=percentile),
+            alias_name,
+        )
+
+    def neutralize(
+        self,
+        col: IntoExpr = "close",
+        by: IntoExpr | Sequence[str] = "sector",
+        over: IntoExpr | Sequence[str] | None = None,
+        standardize: bool = False,
+        alias: str | None = None,
+    ) -> FrameType:
+        """Group / Industry Neutralization (WorldQuant Alpha primitive 'indneutralize(x, g)')."""
+        alias_name = alias or "neutralized"
+        return self._apply_expr(
+            alpha.neutralize(col, by=by, over=over, standardize=standardize),
+            alias_name,
+        )
+
+    def ts_scale(
+        self,
+        col: IntoExpr = "close",
+        a: float = 1.0,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str | None = None,
+    ) -> FrameType:
+        """Scale Primitive (WorldQuant Alpha primitive 'scale(x, a)')."""
+        alias_name = alias or "scaled"
+        return self._apply_expr(
+            alpha.ts_scale(col, a=a, over=over),
+            alias_name,
+        )
+
+    def ts_delta(
+        self,
+        period: int = 1,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Delta (WorldQuant Alpha primitive 'delta(x, d)')."""
+        alias_name = alias or f"delta_{period}"
+        return self._apply_expr(
+            alpha.ts_delta(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_delay(
+        self,
+        period: int = 1,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Delay (WorldQuant Alpha primitive 'delay(x, d)')."""
+        alias_name = alias or f"delay_{period}"
+        return self._apply_expr(
+            alpha.ts_delay(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def signed_power(
+        self,
+        exponent: float = 2.0,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Signed Power (WorldQuant Alpha primitive 'signed_power(x, a)')."""
+        alias_name = alias or f"signed_power_{exponent}"
+        return self._apply_expr(
+            alpha.signed_power(col, exponent=exponent),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_min(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Rolling Minimum (WorldQuant Alpha primitive 'ts_min(x, d)')."""
+        alias_name = alias or f"ts_min_{period}"
+        return self._apply_expr(
+            alpha.ts_min(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_max(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Rolling Maximum (WorldQuant Alpha primitive 'ts_max(x, d)')."""
+        alias_name = alias or f"ts_max_{period}"
+        return self._apply_expr(
+            alpha.ts_max(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_sum(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Rolling Sum (WorldQuant Alpha primitive 'ts_sum(x, d)')."""
+        alias_name = alias or f"ts_sum_{period}"
+        return self._apply_expr(
+            alpha.ts_sum(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_std(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Rolling Standard Deviation (WorldQuant Alpha primitive 'ts_std(x, d)')."""
+        alias_name = alias or f"ts_std_{period}"
+        return self._apply_expr(
+            alpha.ts_std(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_correlation(
+        self,
+        other: IntoExpr,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Correlation (WorldQuant Alpha primitive 'correlation(x, y, d)')."""
+        alias_name = alias or f"ts_corr_{period}"
+        return self._apply_expr(
+            alpha.ts_correlation(col, other, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_covariance(
+        self,
+        other: IntoExpr,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Covariance (WorldQuant Alpha primitive 'covariance(x, y, d)')."""
+        alias_name = alias or f"ts_cov_{period}"
+        return self._apply_expr(
+            alpha.ts_covariance(col, other, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ts_product(
+        self,
+        period: int = 10,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Time-series Rolling Product (WorldQuant Alpha primitive 'product(x, d)')."""
+        alias_name = alias or f"ts_prod_{period}"
+        return self._apply_expr(
+            alpha.ts_product(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def alpha_001(
+        self,
+        close: IntoExpr = "close",
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_001",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #1."""
+        return self._apply_expr(
+            alpha.alpha_001(close=close, returns=returns, over=over),
+            alias,
+        )
+
+    def alpha_041(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        alias: str = "alpha_041",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #41."""
+        return self._apply_expr(
+            alpha.alpha_041(high=high, low=low, close=close, volume=volume),
+            alias,
+        )
+
+    def alpha_054(
+        self,
+        open_: IntoExpr = "open",
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "alpha_054",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #54."""
+        return self._apply_expr(
+            alpha.alpha_054(open_=open_, high=high, low=low, close=close),
+            alias,
+        )
+
+    def alpha_101(
+        self,
+        open_: IntoExpr = "open",
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "alpha_101",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #101."""
+        return self._apply_expr(
+            alpha.alpha_101(open_=open_, high=high, low=low, close=close),
+            alias,
         )

@@ -22,9 +22,9 @@
 
 </div>
 
-> ⚡ **Try it immediately in your browser:** Run our [1-Minute Interactive Colab Demo](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) with 1-click execution & live **112.4x speedup** benchmarks!
+> **Try it immediately in your browser:** Run our [1-Minute Interactive Colab Demo](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) with 1-click execution & live **112.4x speedup** benchmarks!
 >
-> 🔥 **Latest Highlights:** Expanded to **131 native indicators & alpha primitives** — featuring an institutional **Market Microstructure Suite** (`amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`), **Cross-Sectional Standardization** (`cs_winsorize`, `cs_zscore`, `neutralize`), **Heikin-Ashi Candlestick Transform** (`heikin_ashi`), **Schaff Trend Cycle** (`stc`), and **100% loop-free vectorized stride-tricks kernels** across all rolling time-series operators.
+>  **Latest Highlights:** Expanded to **131 native indicators & alpha primitives** - featuring an institutional **Market Microstructure Suite** (`amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`), **Cross-Sectional Standardization** (`cs_winsorize`, `cs_zscore`, `neutralize`), **Heikin-Ashi Candlestick Transform** (`heikin_ashi`), **Schaff Trend Cycle** (`stc`), and **100% loop-free vectorized stride-tricks kernels** across all rolling time-series operators.
 
 ---
 

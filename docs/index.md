@@ -12,7 +12,7 @@
 
 `polars-anta` is an ultra-fast, modern financial technical analysis and alpha factor library designed from the ground up for quantitative researchers, algorithmic traders, and financial engineers.
 
-Unlike traditional libraries (`TA-Lib`, `pandas-ta`) that require external C compilers, introduce cumbersome binary dependencies, or execute through slow Python `for` loops, `polars-anta` implements **all 123 indicators and alpha factor primitives natively as Polars Expressions (`pl.Expr`)**.
+Unlike traditional libraries (`TA-Lib`, `pandas-ta`) that require external C compilers, introduce cumbersome binary dependencies, or execute through slow Python `for` loops, `polars-anta` implements **all 131 indicators, market microstructure estimators, and alpha factor primitives natively as Polars Expressions (`pl.Expr`)**.
 
 Every calculation is executed directly inside Polars' multi-threaded Rust query engine with zero-copy Apache Arrow memory layouts.
 

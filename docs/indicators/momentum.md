@@ -1,4 +1,4 @@
-# Momentum Oscillators (20 Indicators)
+# Momentum Oscillators (21 Indicators)
 
 Momentum indicators measure the velocity, acceleration, and overbought/oversold extremes of price movements.
 
@@ -63,3 +63,6 @@ Chande Forecast Oscillator. Percentage difference between actual price and linea
 
 ### `squeeze_momentum(high, low, close, bb_period=20, bb_mult=2.0, kc_period=20, kc_mult=1.5, mom_period=None)`
 John Carter's Squeeze Momentum Indicator (popularized by LazyBear). Identifies compression consolidations and explosive breakouts using Bollinger Bands and Keltner Channels, accompanied by an OLS linear regression momentum histogram. Returns Struct: `squeeze_on`, `squeeze_off`, `no_squeeze`, `momentum`.
+
+### `stc(close, fast_period=23, slow_period=50, cycle_period=10, factor=0.5)`
+Schaff Trend Cycle (STC) Oscillator. Applies a double-smoothed stochastic cycle calculation to a MACD line to identify cyclical turns with reduced lag and fewer false signals.Bounded in $[0, 100]$.

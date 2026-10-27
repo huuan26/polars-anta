@@ -219,6 +219,15 @@ class TechnicalAnalysisExpr:
             signal_period=signal_period,
         )
 
+    def heikin_ashi(
+        self,
+        open: IntoExpr,
+        high: IntoExpr,
+        low: IntoExpr,
+    ) -> pl.Expr:
+        """Heikin-Ashi Candlestick Transform."""
+        return trend.heikin_ashi(open=open, high=high, low=low, close=self._expr)
+
     # =========================================================================
     # Momentum Indicators (20)
     # =========================================================================
@@ -981,6 +990,32 @@ class TechnicalAnalysisExpr:
         """Cross-Sectional Rank (WorldQuant Alpha primitive 'rank(x)')."""
         return alpha.cs_rank(self._expr, over=over, method=method, percentile=percentile)
 
+    def cs_zscore(
+        self,
+        over: IntoExpr | Sequence[str] | None = None,
+        clip_bound: float | None = None,
+    ) -> pl.Expr:
+        """Cross-Sectional Z-Score Standardization."""
+        return alpha.cs_zscore(self._expr, over=over, clip_bound=clip_bound)
+
+    def cs_winsorize(
+        self,
+        over: IntoExpr | Sequence[str] | None = None,
+        method: Literal["quantile", "zscore", "mad"] = "quantile",
+        lower: float = 0.01,
+        upper: float = 0.99,
+        threshold: float = 3.0,
+    ) -> pl.Expr:
+        """Cross-Sectional Winsorization (Outlier Clipping)."""
+        return alpha.cs_winsorize(
+            self._expr,
+            over=over,
+            method=method,
+            lower=lower,
+            upper=upper,
+            threshold=threshold,
+        )
+
     def neutralize(
         self,
         by: IntoExpr | Sequence[str],
@@ -1037,6 +1072,42 @@ class TechnicalAnalysisExpr:
     def ts_product(self, period: int = 10) -> pl.Expr:
         """Time-series Rolling Product (WorldQuant Alpha primitive 'product(x, d)')."""
         return alpha.ts_product(self._expr, period=period)
+
+    def amihud_illiquidity(
+        self,
+        volume: IntoExpr,
+        period: int = 20,
+        scale: float = 1e6,
+    ) -> pl.Expr:
+        """Amihud (2002) Illiquidity Ratio."""
+        return alpha.amihud_illiquidity(
+            close=self._expr,
+            volume=volume,
+            period=period,
+            scale=scale,
+        )
+
+    def roll_spread(self, period: int = 20) -> pl.Expr:
+        """Roll (1984) Implicit Effective Bid-Ask Spread Estimator."""
+        return alpha.roll_spread(close=self._expr, period=period)
+
+    def corwin_schultz_spread(self, low: IntoExpr, period: int = 20) -> pl.Expr:
+        """Corwin & Schultz (2012) High-Low Effective Bid-Ask Spread Estimator."""
+        return alpha.corwin_schultz_spread(high=self._expr, low=low, period=period)
+
+    def kyle_lambda(
+        self,
+        volume: IntoExpr,
+        period: int = 20,
+        scale: float = 1e6,
+    ) -> pl.Expr:
+        """Kyle (1985) Price Impact Coefficient (Lambda)."""
+        return alpha.kyle_lambda(
+            close=self._expr,
+            volume=volume,
+            period=period,
+            scale=scale,
+        )
 
     def alpha_001(
         self,
@@ -1430,6 +1501,21 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
     ) -> FrameType:
         """Trend Intensity Index (TII)."""
         expr = trend.trend_intensity_index(close=col, period=period, signal_period=signal_period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def heikin_ashi(
+        self,
+        open: IntoExpr = "open",
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        alias: str = "heikin_ashi",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Heikin-Ashi Candlestick Transform."""
+        expr = trend.heikin_ashi(open=open, high=high, low=low, close=close)
         return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
 
     # =========================================================================
@@ -2070,6 +2156,107 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         alias_name = alias or f"ts_prod_{period}"
         return self._apply_expr(
             alpha.ts_product(col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def cs_zscore(
+        self,
+        col: IntoExpr = "close",
+        over: IntoExpr | Sequence[str] | None = None,
+        clip_bound: float | None = None,
+        alias: str = "cs_zscore",
+    ) -> FrameType:
+        """Cross-Sectional Z-Score Standardization."""
+        return self._apply_expr(
+            alpha.cs_zscore(col, over=over, clip_bound=clip_bound),
+            alias,
+        )
+
+    def cs_winsorize(
+        self,
+        col: IntoExpr = "close",
+        over: IntoExpr | Sequence[str] | None = None,
+        method: Literal["quantile", "zscore", "mad"] = "quantile",
+        lower: float = 0.01,
+        upper: float = 0.99,
+        threshold: float = 3.0,
+        alias: str = "cs_winsorized",
+    ) -> FrameType:
+        """Cross-Sectional Winsorization (Outlier Clipping)."""
+        return self._apply_expr(
+            alpha.cs_winsorize(
+                col,
+                over=over,
+                method=method,
+                lower=lower,
+                upper=upper,
+                threshold=threshold,
+            ),
+            alias,
+        )
+
+    def amihud_illiquidity(
+        self,
+        period: int = 20,
+        scale: float = 1e6,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Amihud (2002) Illiquidity Ratio."""
+        alias_name = alias or f"amihud_{period}"
+        return self._apply_expr(
+            alpha.amihud_illiquidity(close=close, volume=volume, period=period, scale=scale),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def roll_spread(
+        self,
+        period: int = 20,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Roll (1984) Implicit Effective Bid-Ask Spread Estimator."""
+        alias_name = alias or f"roll_spread_{period}"
+        return self._apply_expr(
+            alpha.roll_spread(close=col, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def corwin_schultz_spread(
+        self,
+        period: int = 20,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Corwin & Schultz (2012) High-Low Effective Bid-Ask Spread Estimator."""
+        alias_name = alias or f"cs_spread_{period}"
+        return self._apply_expr(
+            alpha.corwin_schultz_spread(high=high, low=low, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def kyle_lambda(
+        self,
+        period: int = 20,
+        scale: float = 1e6,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Kyle (1985) Price Impact Coefficient (Lambda)."""
+        alias_name = alias or f"kyle_lambda_{period}"
+        return self._apply_expr(
+            alpha.kyle_lambda(close=close, volume=volume, period=period, scale=scale),
             alias_name,
             group_by=group_by,
         )

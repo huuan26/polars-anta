@@ -15,6 +15,7 @@ from polars_anta.trend import (
     dema,
     ema,
     fibonacci_pivots,
+    heikin_ashi,
     hma,
     ichimoku,
     kama,
@@ -374,3 +375,50 @@ def test_trend_intensity_index(sample_ohlcv_df: pl.DataFrame):
         sample_ohlcv_df.select(trend_intensity_index("close", period=1))
     with pytest.raises(ValueError, match="signal_period must be a positive integer"):
         sample_ohlcv_df.select(trend_intensity_index("close", period=10, signal_period=0))
+
+
+def test_heikin_ashi(sample_ohlcv_df: pl.DataFrame):
+    # Reference calculation on known bars
+    df = pl.DataFrame(
+        {
+            "ticker": ["A", "A", "A", "B", "B"],
+            "open": [100.0, 104.0, 108.0, 50.0, 52.0],
+            "high": [110.0, 112.0, 115.0, 55.0, 56.0],
+            "low": [90.0, 100.0, 105.0, 48.0, 50.0],
+            "close": [104.0, 108.0, 111.0, 52.0, 54.0],
+        }
+    )
+    res = df.select(heikin_ashi("open", "high", "low", "close").over("ticker").alias("ha")).unnest(
+        "ha"
+    )
+    assert set(res.columns) == {"ha_open", "ha_high", "ha_low", "ha_close"}
+
+    # Bar 0 of A: ha_close = (100+110+90+104)/4 = 101.0, ha_open = (100+104)/2 = 102.0
+    assert res["ha_close"][0] == pytest.approx(101.0)
+    assert res["ha_open"][0] == pytest.approx(102.0)
+    assert res["ha_high"][0] == pytest.approx(110.0)
+    assert res["ha_low"][0] == pytest.approx(90.0)
+
+    # Bar 1 of A: ha_close = (104+112+100+108)/4 = 106.0, ha_open = (102.0+101.0)/2 = 101.5
+    assert res["ha_close"][1] == pytest.approx(106.0)
+    assert res["ha_open"][1] == pytest.approx(101.5)
+    assert res["ha_high"][1] == pytest.approx(112.0)
+    assert res["ha_low"][1] == pytest.approx(100.0)
+
+    # Bar 2 of A: ha_close = (108+115+105+111)/4 = 109.75, ha_open = (101.5+106.0)/2 = 103.75
+    assert res["ha_close"][2] == pytest.approx(109.75)
+    assert res["ha_open"][2] == pytest.approx(103.75)
+
+    # Bar 0 of B (group reset): ha_open = (50+52)/2 = 51.0, ha_close = (50+55+48+52)/4 = 51.25
+    assert res["ha_open"][3] == pytest.approx(51.0)
+    assert res["ha_close"][3] == pytest.approx(51.25)
+
+    # Namespace tests (.anta and .ta on Expr and DataFrame)
+    expr_ha = sample_ohlcv_df.select(
+        pl.col("close").ta.heikin_ashi("open", "high", "low").alias("ha")
+    ).unnest("ha")
+    df_ha = sample_ohlcv_df.anta.heikin_ashi(unnest=True)
+    for col in ("ha_open", "ha_high", "ha_low", "ha_close"):
+        assert col in df_ha.columns
+        assert expr_ha[col].equals(df_ha[col])
+        assert (df_ha["ha_high"] >= df_ha["ha_low"]).all()

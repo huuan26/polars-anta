@@ -1085,3 +1085,49 @@ def trend_intensity_index(
             sig.alias("signal"),
         ]
     )
+
+
+def heikin_ashi(
+    open: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+) -> pl.Expr:
+    """Heikin-Ashi Candlestick Transform.
+
+    Computes synthetic smoothed OHLC bars to filter out market noise and highlight trend direction.
+    Formulated natively without Python loops by reducing the HA_Open recurrence
+    HA_Open[t] = 0.5 * HA_Open[t-1] + 0.5 * HA_Close[t-1] to an exact EMA(alpha=0.5).
+
+    Returns a struct with fields:
+        - 'ha_open': synthetic Heikin-Ashi open price
+        - 'ha_high': synthetic Heikin-Ashi high price
+        - 'ha_low': synthetic Heikin-Ashi low price
+        - 'ha_close': synthetic Heikin-Ashi close price
+
+    :param open: open price column or expression
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :return: Polars Struct expression
+    """
+    o = parse_expr(open)
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+
+    ha_close = (o + hi + lo + c) / 4.0
+    prev_ha_close = ha_close.shift(1)
+    ha_open_seed = pl.when(prev_ha_close.is_null()).then((o + c) / 2.0).otherwise(prev_ha_close)
+    ha_open = ha_open_seed.ewm_mean(alpha=0.5, adjust=False)
+    ha_high = pl.max_horizontal(hi, ha_open, ha_close)
+    ha_low = pl.min_horizontal(lo, ha_open, ha_close)
+
+    return pl.struct(
+        [
+            ha_open.alias("ha_open"),
+            ha_high.alias("ha_high"),
+            ha_low.alias("ha_low"),
+            ha_close.alias("ha_close"),
+        ]
+    )

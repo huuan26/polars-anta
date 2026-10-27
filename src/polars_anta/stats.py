@@ -45,16 +45,17 @@ def percentile_rank(
     c = parse_expr(close)
 
     def _calc_rank(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy()
+        vals = s.to_numpy().astype(np.float64, copy=False)
         n = len(vals)
         out = np.full(n, np.nan, dtype=np.float64)
-        for i in range(period - 1, n):
-            window = vals[i - period + 1 : i + 1]
-            if np.isnan(window).any():
-                continue
-            last = window[-1]
-            count = np.sum(window <= last)
-            out[i] = count / float(period)
+        if n >= period:
+            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
+            valid_mask = ~np.isnan(windows).any(axis=1)
+            if valid_mask.any():
+                valid_w = windows[valid_mask]
+                counts = np.sum(valid_w <= valid_w[:, -1:], axis=1, dtype=np.float64)
+                out_slice = out[period - 1 :]
+                out_slice[valid_mask] = counts / float(period)
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_rank, return_dtype=pl.Float64)

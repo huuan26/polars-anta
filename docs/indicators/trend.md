@@ -1,4 +1,4 @@
-# Trend Indicators & Overlays (27 Indicators)
+# Trend Indicators & Overlays (28 Indicators)
 
 Trend indicators identify the direction and momentum of price movements, smooth market noise, and generate trailing stop and support/resistance levels.
 
@@ -94,3 +94,6 @@ Camarilla Intraday Pivot Points (8 tight levels). Returns Struct: `r1-r4`, `s1-s
 
 ### `woodie_pivots(open, high, low, close)`
 Woodie's Pivot Points. Weights closing price more heavily: $(H + L + 2C) / 4$. Returns Struct: `pivot`, `r1`, `s1`, `r2`, `s2`.
+
+### `heikin_ashi(open, high, low, close)`
+Heikin-Ashi Candlestick Transform. Computes synthetic smoothed OHLC bars natively without Python loops by formulating $\text{HA\_Open}_t = 0.5 \cdot \text{HA\_Open}_{t-1} + 0.5 \cdot \text{HA\_Close}_{t-1}$ as an exact $\text{EMA}(\alpha=0.5)$. Returns Struct: `ha_open`, `ha_high`, `ha_low`, `ha_close`.

@@ -1,6 +1,6 @@
-# Alpha Factor Primitives & Formulaic Alphas (31 Primitives)
+# Alpha Factor & Microstructure Primitives (37 Primitives)
 
-Inspired by Kakushadze (2015, *101 Formulaic Alphas*), WorldQuant, and modern quantitative factor investing, these building blocks allow quantitative analysts to compose complex multi-asset predictive alphas and portfolio weights natively in Polars expressions.
+Inspired by Kakushadze (2015, *101 Formulaic Alphas*), WorldQuant, and modern quantitative factor investing, these building blocks allow quantitative analysts to compose complex multi-asset predictive alphas, market microstructure estimators, and portfolio weights natively in Polars expressions.
 
 ---
 
@@ -9,6 +9,14 @@ Inspired by Kakushadze (2015, *101 Formulaic Alphas*), WorldQuant, and modern qu
 ### `cs_rank(expr, over=None, method="average", percentile=True)`
 Cross-Sectional Rank (WorldQuant Alpha primitive `rank(x)`).
 Computes the rank of values across assets at each point in time. When `percentile=True`, scales the ranks between $1/N$ and $1.0$ (or $0.0$ to $1.0$).
+
+### `cs_zscore(expr, over=None, clip_bound=None)`
+Cross-Sectional Z-Score Standardization.
+Standardizes an alpha signal across the asset universe at each timestamp ($(x - \mu_t) / \sigma_t$), with optional symmetric clipping into $[-\text{clip\_bound}, \text{clip\_bound}]$.
+
+### `cs_winsorize(expr, over=None, method="quantile", lower=0.01, upper=0.99, threshold=3.0)`
+Cross-Sectional Winsorization (Outlier Clipping).
+Clips extreme cross-sectional outliers across the asset universe at each timestamp using empirical quantiles (`"quantile"`), standard deviation bounds (`"zscore"`), or Median Absolute Deviation (`"mad"`).
 
 ### `neutralize(expr, by, over=None, standardize=False)`
 Group / Industry / Sector Neutralization (WorldQuant Alpha primitive `indneutralize(x, g)`).
@@ -102,7 +110,25 @@ Rolling Hurst Exponent via Rescaled Range (R/S) analysis. Measures long-term mem
 
 ---
 
-## 4. Canonical Formulaic Alphas (Kakushadze 101 Alphas)
+## 4. Market Microstructure & Liquidity Estimators
+
+### `amihud_illiquidity(close, volume, period=20, scale=1e6)`
+Amihud (2002) Illiquidity Ratio. Measures price impact per unit of dollar trading volume over a rolling window:
+$$\text{ILLIQ}_t = \frac{1}{N} \sum_{k=0}^{N-1} \frac{|R_{t-k}|}{P_{t-k} \cdot V_{t-k}} \times \text{scale}$$
+
+### `roll_spread(close, period=20)`
+Roll (1984) Implicit Effective Bid-Ask Spread Estimator. Estimates proportional bid-ask bounce from first-order serial autocovariance of log price changes:
+$$S_{\text{Roll}} = 2 \sqrt{\max(0, -\text{Cov}(\Delta \ln P_t, \Delta \ln P_{t-1}))}$$
+
+### `corwin_schultz_spread(high, low, period=20)`
+Corwin & Schultz (2012) High-Low Effective Bid-Ask Spread Estimator. Separates transient bid-ask bounce from true volatility using 1-bar and 2-bar High/Low log ranges without requiring L2 orderbook data.
+
+### `kyle_lambda(close, volume, period=20, scale=1e6)`
+Kyle (1985) Price Impact Coefficient ($\lambda$). Estimates the rolling regression slope of price returns per unit of signed order flow ($\text{sign}(R_t) \cdot V_t$).
+
+---
+
+## 5. Canonical Formulaic Alphas (Kakushadze 101 Alphas)
 
 ### `alpha_001(close, returns=None, over=None)`
 WorldQuant Alpha #1:

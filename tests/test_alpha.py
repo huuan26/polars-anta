@@ -8,16 +8,22 @@ from polars_anta.alpha import (
     alpha_041,
     alpha_054,
     alpha_101,
+    amihud_illiquidity,
     co_ratio,
+    corwin_schultz_spread,
     cs_rank,
+    cs_winsorize,
+    cs_zscore,
     decay_linear,
     entropy,
     fractal_dimension,
     hl_ratio,
     hurst_exponent,
+    kyle_lambda,
     neutralize,
     relative_spread,
     returns_divergence,
+    roll_spread,
     signed_power,
     ts_argmax,
     ts_argmin,
@@ -333,3 +339,117 @@ def test_worldquant_formulaic_alphas(sample_ohlcv: pl.DataFrame):
     assert res["a101"][-1] is not None
     assert res["a041"][-1] is not None
     assert res["a054"][-1] is not None
+
+
+def test_cross_sectional_preprocessing():
+    """Test cs_zscore and cs_winsorize across quantile, zscore, and mad methods."""
+    df = pl.DataFrame(
+        {
+            "date": ["2026-01-01"] * 6 + ["2026-01-02"] * 6,
+            "signal": [1.0, 2.0, 3.0, 4.0, 5.0, 100.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0],
+        }
+    )
+
+    res = df.with_columns(
+        [
+            cs_zscore("signal", over="date").alias("z"),
+            cs_zscore("signal", over="date", clip_bound=1.5).alias("z_clipped"),
+            cs_zscore("signal").alias("z_global"),
+            cs_winsorize("signal", over="date", method="quantile", lower=0.1, upper=0.8).alias(
+                "w_q"
+            ),
+            cs_winsorize("signal", over="date", method="zscore", threshold=1.5).alias("w_z"),
+            cs_winsorize("signal", over="date", method="mad", threshold=2.0).alias("w_mad"),
+            cs_winsorize("signal", method="mad", threshold=2.0).alias("w_mad_global"),
+        ]
+    )
+
+    # Day 1 mean of z-score is 0
+    day1 = res.filter(pl.col("date") == "2026-01-01")
+    assert day1["z"].mean() == pytest.approx(0.0, abs=1e-9)
+    assert day1["z_clipped"].max() <= 1.5
+    assert day1["z_clipped"].min() >= -1.5
+
+    # Day 2 has constant signal -> cs_zscore is 0.0
+    day2 = res.filter(pl.col("date") == "2026-01-02")
+    assert (day2["z"] == 0.0).all()
+
+    # Winsorize clips the extreme outlier 100.0 down
+    assert day1["w_q"][-1] < 100.0
+    assert day1["w_z"][-1] < 100.0
+    assert day1["w_mad"][-1] < 100.0
+
+    # Namespace parity
+    expr_df = df.select(
+        [
+            pl.col("signal").anta.cs_zscore(over="date", clip_bound=1.5).alias("z_clipped"),
+            pl.col("signal")
+            .ta.cs_winsorize(over="date", method="mad", threshold=2.0)
+            .alias("w_mad"),
+        ]
+    )
+    frame_df = df.anta.cs_zscore(
+        col="signal", over="date", clip_bound=1.5, alias="z_clipped"
+    ).ta.cs_winsorize(col="signal", over="date", method="mad", threshold=2.0, alias="w_mad")
+    assert expr_df["z_clipped"].equals(frame_df["z_clipped"])
+    assert expr_df["w_mad"].equals(frame_df["w_mad"])
+
+    # Invalid arguments
+    with pytest.raises(ValueError, match="clip_bound must be a positive"):
+        cs_zscore("signal", clip_bound=0.0)
+    with pytest.raises(ValueError, match="method must be one of"):
+        cs_winsorize("signal", method="invalid")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="lower and upper quantiles"):
+        cs_winsorize("signal", method="quantile", lower=0.8, upper=0.2)
+    with pytest.raises(ValueError, match="threshold must be a positive"):
+        cs_winsorize("signal", method="zscore", threshold=-1.0)
+
+
+def test_market_microstructure_indicators(sample_ohlcv: pl.DataFrame):
+    """Test Amihud illiquidity, Roll spread, Corwin-Schultz spread, and Kyle's lambda."""
+    res = sample_ohlcv.select(
+        [
+            amihud_illiquidity("close", "volume", period=5).alias("amihud"),
+            roll_spread("close", period=5).alias("roll"),
+            corwin_schultz_spread("high", "low", period=5).alias("cs_spread"),
+            kyle_lambda("close", "volume", period=5).alias("kyle"),
+        ]
+    )
+
+    for col in ("amihud", "roll", "cs_spread"):
+        vals = [v for v in res[col].to_list() if v is not None]
+        assert len(vals) > 0
+        for v in vals:
+            assert v >= 0.0
+
+    kyle_vals = [v for v in res["kyle"].to_list() if v is not None]
+    assert len(kyle_vals) > 0
+
+    # Namespace tests on Expr and DataFrame
+    ns_expr = sample_ohlcv.select(
+        [
+            pl.col("close").anta.amihud_illiquidity("volume", period=5).alias("amihud_5"),
+            pl.col("close").ta.roll_spread(period=5).alias("roll_spread_5"),
+            pl.col("high").anta.corwin_schultz_spread("low", period=5).alias("cs_spread_5"),
+            pl.col("close").ta.kyle_lambda("volume", period=5).alias("kyle_lambda_5"),
+        ]
+    )
+    ns_df = (
+        sample_ohlcv.anta.amihud_illiquidity(period=5)
+        .ta.roll_spread(period=5)
+        .anta.corwin_schultz_spread(period=5)
+        .ta.kyle_lambda(period=5)
+    )
+    for col in ("amihud_5", "roll_spread_5", "cs_spread_5", "kyle_lambda_5"):
+        assert col in ns_df.columns
+        assert ns_expr[col].equals(ns_df[col])
+
+    # Validation tests
+    with pytest.raises(ValueError, match="period must be a positive integer"):
+        amihud_illiquidity("close", "volume", period=0)
+    with pytest.raises(ValueError, match="period must be an integer greater than 1"):
+        roll_spread("close", period=1)
+    with pytest.raises(ValueError, match="period must be a positive integer"):
+        corwin_schultz_spread("high", "low", period=0)
+    with pytest.raises(ValueError, match="period must be an integer greater than 1"):
+        kyle_lambda("close", "volume", period=1)

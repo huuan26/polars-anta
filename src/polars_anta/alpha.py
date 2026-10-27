@@ -31,16 +31,17 @@ def ts_rank(
     c = parse_expr(close)
 
     def _calc_rank(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy()
+        vals = s.to_numpy().astype(np.float64, copy=False)
         n = len(vals)
         out = np.full(n, np.nan, dtype=np.float64)
-        for i in range(period - 1, n):
-            window = vals[i - period + 1 : i + 1]
-            if np.isnan(window).any():
-                continue
-            last = window[-1]
-            count = np.sum(window <= last)
-            out[i] = count / float(period)
+        if n >= period:
+            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
+            valid_mask = ~np.isnan(windows).any(axis=1)
+            if valid_mask.any():
+                valid_w = windows[valid_mask]
+                counts = np.sum(valid_w <= valid_w[:, -1:], axis=1, dtype=np.float64)
+                out_slice = out[period - 1 :]
+                out_slice[valid_mask] = counts / float(period)
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_rank, return_dtype=pl.Float64)
@@ -62,22 +63,17 @@ def ts_argmax(
     c = parse_expr(close)
 
     def _calc_argmax(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy()
+        vals = s.to_numpy().astype(np.float64, copy=False)
         n = len(vals)
         out = np.full(n, np.nan, dtype=np.float64)
-        for i in range(period - 1, n):
-            window = vals[i - period + 1 : i + 1]
-            if np.isnan(window).any():
-                continue
-            max_val = np.max(window)
-            # Find the most recent bar index with this max value
-            # window[-1] is 0 bars ago, window[0] is period-1 bars ago
-            idx_from_end = 0.0
-            for k in range(len(window) - 1, -1, -1):
-                if window[k] == max_val:
-                    idx_from_end = float(len(window) - 1 - k)
-                    break
-            out[i] = idx_from_end
+        if n >= period:
+            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
+            valid_mask = ~np.isnan(windows).any(axis=1)
+            if valid_mask.any():
+                valid_w = windows[valid_mask]
+                idx_from_end = np.argmax(valid_w[:, ::-1], axis=1).astype(np.float64)
+                out_slice = out[period - 1 :]
+                out_slice[valid_mask] = idx_from_end
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_argmax, return_dtype=pl.Float64)
@@ -99,20 +95,17 @@ def ts_argmin(
     c = parse_expr(close)
 
     def _calc_argmin(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy()
+        vals = s.to_numpy().astype(np.float64, copy=False)
         n = len(vals)
         out = np.full(n, np.nan, dtype=np.float64)
-        for i in range(period - 1, n):
-            window = vals[i - period + 1 : i + 1]
-            if np.isnan(window).any():
-                continue
-            min_val = np.min(window)
-            idx_from_end = 0.0
-            for k in range(len(window) - 1, -1, -1):
-                if window[k] == min_val:
-                    idx_from_end = float(len(window) - 1 - k)
-                    break
-            out[i] = idx_from_end
+        if n >= period:
+            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
+            valid_mask = ~np.isnan(windows).any(axis=1)
+            if valid_mask.any():
+                valid_w = windows[valid_mask]
+                idx_from_end = np.argmin(valid_w[:, ::-1], axis=1).astype(np.float64)
+                out_slice = out[period - 1 :]
+                out_slice[valid_mask] = idx_from_end
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_argmin, return_dtype=pl.Float64)
@@ -398,23 +391,32 @@ def hurst_exponent(
     log_half_n = math.log(float(period) * 0.5)
 
     def _calc_hurst(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy()
+        vals = s.to_numpy().astype(np.float64, copy=False)
         n = len(vals)
         out = np.full(n, np.nan, dtype=np.float64)
 
-        for i in range(period - 1, n):
-            w = vals[i - period + 1 : i + 1]
-            if np.isnan(w).any():
-                continue
-            mean_val = np.mean(w)
-            cum_dev = np.cumsum(w - mean_val)
-            r_val = float(np.max(cum_dev) - np.min(cum_dev))
-            s_val = float(np.std(w, ddof=1))
-            if s_val > 1e-12 and r_val > 1e-12:
-                h_val = math.log(r_val / s_val) / log_half_n
-                out[i] = min(max(h_val, 0.0), 1.0)
-            elif s_val <= 1e-12:
-                out[i] = 0.5
+        if n >= period:
+            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
+            valid_mask = ~np.isnan(windows).any(axis=1)
+            if valid_mask.any():
+                valid_w = windows[valid_mask]
+                means = np.mean(valid_w, axis=1, keepdims=True)
+                cum_dev = np.cumsum(valid_w - means, axis=1)
+                r_vals = np.max(cum_dev, axis=1) - np.min(cum_dev, axis=1)
+                s_vals = np.std(valid_w, axis=1, ddof=1)
+
+                h_vals = np.full(len(valid_w), np.nan, dtype=np.float64)
+                flat_mask = s_vals <= 1e-12
+                pos_mask = (s_vals > 1e-12) & (r_vals > 1e-12)
+                h_vals[flat_mask] = 0.5
+                if pos_mask.any():
+                    h_vals[pos_mask] = np.clip(
+                        np.log(r_vals[pos_mask] / s_vals[pos_mask]) / log_half_n,
+                        0.0,
+                        1.0,
+                    )
+                out_slice = out[period - 1 :]
+                out_slice[valid_mask] = h_vals
 
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
@@ -669,17 +671,239 @@ def ts_product(
     e = parse_expr(expr)
 
     def _calc_prod(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy()
+        vals = s.to_numpy().astype(np.float64, copy=False)
         n = len(vals)
         out = np.full(n, np.nan, dtype=np.float64)
-        for i in range(period - 1, n):
-            w = vals[i - period + 1 : i + 1]
-            if np.isnan(w).any():
-                continue
-            out[i] = float(np.prod(w))
+        if n >= period:
+            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
+            valid_mask = ~np.isnan(windows).any(axis=1)
+            if valid_mask.any():
+                valid_w = windows[valid_mask]
+                out_slice = out[period - 1 :]
+                out_slice[valid_mask] = np.prod(valid_w, axis=1)
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return e.map_batches(_calc_prod, return_dtype=pl.Float64)
+
+
+def cs_zscore(
+    expr: IntoExpr,
+    over: IntoExpr | Sequence[str] | None = None,
+    clip_bound: float | None = None,
+) -> pl.Expr:
+    """Cross-Sectional Z-Score Standardization.
+
+    Standardizes an alpha signal across the asset universe at each point in time
+    by subtracting the cross-sectional mean and dividing by the cross-sectional standard deviation.
+
+    :param expr: Feature column or expression to standardize.
+    :param over: Column name(s) identifying the cross-section window (typically 'timestamp' or 'date').
+    :param clip_bound: Optional symmetric bound (e.g. 3.0) to clip standardized z-scores into [-clip_bound, clip_bound].
+    :return: Polars expression.
+    """
+    if clip_bound is not None and clip_bound <= 0.0:
+        raise ValueError("clip_bound must be a positive number greater than zero")
+
+    e = parse_expr(expr)
+    if over is not None:
+        over_cols = [over] if isinstance(over, str) else list(over)
+        mean = e.mean().over(over_cols)
+        std = e.std().over(over_cols)
+    else:
+        mean = e.mean()
+        std = e.std()
+
+    z = pl.when(std == 0.0).then(0.0).otherwise((e - mean) / std)
+    if clip_bound is not None:
+        b = float(clip_bound)
+        z = z.clip(lower_bound=-b, upper_bound=b)
+    return z
+
+
+def cs_winsorize(
+    expr: IntoExpr,
+    over: IntoExpr | Sequence[str] | None = None,
+    method: Literal["quantile", "zscore", "mad"] = "quantile",
+    lower: float = 0.01,
+    upper: float = 0.99,
+    threshold: float = 3.0,
+) -> pl.Expr:
+    """Cross-Sectional Winsorization (Outlier Clipping).
+
+    Clips extreme cross-sectional outliers across the asset universe at each point in time
+    using empirical quantiles, standard deviation bounds, or Median Absolute Deviation (MAD).
+
+    :param expr: Feature column or expression to winsorize.
+    :param over: Column name(s) identifying the cross-section window (typically 'timestamp' or 'date').
+    :param method: Outlier detection method: 'quantile', 'zscore', or 'mad' (default 'quantile').
+    :param lower: Lower quantile bound when method='quantile' (default 0.01).
+    :param upper: Upper quantile bound when method='quantile' (default 0.99).
+    :param threshold: Multiplier k for 'zscore' (mean +/- k*std) or 'mad' (median +/- k*1.4826*MAD) (default 3.0).
+    :return: Polars expression.
+    """
+    if method not in ("quantile", "zscore", "mad"):
+        raise ValueError("method must be one of 'quantile', 'zscore', or 'mad'")
+    if method == "quantile" and not (0.0 <= lower < upper <= 1.0):
+        raise ValueError("lower and upper quantiles must satisfy 0.0 <= lower < upper <= 1.0")
+    if method in ("zscore", "mad") and threshold <= 0.0:
+        raise ValueError("threshold must be a positive number greater than zero")
+
+    e = parse_expr(expr)
+    over_cols = ([over] if isinstance(over, str) else list(over)) if over is not None else None
+
+    if method == "quantile":
+        lo_expr = e.quantile(lower, interpolation="linear")
+        hi_expr = e.quantile(upper, interpolation="linear")
+        if over_cols is not None:
+            lo_expr = lo_expr.over(over_cols)
+            hi_expr = hi_expr.over(over_cols)
+    elif method == "zscore":
+        mean_expr = e.mean()
+        std_expr = e.std().fill_null(0.0)
+        if over_cols is not None:
+            mean_expr = mean_expr.over(over_cols)
+            std_expr = std_expr.over(over_cols)
+        lo_expr = mean_expr - float(threshold) * std_expr
+        hi_expr = mean_expr + float(threshold) * std_expr
+    else:
+        med_expr = e.median()
+        if over_cols is not None:
+            med_expr = med_expr.over(over_cols)
+        abs_dev = (e - med_expr).abs()
+        mad_expr = abs_dev.median()
+        if over_cols is not None:
+            mad_expr = mad_expr.over(over_cols)
+        scaled_mad = 1.4826 * float(threshold) * mad_expr
+        lo_expr = med_expr - scaled_mad
+        hi_expr = med_expr + scaled_mad
+
+    return pl.when(e < lo_expr).then(lo_expr).when(e > hi_expr).then(hi_expr).otherwise(e)
+
+
+def amihud_illiquidity(
+    close: IntoExpr,
+    volume: IntoExpr,
+    period: int = 20,
+    scale: float = 1e6,
+) -> pl.Expr:
+    """Amihud (2002) Illiquidity Ratio.
+
+    Measures price impact per unit of dollar trading volume over a rolling window:
+    ILLIQ = RollingMean(|Return_t| / (Close_t * Volume_t), period) * scale.
+
+    :param close: Close price column or expression.
+    :param volume: Volume column or expression.
+    :param period: Rolling lookback window (default 20).
+    :param scale: Scaling factor (default 1e6, measuring return impact per $1M traded).
+    :return: Polars expression.
+    """
+    if period <= 0:
+        raise ValueError("period must be a positive integer greater than zero")
+
+    c = parse_expr(close)
+    v = parse_expr(volume)
+    abs_ret = c.pct_change().abs()
+    dollar_vol = c * v
+    ratio = pl.when(dollar_vol > 0.0).then((abs_ret / dollar_vol) * float(scale)).otherwise(None)
+    return ratio.rolling_mean(window_size=period)
+
+
+def roll_spread(
+    close: IntoExpr,
+    period: int = 20,
+) -> pl.Expr:
+    """Roll (1984) Implicit Effective Bid-Ask Spread Estimator.
+
+    Estimates the effective proportional bid-ask spread from the first-order serial
+    autocovariance of log price changes:
+    Spread = 2 * sqrt(max(0, -Cov(Delta ln P_t, Delta ln P_{t-1}))).
+
+    :param close: Close price column or expression.
+    :param period: Rolling lookback window (default 20).
+    :return: Polars expression producing non-negative proportional spread estimates.
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+
+    c = parse_expr(close)
+    log_ret = (c / c.shift(1)).log()
+    lag_log_ret = log_ret.shift(1)
+    serial_cov = rolling_cov(log_ret, lag_log_ret, period=period)
+    return (
+        pl.when(serial_cov.is_null())
+        .then(None)
+        .otherwise(2.0 * (-serial_cov).clip(lower_bound=0.0).sqrt())
+    )
+
+
+def corwin_schultz_spread(
+    high: IntoExpr,
+    low: IntoExpr,
+    period: int = 20,
+) -> pl.Expr:
+    """Corwin & Schultz (2012) High-Low Effective Bid-Ask Spread Estimator.
+
+    Estimates the proportional bid-ask spread from single-bar and two-bar High/Low price ranges,
+    separating transient bid-ask bounce from true price volatility without requiring orderbook data.
+
+    :param high: High price column or expression.
+    :param low: Low price column or expression.
+    :param period: Rolling smoothing window (default 20).
+    :return: Polars expression producing non-negative proportional spread estimates.
+    """
+    if period <= 0:
+        raise ValueError("period must be a positive integer greater than zero")
+
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+
+    hl_log_sq = (hi / lo).log() ** 2
+    beta = hl_log_sq + hl_log_sq.shift(1)
+
+    two_day_hi = pl.max_horizontal(hi, hi.shift(1))
+    two_day_lo = pl.min_horizontal(lo, lo.shift(1))
+    gamma = (two_day_hi / two_day_lo).log() ** 2
+
+    denom = 3.0 - 2.0 * math.sqrt(2.0)
+    alpha = ((math.sqrt(2.0) - 1.0) * beta.sqrt() / denom) - (gamma / denom).sqrt()
+    exp_alpha = alpha.exp()
+    raw_spread = ((2.0 * (exp_alpha - 1.0)) / (1.0 + exp_alpha)).clip(lower_bound=0.0)
+    return raw_spread.rolling_mean(window_size=period)
+
+
+def kyle_lambda(
+    close: IntoExpr,
+    volume: IntoExpr,
+    period: int = 20,
+    scale: float = 1e6,
+) -> pl.Expr:
+    """Kyle (1985) Price Impact Coefficient (Lambda).
+
+    Estimates the market impact cost (slope of price change per unit of signed order flow)
+    over a rolling window using signed volume as an order flow imbalance proxy.
+
+    :param close: Close price column or expression.
+    :param volume: Volume column or expression.
+    :param period: Rolling regression window (default 20).
+    :param scale: Scaling multiplier (default 1e6).
+    :return: Polars expression.
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+
+    c = parse_expr(close)
+    v = parse_expr(volume)
+    ret = c.pct_change()
+    signed_vol = ret.sign() * v
+    cov_rv = rolling_cov(ret, signed_vol, period=period)
+    var_v = signed_vol.rolling_var(window_size=period)
+    return (
+        pl.when(var_v.is_null() | cov_rv.is_null())
+        .then(None)
+        .when(var_v > 0.0)
+        .then((cov_rv / var_v) * float(scale))
+        .otherwise(0.0)
+    )
 
 
 def alpha_001(

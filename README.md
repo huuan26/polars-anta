@@ -18,7 +18,7 @@
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Zero C Dependencies](https://img.shields.io/badge/dependencies-pure%20polars-brightgreen)](#)
 
-[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-123-indicators--alpha-primitives) • [Development](#development--testing)
+[Documentation](https://huuan26.github.io/polars-anta/) • [Features](#key-features) • [Benchmark](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart) • [Tutorials](#3-interactive-jupyter-notebooks) • [Indicators](#supported-indicators-131-indicators--alpha-primitives) • [Development](#development--testing)
 
 </div>
 
@@ -167,13 +167,15 @@ Run our interactive tutorials directly in your browser with zero setup:
 | **Quickstart & Live Benchmark** | 1-minute demo covering single-asset syntax, 500-ticker scans, and live 112x speed benchmark. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
 | **01 - Quickstart Tutorial** | Comprehensive walk-through of expression syntax, Struct unnesting, and plotting. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/01_quickstart.ipynb) |
 | **02 - Multi-Asset Portfolio Scan** | Real-world 500-ticker breakout screening in 50 milliseconds using `.over("ticker")`. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/02_multi_asset_portfolio_scan.ipynb) |
+| **03 - Crypto Multi-Pair Momentum Scan** | Cross-sectional crypto momentum & volatility ranking workflow. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
 
 ---
 
-## Supported Indicators (123 Indicators & Alpha Primitives)
+## Supported Indicators (131 Indicators & Alpha Primitives)
 
-### Trend & Overlays (27 Indicators)
+### Trend & Overlays (28 Indicators)
 - **`sma(close, period=10)`**: Simple Moving Average
+- **`heikin_ashi(open, high, low, close)`**: Heikin-Ashi Candlestick Transform (`ha_open`, `ha_high`, `ha_low`, `ha_close`)
 - **`ssl_channel(high, low, close, period=10)`**: SSL Channel (`ssl_up`, `ssl_down`, `hlv`)
 - **`trend_intensity_index(close, period=30, signal_period=None)`**: Trend Intensity Index (TII & signal line)
 - **`ema(close, period=10)`**: Exponential Moving Average
@@ -201,11 +203,12 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`camarilla_pivots(high, low, close)`**: Camarilla Intraday Pivot Points (`r1-r4`, `s1-s4`)
 - **`woodie_pivots(open, high, low, close)`**: Woodie's Heavy-Close Pivot Points
 
-### Momentum (20 Indicators)
+### Momentum (21 Indicators)
 - **`rsi(close, period=14)`**: Relative Strength Index (Wilder's smoothing)
 - **`macd(close, fast=12, slow=26, signal=9)`**: Moving Average Convergence Divergence (`macd`, `signal`, `histogram`)
 - **`stochastic(high, low, close, k=14, d=3)`**: Stochastic Oscillator (%K, %D)
 - **`squeeze_momentum(high, low, close, bb_period=20, bb_mult=2.0, kc_period=20, kc_mult=1.5)`**: Squeeze Momentum Indicator (`squeeze_on`, `squeeze_off`, `no_squeeze`, `momentum`)
+- **`stc(close, fast_period=23, slow_period=50, cycle_period=10, factor=0.5)`**: Schaff Trend Cycle (STC) Oscillator
 - **`williams_r(high, low, close, period=14)`**: Williams %R
 - **`cci(high, low, close, period=20)`**: Commodity Channel Index
 - **`roc(close, period=10)`**: Rate of Change (Momentum %)
@@ -274,8 +277,10 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`linear_regression_angle(close, period=14)`**: Linear Regression Trend Angle in degrees
 - **`linear_regression_forecast(close, period=14)`**: Linear Regression Current/Next-Bar Value Forecast
 
-### Alpha Factor Primitives & Formulaic Alphas (31 Primitives)
+### Alpha Factor & Microstructure Primitives (37 Primitives)
 - **`cs_rank(expr, over=None, method="average", percentile=True)`**: Cross-Sectional Rank (WorldQuant `rank(x)`)
+- **`cs_zscore(expr, over=None, clip_bound=None)`**: Cross-Sectional Z-Score Standardization
+- **`cs_winsorize(expr, over=None, method="quantile", lower=0.01, upper=0.99, threshold=3.0)`**: Cross-Sectional Winsorization (Quantile, Z-Score, or MAD outlier clipping)
 - **`neutralize(expr, by, over=None, standardize=False)`**: Group / Sector Neutralization (WorldQuant `indneutralize(x, g)`)
 - **`ts_scale(expr, a=1.0, over=None)`**: L1 Portfolio Weight Scaling (WorldQuant `scale(x, a)`)
 - **`ts_delta(expr, period=1)`**: Time-Series Delta (WorldQuant `delta(x, d)`)
@@ -293,6 +298,10 @@ Run our interactive tutorials directly in your browser with zero setup:
 - **`ts_argmin(close, period=10)`**: Time-Series ArgMin (lookback bars ago of window trough)
 - **`decay_linear(close, period=10)`**: Linearly Weighted Decay moving transform
 - **`ts_zscore(close, period=20)`**: Time-Series Standardized Normalization
+- **`amihud_illiquidity(close, volume, period=20, scale=1e6)`**: Amihud (2002) Illiquidity Ratio ($|R_t| / \text{DollarVolume}_t$)
+- **`roll_spread(close, period=20)`**: Roll (1984) Serial Covariance Effective Bid-Ask Spread Estimator
+- **`corwin_schultz_spread(high, low, period=20)`**: Corwin & Schultz (2012) High-Low Effective Bid-Ask Spread Estimator
+- **`kyle_lambda(close, volume, period=20, scale=1e6)`**: Kyle (1985) Price Impact Coefficient ($\lambda$)
 - **`returns_divergence(close, volume, period=14)`**: Price vs Volume Momentum Divergence
 - **`hl_ratio(high, low)`**: Log Intraday Range Expansion $\ln(\text{High} / \text{Low})$
 - **`co_ratio(close, open)`**: Log Intraday Sentiment Drift $\ln(\text{Close} / \text{Open})$

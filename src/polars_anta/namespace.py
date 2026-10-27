@@ -309,6 +309,22 @@ class TechnicalAnalysisExpr:
             d_period=d_period,
         )
 
+    def stc(
+        self,
+        fast_period: int = 23,
+        slow_period: int = 50,
+        cycle_period: int = 10,
+        factor: float = 0.5,
+    ) -> pl.Expr:
+        """Schaff Trend Cycle (STC) Oscillator."""
+        return momentum.stc(
+            self._expr,
+            fast_period=fast_period,
+            slow_period=slow_period,
+            cycle_period=cycle_period,
+            factor=factor,
+        )
+
     def awesome_oscillator(
         self,
         high: IntoExpr,
@@ -1496,6 +1512,26 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             d_period=d_period,
         )
         return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def stc(
+        self,
+        fast_period: int = 23,
+        slow_period: int = 50,
+        cycle_period: int = 10,
+        factor: float = 0.5,
+        col: IntoExpr = "close",
+        alias: str = "stc",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Schaff Trend Cycle (STC) Oscillator."""
+        expr = momentum.stc(
+            col,
+            fast_period=fast_period,
+            slow_period=slow_period,
+            cycle_period=cycle_period,
+            factor=factor,
+        )
+        return self._apply_expr(expr, alias=alias, group_by=group_by)
 
     def squeeze_momentum(
         self,

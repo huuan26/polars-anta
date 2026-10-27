@@ -731,3 +731,61 @@ def squeeze_momentum(
             momentum.alias("momentum"),
         ]
     )
+
+
+def stc(
+    close: IntoExpr,
+    fast_period: int = 23,
+    slow_period: int = 50,
+    cycle_period: int = 10,
+    factor: float = 0.5,
+) -> pl.Expr:
+    """Schaff Trend Cycle (STC) Oscillator.
+
+    Applies a double-smoothed stochastic calculation to a MACD line to identify
+    market cycles with reduced lag and fewer false signals.
+
+    Formula (per common implementations matching the project issue specification):
+    1. MACD = EMA(close, fast) - EMA(close, slow)
+    2. %K1 = 100 * (MACD - min(MACD, cycle)) / (max(MACD, cycle) - min(MACD, cycle))
+    3. %D1 = EMA(%K1, span=factor * cycle)
+    4. %K2 = 100 * (%D1 - min(%D1, cycle)) / (max(%D1, cycle) - min(%D1, cycle))
+    5. STC = EMA(%K2, span=factor * cycle)
+
+    :param close: price column name or expression
+    :param fast_period: fast EMA period for MACD (default 23)
+    :param slow_period: slow EMA period for MACD (default 50)
+    :param cycle_period: stochastic cycle lookback (default 10)
+    :param factor: smoothing factor applied as EMA span = factor * cycle_period (default 0.5)
+    :return: Polars expression producing STC values typically in [0, 100]
+    """
+    if fast_period <= 0 or slow_period <= 0 or cycle_period <= 0:
+        raise ValueError("periods must be positive integers greater than zero")
+    if not (0.0 < factor <= 1.0):
+        raise ValueError("factor must be in (0, 1]")
+    if fast_period >= slow_period:
+        raise ValueError("fast_period must be less than slow_period")
+
+    c = parse_expr(close)
+    macd_line = c.ewm_mean(span=fast_period, adjust=False) - c.ewm_mean(
+        span=slow_period, adjust=False
+    )
+
+    # First stochastic cycle on MACD
+    lowest_macd = macd_line.rolling_min(window_size=cycle_period)
+    highest_macd = macd_line.rolling_max(window_size=cycle_period)
+    spread1 = highest_macd - lowest_macd
+    k1 = pl.when(spread1 > 0.0).then(100.0 * (macd_line - lowest_macd) / spread1).otherwise(50.0)
+
+    # Smooth with EMA whose span is factor * cycle_period
+    smooth_span = max(1, int(round(factor * cycle_period)))
+    d1 = k1.ewm_mean(span=smooth_span, adjust=False)
+
+    # Second stochastic cycle on the smoothed %D1
+    lowest_d1 = d1.rolling_min(window_size=cycle_period)
+    highest_d1 = d1.rolling_max(window_size=cycle_period)
+    spread2 = highest_d1 - lowest_d1
+    k2 = pl.when(spread2 > 0.0).then(100.0 * (d1 - lowest_d1) / spread2).otherwise(50.0)
+
+    stc_line = k2.ewm_mean(span=smooth_span, adjust=False)
+    return stc_line

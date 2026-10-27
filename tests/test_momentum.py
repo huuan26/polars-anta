@@ -21,6 +21,7 @@ from polars_anta.momentum import (
     rsi,
     rvi,
     squeeze_momentum,
+    stc,
     stoch_rsi,
     stochastic,
     tsi,
@@ -281,3 +282,38 @@ def test_squeeze_momentum(sample_ohlcv_df: pl.DataFrame):
         sample_ohlcv_df.select(
             squeeze_momentum("high", "low", "close", bb_period=10, kc_period=10, mom_period=-1)
         )
+
+
+def test_stc(sample_ohlcv_df: pl.DataFrame):
+    result = sample_ohlcv_df.select(stc("close").alias("stc"))
+    vals = [v for v in result["stc"].to_list() if v is not None]
+    assert len(vals) > 0
+    for v in vals:
+        # STC is typically bounded in [0, 100]; allow small numerical tolerance
+        assert -1.0 <= v <= 101.0
+
+
+def test_stc_flat_series():
+    df = pl.DataFrame({"close": [50.0] * 100})
+    res = df.select(stc("close").alias("stc"))
+    # On a flat series the stochastic spreads are zero, so %K falls back to 50 and STC should approach 50
+    last = res["stc"][-1]
+    assert last is not None
+    assert pytest.approx(last, abs=5.0) == 50.0
+
+
+def test_stc_invalid_params():
+    with pytest.raises(ValueError, match="periods must be positive"):
+        stc("close", fast_period=0)
+    with pytest.raises(ValueError, match="fast_period must be less than slow_period"):
+        stc("close", fast_period=50, slow_period=23)
+    with pytest.raises(ValueError, match="factor must be in"):
+        stc("close", factor=1.5)
+
+
+def test_stc_namespace(sample_ohlcv_df: pl.DataFrame):
+    expr_res = sample_ohlcv_df.select(pl.col("close").ta.stc().alias("stc"))
+    df_res = sample_ohlcv_df.ta.stc()
+    assert "stc" in df_res.columns
+    # Values should match
+    assert expr_res["stc"].equals(df_res["stc"])

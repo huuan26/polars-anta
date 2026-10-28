@@ -52,10 +52,11 @@ Quantitative researchers and financial engineers have historically faced a trade
 
 ```mermaid
 flowchart LR
-    A["Raw Multi-Asset OHLCV<br/>(DataFrame / LazyFrame)"] --> B["Data Engineering<br/>validate_ohlcv() • resample()"]
-    B --> C["6-Domain Signal Engine<br/>131 Native .anta / .ta Expressions"]
-    C --> D["Cross-Sectional Pipeline<br/>cs_winsorize → cs_zscore → neutralize"]
-    D --> E["Polars Rust Engine<br/>Multi-Core .over('symbol') & SIMD"]
+    A["Raw Multi-Asset OHLCV<br/>(DataFrame / LazyFrame)"] --> B["1. Data Engineering<br/>validate_ohlcv() • resample()"]
+    B --> C["2. Feature & Alpha Engine<br/>175 Native .anta Expressions<br/>(TA + WorldQuant Alphas)"]
+    C --> D["3. Cross-Sectional Ops<br/>cs_winsorize → cs_zscore → neutralize"]
+    D --> E["4. Factor Evaluation<br/>Rank IC • 5-Quantiles • Turnover"]
+    E --> F["5. Vectorized Backtesting (v0.3.0)<br/>entries/exits • Fees • Tearsheet<br/>Dollar-Neutral / Long-Only"]
 ```
 
 ### Core Architectural Pillars
@@ -65,6 +66,8 @@ flowchart LR
 - **Closed-Form Algebraic Vectorization**: Rolling OLS Linear Regression (`slope`, `intercept`, `angle`, `forecast`), CAPM `rolling_beta`/`rolling_alpha`, and `heikin_ashi` are rewritten in closed-form algebraic identities and native Polars `ewm_mean` recurrences—achieving **112.4x speedups** over rolling Python/Pandas UDFs.
 - **Zero-Loop Stride-Tricks Kernels**: Path-dependent rolling operators (`ts_rank`, `percentile_rank`, `ts_argmax`, `ts_argmin`, `ts_product`, `hurst_exponent`) use contiguous zero-copy `numpy.lib.stride_tricks.sliding_window_view` matrices instead of Python loops.
 - **Typed `pl.Struct` Outputs**: Multi-line indicators (`macd`, `bollinger_bands`, `keltner_channels`, `ichimoku`, `supertrend`, `heikin_ashi`, `squeeze_momentum`) return strongly-typed `pl.Struct` expressions with `unnest=True` support on DataFrames/LazyFrames.
+- **Loop-Free Vectorized Backtester & State Machine (v0.3.0)**: Execute single-asset and multi-asset backtests directly in Polars with 1-line `entries`/`exits` triggers via `.forward_fill()` state propagation, `.crosses_above()`/`.crosses_below()` expressions, portfolio weight normalization (`weight_scheme="dollar_neutral"` / `"long_only"`), transaction fees, slippage, Buy & Hold benchmark tracking, and formatted tearsheets (`bt.report()`, `pa.compare_strategies()`).
+- **Alphalens-Style Factor Evaluation Suite (v0.3.0)**: Validate alpha predictability before committing capital via multi-horizon `forward_returns()`, Spearman Rank IC & ICIR summary (`ic_summary()`), quantile return monotonicity testing (`quantile_analysis()`), and signal rank autocorrelation (`factor_turnover()`).
 
 ---
 
@@ -504,7 +507,7 @@ cd polars-anta
 # Install in editable mode with development dependencies
 pip install -e ".[dev]"
 
-# Run the test suite (160 unit tests across all 131 indicators & primitives)
+# Run the test suite (169 unit tests across all 175 indicators, alpha factors & evaluation primitives)
 pytest -v
 
 # Run linter and formatter checks

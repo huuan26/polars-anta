@@ -15,16 +15,16 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/polars-anta/)
 [![Polars Version](https://img.shields.io/badge/polars-%3E%3D1.0.0-orange)](https://pola.rs)
-[![Catalog](https://img.shields.io/badge/indicators-131%20native-10b981)](#supported-indicators-131-indicators--alpha-primitives)
+[![Catalog](https://img.shields.io/badge/indicators-175%20native-10b981)](#supported-indicators-175-indicators-alpha-factors--evaluation-primitives)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-[Documentation](https://huuan26.github.io/polars-anta/) • [Why polars-anta?](#why-polars-anta) • [Architecture](#architecture--execution-pipeline) • [Benchmarks](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart--quantitative-workflows) • [Indicator Catalog (131)](#supported-indicators-131-indicators--alpha-primitives) • [Development](#development--testing)
+[Documentation](https://huuan26.github.io/polars-anta/) • [Why polars-anta?](#why-polars-anta) • [Architecture](#architecture--execution-pipeline) • [Benchmarks](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart--quantitative-workflows) • [Indicator Catalog (175)](#supported-indicators-175-indicators-alpha-factors--evaluation-primitives) • [Development](#development--testing)
 
 </div>
 
 > **Try it immediately in your browser:** Run our [1-Minute Interactive Colab Demo](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) with 1-click execution & live **112.4x speedup** benchmarks!
 >
->  **Latest Highlights:** Expanded to **131 native indicators & alpha primitives** - featuring an institutional **Market Microstructure Suite** (`amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`), **Cross-Sectional Standardization** (`cs_winsorize`, `cs_zscore`, `neutralize`), **Heikin-Ashi Candlestick Transform** (`heikin_ashi`), **Schaff Trend Cycle** (`stc`), and **100% loop-free vectorized stride-tricks kernels** across all rolling time-series operators.
+> **Latest Highlights (v0.3.0):** Expanded to **175 native indicators, alpha factors & evaluation primitives** - featuring **33 WorldQuant 101 Formulaic Alphas** (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), an **Alphalens-Style Factor Evaluation Suite** (`information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`), **Strategy Performance Metrics** (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`), and a **Lightweight Vectorized Backtester** (`df.anta.backtest()`).
 
 ---
 
@@ -213,7 +213,38 @@ alpha_df = (
 )
 ```
 
-### 5. Interactive Jupyter Notebooks
+### 5. Factor Evaluation (IC / Quantiles) & Lightweight Vectorized Backtester
+
+Evaluate alpha predictive power with **Rank IC / ICIR**, **Quantile Monotonicity**, and run a loop-free **Vectorized Backtest** with automatic transaction cost & slippage deduction in one call:
+
+```python
+import polars as pl
+import polars_anta as pa
+
+# 1. Compute WorldQuant Alpha #12 and multi-horizon forward returns
+eval_df = (
+    panel_df.anta.alpha_012(group_by="symbol")
+    .anta.forward_returns(periods=(1, 5), group_by="symbol")
+)
+
+# 2. Compute Rank IC summary (Mean IC, ICIR, t-stat, Hit Rate) & 5-Quantile Spread
+ic_stats = eval_df.anta.ic_summary("alpha_012", "fwd_ret_1", group_by="timestamp", method="spearman")
+quantiles_df = eval_df.anta.quantile_analysis("alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp")
+
+# 3. Run a vectorized backtest with 5 bps fee + 2 bps slippage and 1-bar execution lag
+bt_res = eval_df.anta.backtest(
+    signal=pl.col("alpha_012").anta.cs_zscore(over="timestamp").anta.ts_scale(a=1.0, over="timestamp"),
+    group_by="symbol",
+    time_col="timestamp",
+    fee_rate=0.0005,
+    slippage_rate=0.0002,
+    signal_lag=1,
+    initial_capital=100_000.0,
+)
+print(bt_res.summary_df(transpose=True))
+```
+
+### 6. Interactive Jupyter Notebooks
 
 Run our interactive tutorials directly in your browser with zero setup:
 
@@ -226,9 +257,9 @@ Run our interactive tutorials directly in your browser with zero setup:
 
 ---
 
-## Supported Indicators (131 Indicators & Alpha Primitives)
+## Supported Indicators (175 Indicators, Alpha Factors & Evaluation Primitives)
 
-All 131 indicators and primitives are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces where applicable.
+All 175 indicators, formulaic alphas, and evaluation functions are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces where applicable.
 
 | Category / Module | Count | Key Highlights |
 | :--- | :---: | :--- |
@@ -237,7 +268,8 @@ All 131 indicators and primitives are exported at the top level (`import polars_
 | **[3. Volatility & Channels](#3-volatility--channels-18-indicators)** (`polars_anta.volatility`) | **18** | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `parkinson_volatility`, `garman_klass_volatility`, `ulcer_index` |
 | **[4. Volume & Money Flow](#4-volume--money-flow-15-indicators)** (`polars_anta.volume`) | **15** | `vwap`, `vwap_bands`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `vpci`, `vr` |
 | **[5. Statistics & Vectorized OLS](#5-quantitative-statistics--regression-12-indicators)** (`polars_anta.stats`) | **12** | `zscore`, `percentile_rank`, `skewness`, `kurtosis`, `rolling_beta`, `rolling_alpha`, `linear_regression_slope`, `linear_regression_forecast` |
-| **[6. Alpha & Microstructure Primitives](#6-alpha-factor--microstructure-primitives-37-primitives)** (`polars_anta.alpha`) | **37** | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, `alpha_001`–`alpha_101` |
+| **[6. Alpha & Microstructure Primitives](#6-alpha-factor--microstructure-primitives-66-primitives)** (`polars_anta.alpha`) | **66** | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, `alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101` |
+| **[7. Factor Evaluation & Backtesting](#7-factor-evaluation-performance-metrics--vectorized-backtesting-14-tools)** (`polars_anta.evaluation`, `backtest`) | **14** | `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`, `sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`, `vectorized_backtest` |
 | **Data Engineering Utilities** (`polars_anta.resample`) | **2+** | `validate_ohlcv`, `resample_ohlcv`, `df.anta.add_all()` |
 
 <details open>
@@ -375,7 +407,7 @@ All 131 indicators and primitives are exported at the top level (`import polars_
 </details>
 
 <details open>
-<summary><h3>6. Alpha Factor & Microstructure Primitives (37 Primitives)</h3></summary>
+<summary><h3>6. Alpha Factor & Microstructure Primitives (66 Primitives)</h3></summary>
 
 | Function Signature | Domain | Description |
 | :--- | :--- | :--- |
@@ -412,10 +444,32 @@ All 131 indicators and primitives are exported at the top level (`import polars_
 | `hurst_exponent(close, period=50)` | Regime / Complexity | Vectorized Rolling R/S Hurst Exponent $H \in [0, 1]$ (mean-reversion vs. trend persistence) |
 | `fractal_dimension(high, low, period=20)` | Regime / Complexity | John Ehlers' Fractal Dimension Index $D \in [1, 2]$ (market noise vs. trend efficiency) |
 | `entropy(close, period=20, bins=5)` | Regime / Complexity | Rolling Normalized Shannon Information Entropy $[0, 1]$ |
-| `alpha_001(close, returns=None, over=None)` | Formulaic Alpha | WorldQuant 101 Formulaic Alpha #1 (Volatility-Conditioned Signed Power ArgMax) |
+| `alpha_001` – `alpha_030` | Formulaic Alpha | 30 Canonical WorldQuant 101 Formulaic Alphas (#1 through #30, Kakushadze 2016) |
 | `alpha_041(high, low, close, volume)` | Formulaic Alpha | WorldQuant 101 Formulaic Alpha #41 (Geometric High-Low Midpoint vs. VWAP) |
 | `alpha_054(open, high, low, close)` | Formulaic Alpha | WorldQuant 101 Formulaic Alpha #54 (Intraday Candlestick Power Ratio) |
 | `alpha_101(open, high, low, close)` | Formulaic Alpha | WorldQuant 101 Formulaic Alpha #101 (Normalized Intraday Body-to-Range Momentum) |
+
+</details>
+
+<details open>
+<summary><h3>7. Factor Evaluation, Performance Metrics & Vectorized Backtesting (14 Tools)</h3></summary>
+
+| Function Signature | Domain | Description |
+| :--- | :--- | :--- |
+| `forward_returns(df, close_col="close", periods=(1, 5, 10), group_by=None)` | Factor Evaluation | Multi-horizon forward returns $(P_{t+k} / P_t) - 1$ for factor testing |
+| `information_coefficient(df, factor_col, return_col, group_by=None, method="spearman")` | Factor Evaluation | Cross-sectional Rank IC (`"spearman"`) or Normal IC (`"pearson"`) series |
+| `ic_summary(df, factor_col, return_col, group_by=None, method="spearman")` | Factor Evaluation | Summary dictionary (`ic_mean`, `ic_std`, `icir`, `t_stat`, `hit_rate`, `n_periods`) |
+| `quantile_analysis(df, factor_col, return_col, quantiles=5, group_by=None)` | Factor Evaluation | Quantile bucket returns, Sharpe, win rate, and cumulative performance ($Q_1 \dots Q_N$) |
+| `factor_turnover(df, factor_col, asset_col="ticker", time_col="timestamp", lag=1)` | Factor Evaluation | Rank autocorrelation and L1 signal turnover across periods |
+| `drawdown_series(returns_or_equity, is_returns=True)` | Performance Metric | Underwater percentage drawdown curve $\le 0.0$ |
+| `max_drawdown(returns_or_equity, is_returns=True)` | Performance Metric | Scalar Maximum Drawdown (MDD) |
+| `sharpe_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sharpe Ratio scalar expression |
+| `sortino_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sortino Ratio using downside deviation |
+| `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by $|MDD|$ |
+| `profit_factor(returns)` | Performance Metric | Gross Profit divided by $|Gross Loss|$ |
+| `win_rate(returns, include_zeros=False)` | Performance Metric | Proportion of active periods with positive returns |
+| `vectorized_backtest(df, signal="signal", ...)` / `df.anta.backtest(...)` | Backtesting | Loop-free vectorized backtester with execution lag, fees, slippage & tearsheet |
+| `BacktestResult` | Backtesting | Result container providing `.data` DataFrame, `.summary` dict & `.summary_df()` |
 
 </details>
 

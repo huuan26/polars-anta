@@ -316,7 +316,7 @@ def test_fractal_dimension_mathematical_parity():
 
 
 def test_package_version_and_metadata():
-    """Verify package version is 0.2.0 and matches project release."""
+    """Verify package version is 0.3.0 and matches project release."""
     import polars_anta
 
-    assert polars_anta.__version__ == "0.2.0"
+    assert polars_anta.__version__ == "0.3.0"

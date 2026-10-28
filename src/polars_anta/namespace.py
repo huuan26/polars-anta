@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 import polars as pl
 
-from . import alpha, momentum, resample, stats, trend, volatility, volume
+from . import alpha, backtest, evaluation, momentum, resample, stats, trend, volatility, volume
 
 if TYPE_CHECKING:
+    from .backtest import BacktestResult
     from .core import IntoExpr
 
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
@@ -1117,6 +1118,272 @@ class TechnicalAnalysisExpr:
         """WorldQuant Formulaic Alpha #1."""
         return alpha.alpha_001(close=self._expr, returns=returns, over=over)
 
+    def alpha_002(
+        self,
+        open_: IntoExpr = "open",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #2."""
+        return alpha.alpha_002(open_=open_, close=self._expr, volume=volume, over=over)
+
+    def alpha_003(
+        self,
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #3."""
+        return alpha.alpha_003(open_=self._expr, volume=volume, over=over)
+
+    def alpha_004(
+        self,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #4."""
+        return alpha.alpha_004(low=self._expr, over=over)
+
+    def alpha_005(
+        self,
+        open_: IntoExpr = "open",
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #5."""
+        return alpha.alpha_005(
+            open_=open_, high=high, low=low, close=self._expr, volume=volume, over=over
+        )
+
+    def alpha_006(
+        self,
+        volume: IntoExpr = "volume",
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #6."""
+        return alpha.alpha_006(open_=self._expr, volume=volume)
+
+    def alpha_007(
+        self,
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+        rank_period: int = 60,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #7."""
+        return alpha.alpha_007(
+            close=self._expr, volume=volume, adv_period=adv_period, rank_period=rank_period
+        )
+
+    def alpha_008(
+        self,
+        open_: IntoExpr = "open",
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #8."""
+        return alpha.alpha_008(open_=open_, close=self._expr, returns=returns, over=over)
+
+    def alpha_009(self) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #9."""
+        return alpha.alpha_009(close=self._expr)
+
+    def alpha_010(
+        self,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #10."""
+        return alpha.alpha_010(close=self._expr, over=over)
+
+    def alpha_011(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #11."""
+        return alpha.alpha_011(high=high, low=low, close=self._expr, volume=volume, over=over)
+
+    def alpha_012(
+        self,
+        volume: IntoExpr = "volume",
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #12."""
+        return alpha.alpha_012(close=self._expr, volume=volume)
+
+    def alpha_013(
+        self,
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #13."""
+        return alpha.alpha_013(close=self._expr, volume=volume, over=over)
+
+    def alpha_014(
+        self,
+        open_: IntoExpr = "open",
+        volume: IntoExpr = "volume",
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #14."""
+        return alpha.alpha_014(
+            open_=open_, close=self._expr, volume=volume, returns=returns, over=over
+        )
+
+    def alpha_015(
+        self,
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #15."""
+        return alpha.alpha_015(high=self._expr, volume=volume, over=over)
+
+    def alpha_016(
+        self,
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #16."""
+        return alpha.alpha_016(high=self._expr, volume=volume, over=over)
+
+    def alpha_017(
+        self,
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #17."""
+        return alpha.alpha_017(close=self._expr, volume=volume, adv_period=adv_period, over=over)
+
+    def alpha_018(
+        self,
+        open_: IntoExpr = "open",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #18."""
+        return alpha.alpha_018(open_=open_, close=self._expr, over=over)
+
+    def alpha_019(
+        self,
+        returns: IntoExpr | None = None,
+        sum_period: int = 250,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #19."""
+        return alpha.alpha_019(close=self._expr, returns=returns, sum_period=sum_period, over=over)
+
+    def alpha_020(
+        self,
+        open_: IntoExpr = "open",
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #20."""
+        return alpha.alpha_020(open_=open_, high=high, low=low, close=self._expr, over=over)
+
+    def alpha_021(
+        self,
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #21."""
+        return alpha.alpha_021(close=self._expr, volume=volume, adv_period=adv_period)
+
+    def alpha_022(
+        self,
+        high: IntoExpr = "high",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #22."""
+        return alpha.alpha_022(high=high, close=self._expr, volume=volume, over=over)
+
+    def alpha_023(
+        self,
+        period: int = 20,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #23."""
+        return alpha.alpha_023(high=self._expr, period=period)
+
+    def alpha_024(
+        self,
+        period: int = 100,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #24."""
+        return alpha.alpha_024(close=self._expr, period=period)
+
+    def alpha_025(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        volume: IntoExpr = "volume",
+        returns: IntoExpr | None = None,
+        adv_period: int = 20,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #25."""
+        return alpha.alpha_025(
+            high=high,
+            low=low,
+            close=self._expr,
+            volume=volume,
+            returns=returns,
+            adv_period=adv_period,
+            over=over,
+        )
+
+    def alpha_026(
+        self,
+        volume: IntoExpr = "volume",
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #26."""
+        return alpha.alpha_026(high=self._expr, volume=volume)
+
+    def alpha_027(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #27."""
+        return alpha.alpha_027(high=high, low=low, close=self._expr, volume=volume, over=over)
+
+    def alpha_028(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #28."""
+        return alpha.alpha_028(
+            high=high,
+            low=low,
+            close=self._expr,
+            volume=volume,
+            adv_period=adv_period,
+            over=over,
+        )
+
+    def alpha_029(
+        self,
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #29."""
+        return alpha.alpha_029(close=self._expr, returns=returns, over=over)
+
+    def alpha_030(
+        self,
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """WorldQuant Formulaic Alpha #30."""
+        return alpha.alpha_030(close=self._expr, volume=volume, over=over)
+
     def alpha_041(
         self,
         low: IntoExpr,
@@ -1143,6 +1410,50 @@ class TechnicalAnalysisExpr:
     ) -> pl.Expr:
         """WorldQuant Formulaic Alpha #101."""
         return alpha.alpha_101(open_=self._expr, high=high, low=low, close=close)
+
+    # =========================================================================
+    # Performance & Risk Evaluation Metrics (7)
+    # =========================================================================
+
+    def drawdown_series(self, is_returns: bool = True) -> pl.Expr:
+        """Underwater Drawdown Series from period returns or equity curve."""
+        return evaluation.drawdown_series(self._expr, is_returns=is_returns)
+
+    def max_drawdown(self, is_returns: bool = True) -> pl.Expr:
+        """Maximum Drawdown (MDD) scalar expression."""
+        return evaluation.max_drawdown(self._expr, is_returns=is_returns)
+
+    def sharpe_ratio(
+        self,
+        risk_free_rate: float = 0.0,
+        annualization: float = 252.0,
+    ) -> pl.Expr:
+        """Annualized Sharpe Ratio scalar expression."""
+        return evaluation.sharpe_ratio(
+            self._expr, risk_free_rate=risk_free_rate, annualization=annualization
+        )
+
+    def sortino_ratio(
+        self,
+        risk_free_rate: float = 0.0,
+        annualization: float = 252.0,
+    ) -> pl.Expr:
+        """Annualized Sortino Ratio scalar expression."""
+        return evaluation.sortino_ratio(
+            self._expr, risk_free_rate=risk_free_rate, annualization=annualization
+        )
+
+    def calmar_ratio(self, annualization: float = 252.0) -> pl.Expr:
+        """Calmar Ratio (Annualized Return / |Max Drawdown|) scalar expression."""
+        return evaluation.calmar_ratio(self._expr, annualization=annualization)
+
+    def profit_factor(self) -> pl.Expr:
+        """Profit Factor (Gross Profit / |Gross Loss|) scalar expression."""
+        return evaluation.profit_factor(self._expr)
+
+    def win_rate(self, include_zeros: bool = False) -> pl.Expr:
+        """Win Rate (fraction of positive returns) scalar expression."""
+        return evaluation.win_rate(self._expr, include_zeros=include_zeros)
 
 
 @pl.api.register_dataframe_namespace("anta")
@@ -2274,6 +2585,431 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             alias,
         )
 
+    def alpha_002(
+        self,
+        open_: IntoExpr = "open",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_002",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #2."""
+        return self._apply_expr(
+            alpha.alpha_002(open_=open_, close=close, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_003(
+        self,
+        open_: IntoExpr = "open",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_003",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #3."""
+        return self._apply_expr(
+            alpha.alpha_003(open_=open_, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_004(
+        self,
+        low: IntoExpr = "low",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_004",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #4."""
+        return self._apply_expr(
+            alpha.alpha_004(low=low, over=over),
+            alias,
+        )
+
+    def alpha_005(
+        self,
+        open_: IntoExpr = "open",
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_005",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #5."""
+        return self._apply_expr(
+            alpha.alpha_005(open_=open_, high=high, low=low, close=close, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_006(
+        self,
+        open_: IntoExpr = "open",
+        volume: IntoExpr = "volume",
+        alias: str = "alpha_006",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #6."""
+        return self._apply_expr(
+            alpha.alpha_006(open_=open_, volume=volume),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_007(
+        self,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+        rank_period: int = 60,
+        alias: str = "alpha_007",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #7."""
+        return self._apply_expr(
+            alpha.alpha_007(
+                close=close, volume=volume, adv_period=adv_period, rank_period=rank_period
+            ),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_008(
+        self,
+        open_: IntoExpr = "open",
+        close: IntoExpr = "close",
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_008",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #8."""
+        return self._apply_expr(
+            alpha.alpha_008(open_=open_, close=close, returns=returns, over=over),
+            alias,
+        )
+
+    def alpha_009(
+        self,
+        close: IntoExpr = "close",
+        alias: str = "alpha_009",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #9."""
+        return self._apply_expr(
+            alpha.alpha_009(close=close),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_010(
+        self,
+        close: IntoExpr = "close",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_010",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #10."""
+        return self._apply_expr(
+            alpha.alpha_010(close=close, over=over),
+            alias,
+        )
+
+    def alpha_011(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_011",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #11."""
+        return self._apply_expr(
+            alpha.alpha_011(high=high, low=low, close=close, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_012(
+        self,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        alias: str = "alpha_012",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #12."""
+        return self._apply_expr(
+            alpha.alpha_012(close=close, volume=volume),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_013(
+        self,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_013",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #13."""
+        return self._apply_expr(
+            alpha.alpha_013(close=close, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_014(
+        self,
+        open_: IntoExpr = "open",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_014",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #14."""
+        return self._apply_expr(
+            alpha.alpha_014(open_=open_, close=close, volume=volume, returns=returns, over=over),
+            alias,
+        )
+
+    def alpha_015(
+        self,
+        high: IntoExpr = "high",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_015",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #15."""
+        return self._apply_expr(
+            alpha.alpha_015(high=high, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_016(
+        self,
+        high: IntoExpr = "high",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_016",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #16."""
+        return self._apply_expr(
+            alpha.alpha_016(high=high, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_017(
+        self,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_017",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #17."""
+        return self._apply_expr(
+            alpha.alpha_017(close=close, volume=volume, adv_period=adv_period, over=over),
+            alias,
+        )
+
+    def alpha_018(
+        self,
+        open_: IntoExpr = "open",
+        close: IntoExpr = "close",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_018",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #18."""
+        return self._apply_expr(
+            alpha.alpha_018(open_=open_, close=close, over=over),
+            alias,
+        )
+
+    def alpha_019(
+        self,
+        close: IntoExpr = "close",
+        returns: IntoExpr | None = None,
+        sum_period: int = 250,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_019",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #19."""
+        return self._apply_expr(
+            alpha.alpha_019(close=close, returns=returns, sum_period=sum_period, over=over),
+            alias,
+        )
+
+    def alpha_020(
+        self,
+        open_: IntoExpr = "open",
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_020",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #20."""
+        return self._apply_expr(
+            alpha.alpha_020(open_=open_, high=high, low=low, close=close, over=over),
+            alias,
+        )
+
+    def alpha_021(
+        self,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+        alias: str = "alpha_021",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #21."""
+        return self._apply_expr(
+            alpha.alpha_021(close=close, volume=volume, adv_period=adv_period),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_022(
+        self,
+        high: IntoExpr = "high",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_022",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #22."""
+        return self._apply_expr(
+            alpha.alpha_022(high=high, close=close, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_023(
+        self,
+        high: IntoExpr = "high",
+        period: int = 20,
+        alias: str = "alpha_023",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #23."""
+        return self._apply_expr(
+            alpha.alpha_023(high=high, period=period),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_024(
+        self,
+        close: IntoExpr = "close",
+        period: int = 100,
+        alias: str = "alpha_024",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #24."""
+        return self._apply_expr(
+            alpha.alpha_024(close=close, period=period),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_025(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        returns: IntoExpr | None = None,
+        adv_period: int = 20,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_025",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #25."""
+        return self._apply_expr(
+            alpha.alpha_025(
+                high=high,
+                low=low,
+                close=close,
+                volume=volume,
+                returns=returns,
+                adv_period=adv_period,
+                over=over,
+            ),
+            alias,
+        )
+
+    def alpha_026(
+        self,
+        high: IntoExpr = "high",
+        volume: IntoExpr = "volume",
+        alias: str = "alpha_026",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #26."""
+        return self._apply_expr(
+            alpha.alpha_026(high=high, volume=volume),
+            alias,
+            group_by=group_by,
+        )
+
+    def alpha_027(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_027",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #27."""
+        return self._apply_expr(
+            alpha.alpha_027(high=high, low=low, close=close, volume=volume, over=over),
+            alias,
+        )
+
+    def alpha_028(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        adv_period: int = 20,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_028",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #28."""
+        return self._apply_expr(
+            alpha.alpha_028(
+                high=high,
+                low=low,
+                close=close,
+                volume=volume,
+                adv_period=adv_period,
+                over=over,
+            ),
+            alias,
+        )
+
+    def alpha_029(
+        self,
+        close: IntoExpr = "close",
+        returns: IntoExpr | None = None,
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_029",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #29."""
+        return self._apply_expr(
+            alpha.alpha_029(close=close, returns=returns, over=over),
+            alias,
+        )
+
+    def alpha_030(
+        self,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        over: IntoExpr | Sequence[str] | None = None,
+        alias: str = "alpha_030",
+    ) -> FrameType:
+        """WorldQuant Formulaic Alpha #30."""
+        return self._apply_expr(
+            alpha.alpha_030(close=close, volume=volume, over=over),
+            alias,
+        )
+
     def alpha_041(
         self,
         high: IntoExpr = "high",
@@ -2314,4 +3050,138 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         return self._apply_expr(
             alpha.alpha_101(open_=open_, high=high, low=low, close=close),
             alias,
+        )
+
+    # =========================================================================
+    # Factor Evaluation & Vectorized Backtesting
+    # =========================================================================
+
+    def drawdown_series(
+        self,
+        col: IntoExpr = "close",
+        is_returns: bool = False,
+        alias: str = "drawdown",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Append underwater drawdown series column."""
+        return self._apply_expr(
+            evaluation.drawdown_series(col, is_returns=is_returns),
+            alias,
+            group_by=group_by,
+        )
+
+    def forward_returns(
+        self,
+        close_col: str = "close",
+        periods: Sequence[int] = (1, 5, 10),
+        group_by: str | Sequence[str] | None = None,
+        prefix: str = "fwd_ret_",
+    ) -> FrameType:
+        """Compute multi-horizon forward returns for alpha factor evaluation."""
+        return evaluation.forward_returns(
+            self._df,
+            close_col=close_col,
+            periods=periods,
+            group_by=group_by,
+            prefix=prefix,
+        )
+
+    def information_coefficient(
+        self,
+        factor_col: str,
+        return_col: str,
+        group_by: str | Sequence[str] | None = None,
+        method: Literal["spearman", "pearson"] = "spearman",
+    ) -> pl.DataFrame:
+        """Compute cross-sectional Information Coefficient (IC) or Rank IC series."""
+        return evaluation.information_coefficient(
+            self._df,
+            factor_col=factor_col,
+            return_col=return_col,
+            group_by=group_by,
+            method=method,
+        )
+
+    def ic_summary(
+        self,
+        factor_col: str,
+        return_col: str,
+        group_by: str | Sequence[str] | None = None,
+        method: Literal["spearman", "pearson"] = "spearman",
+    ) -> dict[str, float]:
+        """Compute Information Coefficient (IC) summary metrics (mean, std, ICIR, t-stat, hit rate)."""
+        return evaluation.ic_summary(
+            self._df,
+            factor_col=factor_col,
+            return_col=return_col,
+            group_by=group_by,
+            method=method,
+        )
+
+    def quantile_analysis(
+        self,
+        factor_col: str,
+        return_col: str,
+        quantiles: int = 5,
+        group_by: str | Sequence[str] | None = None,
+        annualization: float = 252.0,
+    ) -> pl.DataFrame:
+        """Group observations into N factor quantiles and compute return & risk metrics per bucket."""
+        return evaluation.quantile_analysis(
+            self._df,
+            factor_col=factor_col,
+            return_col=return_col,
+            quantiles=quantiles,
+            group_by=group_by,
+            annualization=annualization,
+        )
+
+    def factor_turnover(
+        self,
+        factor_col: str,
+        asset_col: str = "ticker",
+        time_col: str = "timestamp",
+        lag: int = 1,
+    ) -> pl.DataFrame:
+        """Compute factor rank autocorrelation and signal turnover across time."""
+        return evaluation.factor_turnover(
+            self._df,
+            factor_col=factor_col,
+            asset_col=asset_col,
+            time_col=time_col,
+            lag=lag,
+        )
+
+    def backtest(
+        self,
+        signal: IntoExpr = "signal",
+        close_col: str = "close",
+        return_col: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+        time_col: str | None = None,
+        fee_rate: float = 0.0,
+        slippage_rate: float = 0.0,
+        signal_lag: int = 1,
+        initial_capital: float = 1.0,
+        annualization: float = 252.0,
+        risk_free_rate: float = 0.0,
+        compound: bool = True,
+        aggregate_portfolio: bool = True,
+    ) -> BacktestResult:
+        """Run a lightweight vectorized backtest with fee/slippage deduction and tearsheet summary."""
+        return backtest.vectorized_backtest(
+            self._df,
+            signal=signal,
+            close_col=close_col,
+            return_col=return_col,
+            group_by=group_by,
+            time_col=time_col,
+            fee_rate=fee_rate,
+            slippage_rate=slippage_rate,
+            signal_lag=signal_lag,
+            initial_capital=initial_capital,
+            annualization=annualization,
+            risk_free_rate=risk_free_rate,
+            compound=compound,
+            aggregate_portfolio=aggregate_portfolio,
         )

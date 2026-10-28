@@ -5,6 +5,35 @@ from __future__ import annotations
 from . import namespace  # noqa: F401 - triggers Polars namespace registration
 from .alpha import (
     alpha_001,
+    alpha_002,
+    alpha_003,
+    alpha_004,
+    alpha_005,
+    alpha_006,
+    alpha_007,
+    alpha_008,
+    alpha_009,
+    alpha_010,
+    alpha_011,
+    alpha_012,
+    alpha_013,
+    alpha_014,
+    alpha_015,
+    alpha_016,
+    alpha_017,
+    alpha_018,
+    alpha_019,
+    alpha_020,
+    alpha_021,
+    alpha_022,
+    alpha_023,
+    alpha_024,
+    alpha_025,
+    alpha_026,
+    alpha_027,
+    alpha_028,
+    alpha_029,
+    alpha_030,
     alpha_041,
     alpha_054,
     alpha_101,
@@ -41,6 +70,24 @@ from .alpha import (
     ts_zscore,
     twap,
     volume_weighted_momentum,
+)
+from .backtest import (
+    BacktestResult,
+    vectorized_backtest,
+)
+from .evaluation import (
+    calmar_ratio,
+    drawdown_series,
+    factor_turnover,
+    forward_returns,
+    ic_summary,
+    information_coefficient,
+    max_drawdown,
+    profit_factor,
+    quantile_analysis,
+    sharpe_ratio,
+    sortino_ratio,
+    win_rate,
 )
 from .momentum import (
     awesome_oscillator,
@@ -151,7 +198,7 @@ from .volume import (
     vwma,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     # Trend (28)
@@ -183,7 +230,7 @@ __all__ = [
     "fibonacci_pivots",
     "camarilla_pivots",
     "woodie_pivots",
-    # Momentum (20)
+    # Momentum (21)
     "rsi",
     "macd",
     "stochastic",
@@ -253,7 +300,7 @@ __all__ = [
     "linear_regression_intercept",
     "linear_regression_angle",
     "linear_regression_forecast",
-    # Alpha Factor & Microstructure Primitives (37)
+    # Alpha Factor & Microstructure Primitives (66)
     "ts_rank",
     "ts_argmax",
     "ts_argmin",
@@ -288,10 +335,55 @@ __all__ = [
     "corwin_schultz_spread",
     "kyle_lambda",
     "alpha_001",
+    "alpha_002",
+    "alpha_003",
+    "alpha_004",
+    "alpha_005",
+    "alpha_006",
+    "alpha_007",
+    "alpha_008",
+    "alpha_009",
+    "alpha_010",
+    "alpha_011",
+    "alpha_012",
+    "alpha_013",
+    "alpha_014",
+    "alpha_015",
+    "alpha_016",
+    "alpha_017",
+    "alpha_018",
+    "alpha_019",
+    "alpha_020",
+    "alpha_021",
+    "alpha_022",
+    "alpha_023",
+    "alpha_024",
+    "alpha_025",
+    "alpha_026",
+    "alpha_027",
+    "alpha_028",
+    "alpha_029",
+    "alpha_030",
     "alpha_041",
     "alpha_054",
     "alpha_101",
-    # Multi-Timeframe Resampling & Validation
+    # Factor Evaluation & Strategy Performance Metrics (12)
+    "drawdown_series",
+    "max_drawdown",
+    "sharpe_ratio",
+    "sortino_ratio",
+    "calmar_ratio",
+    "profit_factor",
+    "win_rate",
+    "forward_returns",
+    "information_coefficient",
+    "ic_summary",
+    "quantile_analysis",
+    "factor_turnover",
+    # Vectorized Backtesting (2)
+    "BacktestResult",
+    "vectorized_backtest",
+    # Multi-Timeframe Resampling & Validation (2)
     "resample_ohlcv",
     "validate_ohlcv",
 ]

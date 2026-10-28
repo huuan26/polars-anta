@@ -5,6 +5,35 @@ import pytest
 
 from polars_anta.alpha import (
     alpha_001,
+    alpha_002,
+    alpha_003,
+    alpha_004,
+    alpha_005,
+    alpha_006,
+    alpha_007,
+    alpha_008,
+    alpha_009,
+    alpha_010,
+    alpha_011,
+    alpha_012,
+    alpha_013,
+    alpha_014,
+    alpha_015,
+    alpha_016,
+    alpha_017,
+    alpha_018,
+    alpha_019,
+    alpha_020,
+    alpha_021,
+    alpha_022,
+    alpha_023,
+    alpha_024,
+    alpha_025,
+    alpha_026,
+    alpha_027,
+    alpha_028,
+    alpha_029,
+    alpha_030,
     alpha_041,
     alpha_054,
     alpha_101,
@@ -453,3 +482,133 @@ def test_market_microstructure_indicators(sample_ohlcv: pl.DataFrame):
         corwin_schultz_spread("high", "low", period=0)
     with pytest.raises(ValueError, match="period must be an integer greater than 1"):
         kyle_lambda("close", "volume", period=1)
+
+
+def test_worldquant_alphas_002_to_030():
+    """Test WorldQuant formulaic alphas #2 through #30 across function, Expr, and Frame APIs."""
+    n = 35
+    df = pl.DataFrame(
+        {
+            "open": [100.0 + i * 0.5 + (i % 3) * 0.2 for i in range(n)],
+            "high": [101.0 + i * 0.55 + (i % 4) * 0.3 for i in range(n)],
+            "low": [99.0 + i * 0.45 - (i % 3) * 0.2 for i in range(n)],
+            "close": [100.2 + i * 0.52 + ((-1) ** i) * 0.4 for i in range(n)],
+            "volume": [1000.0 + (i * 37 % 500) + ((-1) ** i) * 120.0 for i in range(n)],
+        }
+    )
+
+    # 1. Direct functional expressions
+    func_df = df.select(
+        [
+            alpha_002("open", "close", "volume").alias("alpha_002"),
+            alpha_003("open", "volume").alias("alpha_003"),
+            alpha_004("low").alias("alpha_004"),
+            alpha_005("open", "high", "low", "close", "volume").alias("alpha_005"),
+            alpha_006("open", "volume").alias("alpha_006"),
+            alpha_007("close", "volume", adv_period=5, rank_period=10).alias("alpha_007"),
+            alpha_008("open", "close").alias("alpha_008"),
+            alpha_009("close").alias("alpha_009"),
+            alpha_010("close").alias("alpha_010"),
+            alpha_011("high", "low", "close", "volume").alias("alpha_011"),
+            alpha_012("close", "volume").alias("alpha_012"),
+            alpha_013("close", "volume").alias("alpha_013"),
+            alpha_014("open", "close", "volume").alias("alpha_014"),
+            alpha_015("high", "volume").alias("alpha_015"),
+            alpha_016("high", "volume").alias("alpha_016"),
+            alpha_017("close", "volume", adv_period=5).alias("alpha_017"),
+            alpha_018("open", "close").alias("alpha_018"),
+            alpha_019("close", sum_period=10).alias("alpha_019"),
+            alpha_020("open", "high", "low", "close").alias("alpha_020"),
+            alpha_021("close", "volume", adv_period=5).alias("alpha_021"),
+            alpha_022("high", "close", "volume").alias("alpha_022"),
+            alpha_023("high", period=10).alias("alpha_023"),
+            alpha_024("close", period=10).alias("alpha_024"),
+            alpha_025("high", "low", "close", "volume", adv_period=5).alias("alpha_025"),
+            alpha_026("high", "volume").alias("alpha_026"),
+            alpha_027("high", "low", "close", "volume").alias("alpha_027"),
+            alpha_028("high", "low", "close", "volume", adv_period=5).alias("alpha_028"),
+            alpha_029("close").alias("alpha_029"),
+            alpha_030("close", "volume").alias("alpha_030"),
+        ]
+    )
+
+    for idx in range(2, 31):
+        col = f"alpha_{idx:03d}"
+        assert col in func_df.columns
+        non_null = func_df[col].drop_nulls()
+        assert len(non_null) > 0, f"{col} produced all nulls"
+
+    # 2. Expression namespace (.anta / .ta)
+    expr_df = df.select(
+        [
+            pl.col("close").anta.alpha_002("open", "volume").alias("alpha_002"),
+            pl.col("open").ta.alpha_003("volume").alias("alpha_003"),
+            pl.col("low").anta.alpha_004().alias("alpha_004"),
+            pl.col("close").ta.alpha_005("open", "high", "low", "volume").alias("alpha_005"),
+            pl.col("open").anta.alpha_006("volume").alias("alpha_006"),
+            pl.col("close").ta.alpha_007("volume", adv_period=5, rank_period=10).alias("alpha_007"),
+            pl.col("close").anta.alpha_008("open").alias("alpha_008"),
+            pl.col("close").ta.alpha_009().alias("alpha_009"),
+            pl.col("close").anta.alpha_010().alias("alpha_010"),
+            pl.col("close").ta.alpha_011("high", "low", "volume").alias("alpha_011"),
+            pl.col("close").anta.alpha_012("volume").alias("alpha_012"),
+            pl.col("close").ta.alpha_013("volume").alias("alpha_013"),
+            pl.col("close").anta.alpha_014("open", "volume").alias("alpha_014"),
+            pl.col("high").ta.alpha_015("volume").alias("alpha_015"),
+            pl.col("high").anta.alpha_016("volume").alias("alpha_016"),
+            pl.col("close").ta.alpha_017("volume", adv_period=5).alias("alpha_017"),
+            pl.col("close").anta.alpha_018("open").alias("alpha_018"),
+            pl.col("close").ta.alpha_019(sum_period=10).alias("alpha_019"),
+            pl.col("close").anta.alpha_020("open", "high", "low").alias("alpha_020"),
+            pl.col("close").ta.alpha_021("volume", adv_period=5).alias("alpha_021"),
+            pl.col("close").anta.alpha_022("high", "volume").alias("alpha_022"),
+            pl.col("high").ta.alpha_023(period=10).alias("alpha_023"),
+            pl.col("close").anta.alpha_024(period=10).alias("alpha_024"),
+            pl.col("close").ta.alpha_025("high", "low", "volume", adv_period=5).alias("alpha_025"),
+            pl.col("high").anta.alpha_026("volume").alias("alpha_026"),
+            pl.col("close").ta.alpha_027("high", "low", "volume").alias("alpha_027"),
+            pl.col("close")
+            .anta.alpha_028("high", "low", "volume", adv_period=5)
+            .alias("alpha_028"),
+            pl.col("close").ta.alpha_029().alias("alpha_029"),
+            pl.col("close").anta.alpha_030("volume").alias("alpha_030"),
+        ]
+    )
+
+    # 3. DataFrame namespace (df.anta / df.ta)
+    frame_df = (
+        df.anta.alpha_002()
+        .ta.alpha_003()
+        .anta.alpha_004()
+        .ta.alpha_005()
+        .anta.alpha_006()
+        .ta.alpha_007(adv_period=5, rank_period=10)
+        .anta.alpha_008()
+        .ta.alpha_009()
+        .anta.alpha_010()
+        .ta.alpha_011()
+        .anta.alpha_012()
+        .ta.alpha_013()
+        .anta.alpha_014()
+        .ta.alpha_015()
+        .anta.alpha_016()
+        .ta.alpha_017(adv_period=5)
+        .anta.alpha_018()
+        .ta.alpha_019(sum_period=10)
+        .anta.alpha_020()
+        .ta.alpha_021(adv_period=5)
+        .anta.alpha_022()
+        .ta.alpha_023(period=10)
+        .anta.alpha_024(period=10)
+        .ta.alpha_025(adv_period=5)
+        .anta.alpha_026()
+        .ta.alpha_027()
+        .anta.alpha_028(adv_period=5)
+        .ta.alpha_029()
+        .anta.alpha_030()
+    )
+
+    for idx in range(2, 31):
+        col = f"alpha_{idx:03d}"
+        assert func_df[col].equals(expr_df[col])
+        assert func_df[col].equals(frame_df[col])

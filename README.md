@@ -222,18 +222,23 @@ import polars as pl
 import polars_anta as pa
 
 # 1. Compute WorldQuant Alpha #12 and multi-horizon forward returns
-eval_df = (
-    panel_df.anta.alpha_012(group_by="symbol")
-    .anta.forward_returns(periods=(1, 5), group_by="symbol")
+eval_df = panel_df.anta.alpha_012(group_by="symbol").anta.forward_returns(
+    periods=(1, 5), group_by="symbol"
 )
 
 # 2. Compute Rank IC summary (Mean IC, ICIR, t-stat, Hit Rate) & 5-Quantile Spread
-ic_stats = eval_df.anta.ic_summary("alpha_012", "fwd_ret_1", group_by="timestamp", method="spearman")
-quantiles_df = eval_df.anta.quantile_analysis("alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp")
+ic_stats = eval_df.anta.ic_summary(
+    "alpha_012", "fwd_ret_1", group_by="timestamp", method="spearman"
+)
+quantiles_df = eval_df.anta.quantile_analysis(
+    "alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp"
+)
 
 # 3. Run a vectorized backtest with 5 bps fee + 2 bps slippage and 1-bar execution lag
 bt_res = eval_df.anta.backtest(
-    signal=pl.col("alpha_012").anta.cs_zscore(over="timestamp").anta.ts_scale(a=1.0, over="timestamp"),
+    signal=pl.col("alpha_012")
+    .anta.cs_zscore(over="timestamp")
+    .anta.ts_scale(a=1.0, over="timestamp"),
     group_by="symbol",
     time_col="timestamp",
     fee_rate=0.0005,

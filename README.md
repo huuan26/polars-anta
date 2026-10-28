@@ -215,18 +215,31 @@ alpha_df = (
 
 ### 5. Factor Evaluation (IC / Quantiles) & Lightweight Vectorized Backtester
 
-Evaluate alpha predictive power with **Rank IC / ICIR**, **Quantile Monotonicity**, and run a loop-free **Vectorized Backtest** with automatic transaction cost & slippage deduction in one call:
+Evaluate alpha predictive power with **Rank IC / ICIR**, **Quantile Monotonicity**, and run a loop-free **Vectorized Backtest** (supporting 1-line `entries`/`exits` crossover triggers, automatic portfolio weight normalization, fee/slippage deduction, and formatted tearsheets):
 
 ```python
 import polars as pl
 import polars_anta as pa
 
-# 1. Compute WorldQuant Alpha #12 and multi-horizon forward returns
+# A. Single-Asset 1-Line Entry/Exit Crossover Backtest & Formatted Tearsheet
+bt_ema = (
+    df.anta.ema(period=12, alias="ema_12")
+    .anta.ema(period=26, alias="ema_26")
+    .anta.backtest(
+        entries=pl.col("ema_12").anta.crosses_above("ema_26"),
+        exits=pl.col("ema_12").anta.crosses_below("ema_26"),
+        fee_rate=0.0005,
+        slippage_rate=0.0002,
+        initial_capital=100_000.0,
+    )
+)
+print(bt_ema.report())
+
+# B. Multi-Asset WorldQuant Alpha #12 Evaluation (Rank IC + 5-Quantiles + Dollar-Neutral Backtest)
 eval_df = panel_df.anta.alpha_012(group_by="symbol").anta.forward_returns(
     periods=(1, 5), group_by="symbol"
 )
 
-# 2. Compute Rank IC summary (Mean IC, ICIR, t-stat, Hit Rate) & 5-Quantile Spread
 ic_stats = eval_df.anta.ic_summary(
     "alpha_012", "fwd_ret_1", group_by="timestamp", method="spearman"
 )
@@ -234,19 +247,17 @@ quantiles_df = eval_df.anta.quantile_analysis(
     "alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp"
 )
 
-# 3. Run a vectorized backtest with 5 bps fee + 2 bps slippage and 1-bar execution lag
-bt_res = eval_df.anta.backtest(
-    signal=pl.col("alpha_012")
-    .anta.cs_zscore(over="timestamp")
-    .anta.ts_scale(a=1.0, over="timestamp"),
+bt_portfolio = eval_df.anta.backtest(
+    signal="alpha_012",
     group_by="symbol",
     time_col="timestamp",
+    weight_scheme="dollar_neutral",
     fee_rate=0.0005,
     slippage_rate=0.0002,
     signal_lag=1,
     initial_capital=100_000.0,
 )
-print(bt_res.summary_df(transpose=True))
+print(pa.compare_strategies({"EMA Crossover": bt_ema, "Alpha #12 L/S": bt_portfolio}))
 ```
 
 ### 6. Interactive Jupyter Notebooks
@@ -259,6 +270,7 @@ Run our interactive tutorials directly in your browser with zero setup:
 | **01 - Quickstart Tutorial** | Comprehensive walk-through of expression syntax, `pl.Struct` unnesting, and plotting. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/01_quickstart.ipynb) |
 | **02 - Multi-Asset Portfolio Scan** | Real-world 500-ticker breakout screening in 50 milliseconds using `.over("ticker")`. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/02_multi_asset_portfolio_scan.ipynb) |
 | **03 - Crypto Multi-Pair Momentum Scan** | Cross-sectional crypto momentum & volatility ranking workflow. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
+| **04 - Vectorized Backtest & Alpha Eval** | 1-line entry/exit crossovers, formatted tearsheets, 5-quantile IC & dollar-neutral portfolio backtesting. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_backtest_and_alpha_eval.ipynb) |
 
 ---
 
@@ -473,8 +485,10 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 | `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by $|MDD|$ |
 | `profit_factor(returns)` | Performance Metric | Gross Profit divided by $|Gross Loss|$ |
 | `win_rate(returns, include_zeros=False)` | Performance Metric | Proportion of active periods with positive returns |
-| `vectorized_backtest(df, signal="signal", ...)` / `df.anta.backtest(...)` | Backtesting | Loop-free vectorized backtester with execution lag, fees, slippage & tearsheet |
-| `BacktestResult` | Backtesting | Result container providing `.data` DataFrame, `.summary` dict & `.summary_df()` |
+| `crosses_above(a, b, over=None)` / `crosses_below(a, b, over=None)` | Backtesting | Boolean crossover/crossunder detection against another series or scalar threshold |
+| `signals_to_positions(entries, exits, ...)` | Backtesting | Loop-free `.forward_fill()` state machine converting entry/exit triggers to positions |
+| `vectorized_backtest(df, signal="signal", ...)` / `df.anta.backtest(...)` | Backtesting | Vectorized backtester with `entries`/`exits`, `weight_scheme`, fees, slippage & tearsheet |
+| `BacktestResult` / `compare_strategies(strategies)` | Backtesting | Result container (`.data`, `.summary`, `.report()`) & multi-strategy comparison table |
 
 </details>
 

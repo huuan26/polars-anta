@@ -73,6 +73,10 @@ from .alpha import (
 )
 from .backtest import (
     BacktestResult,
+    compare_strategies,
+    crosses_above,
+    crosses_below,
+    signals_to_positions,
     vectorized_backtest,
 )
 from .evaluation import (
@@ -380,9 +384,13 @@ __all__ = [
     "ic_summary",
     "quantile_analysis",
     "factor_turnover",
-    # Vectorized Backtesting (2)
+    # Vectorized Backtesting (6)
     "BacktestResult",
     "vectorized_backtest",
+    "crosses_above",
+    "crosses_below",
+    "signals_to_positions",
+    "compare_strategies",
     # Multi-Timeframe Resampling & Validation (2)
     "resample_ohlcv",
     "validate_ohlcv",

@@ -1455,6 +1455,38 @@ class TechnicalAnalysisExpr:
         """Win Rate (fraction of positive returns) scalar expression."""
         return evaluation.win_rate(self._expr, include_zeros=include_zeros)
 
+    def crosses_above(
+        self,
+        other: IntoExpr | float | int,
+        over: str | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """Return True on bars where this expression crosses above ``other`` (column or threshold)."""
+        return backtest.crosses_above(self._expr, other, over=over)
+
+    def crosses_below(
+        self,
+        other: IntoExpr | float | int,
+        over: str | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """Return True on bars where this expression crosses below ``other`` (column or threshold)."""
+        return backtest.crosses_below(self._expr, other, over=over)
+
+    def signals_to_positions(
+        self,
+        exits: IntoExpr,
+        short_entries: IntoExpr | None = None,
+        short_exits: IntoExpr | None = None,
+        over: str | Sequence[str] | None = None,
+    ) -> pl.Expr:
+        """Convert entry trigger expression and ``exits`` into a continuous position series."""
+        return backtest.signals_to_positions(
+            entries=self._expr,
+            exits=exits,
+            short_entries=short_entries,
+            short_exits=short_exits,
+            over=over,
+        )
+
 
 @pl.api.register_dataframe_namespace("anta")
 @pl.api.register_dataframe_namespace("ta")
@@ -3167,6 +3199,11 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         risk_free_rate: float = 0.0,
         compound: bool = True,
         aggregate_portfolio: bool = True,
+        entries: IntoExpr | None = None,
+        exits: IntoExpr | None = None,
+        short_entries: IntoExpr | None = None,
+        short_exits: IntoExpr | None = None,
+        weight_scheme: Literal["raw", "dollar_neutral", "long_only", "equal_weight"] = "raw",
     ) -> BacktestResult:
         """Run a lightweight vectorized backtest with fee/slippage deduction and tearsheet summary."""
         return backtest.vectorized_backtest(
@@ -3184,4 +3221,9 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             risk_free_rate=risk_free_rate,
             compound=compound,
             aggregate_portfolio=aggregate_portfolio,
+            entries=entries,
+            exits=exits,
+            short_entries=short_entries,
+            short_exits=short_exits,
+            weight_scheme=weight_scheme,
         )

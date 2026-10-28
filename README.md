@@ -24,7 +24,7 @@
 
 > **Try it immediately in your browser:** Run our [1-Minute Interactive Colab Demo](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) with 1-click execution & live **112.4x speedup** benchmarks!
 >
-> **Latest Highlights (v0.3.0):** Expanded to **175 native indicators, alpha factors & evaluation primitives** - featuring **33 WorldQuant 101 Formulaic Alphas** (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), an **Alphalens-Style Factor Evaluation Suite** (`information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`), **Strategy Performance Metrics** (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`), and a **Lightweight Vectorized Backtester** (`df.anta.backtest()`).
+> **Latest Highlights:** Expanded to **175 native indicators, alpha factors & evaluation primitives** - featuring **33 WorldQuant 101 Formulaic Alphas** (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), an **Alphalens-Style Factor Evaluation Suite** (`information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`), **Strategy Performance Metrics** (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`), and a **Lightweight Vectorized Backtester** (`df.anta.backtest()`).
 
 ---
 

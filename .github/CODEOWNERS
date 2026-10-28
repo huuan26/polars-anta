@@ -1,0 +1,5 @@
+# Global Code Owners
+# Phan Bùi Hữu Ân (@huuan26) is the sole creator, owner, and lead architect of polars-anta.
+# All files, indicators, workflows, and pull requests require review and approval from @huuan26.
+
+* @huuan26

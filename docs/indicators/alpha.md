@@ -1,4 +1,4 @@
-# Alpha Factor & Microstructure Primitives (66 Primitives)
+# Alpha Factor & Microstructure Primitives
 
 Inspired by Kakushadze (2015, *101 Formulaic Alphas*), WorldQuant, and modern quantitative factor investing, these building blocks allow quantitative analysts to compose complex multi-asset predictive alphas, market microstructure estimators, and portfolio weights natively in Polars expressions.
 

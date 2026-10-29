@@ -1,4 +1,4 @@
-# Factor Evaluation, Performance Metrics & Vectorized Backtesting (14 Tools)
+# Factor Evaluation, Performance Metrics & Vectorized Backtesting
 
 `polars-anta` provides an institutional-grade suite for evaluating alpha factor predictive power (Alphalens-style **Information Coefficient**, **ICIR**, **Quantile Monotonicity**, **Turnover**) alongside scalar **Strategy Performance & Risk Expressions** and a loop-free **Vectorized Backtesting Engine** (`df.anta.backtest()`).
 

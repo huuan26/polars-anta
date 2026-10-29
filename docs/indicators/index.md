@@ -1,17 +1,16 @@
-# API Reference & Indicator Catalog (175 Native Tools)
+# API Reference & Indicator Catalog
 
-`polars-anta` provides **175 high-performance technical indicators, WorldQuant alpha factors, statistical regressions, factor evaluation tools, and vectorized backtesting primitives**, organized into seven specialized modules:
+`polars-anta` provides high-performance technical indicators, cross-sectional alpha primitives, statistical regressions, factor evaluation tools, and vectorized backtesting utilities, organized into seven specialized modules:
 
-| Domain / Module | Count | Key Functionality | API Reference |
-| :--- | :---: | :--- | :--- |
-| **1. Trend & Overlays** (`polars_anta.trend`) | **28** | Moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `ssl_channel`, `pivot_points` | [Trend API →](trend.md) |
-| **2. Momentum Oscillators** (`polars_anta.momentum`) | **21** | `rsi`, `macd`, `ppo`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | [Momentum API →](momentum.md) |
-| **3. Volatility & Channels** (`polars_anta.volatility`) | **18** | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `ulcer_index` | [Volatility API →](volatility.md) |
-| **4. Volume & Money Flow** (`polars_anta.volume`) | **15** | `vwap`, `vwap_bands`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `nvi`, `pvi`, `vpci`, `vr` | [Volume API →](volume.md) |
-| **5. Quantitative Statistics** (`polars_anta.stats`) | **12** | `zscore`, `percentile_rank`, `skewness`, `kurtosis`, `rolling_cov`, `rolling_corr`, `rolling_beta`, `rolling_alpha`, closed-form OLS `linear_regression_*` | [Statistics API →](stats.md) |
-| **6. Alpha & Microstructure** (`polars_anta.alpha`) | **66** | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, `alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101` | [Alpha & Microstructure API →](alpha.md) |
-| **7. Evaluation & Backtesting** (`polars_anta.evaluation`, `backtest`) | **14+** | `forward_returns`, `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`, `sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `vectorized_backtest` | [Evaluation & Backtest API →](evaluation-and-backtest.md) |
-| **Total Native Suite** | **175** | Pure Polars Expressions (`pl.Expr`) & LazyFrame-compatible pipelines with `.over("ticker")` support | |
+| Domain / Module | Key Functionality | API Reference |
+| :--- | :--- | :--- |
+| **1. Trend & Overlays** (`polars_anta.trend`) | Moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `ssl_channel`, `pivot_points` | [Trend API →](trend.md) |
+| **2. Momentum Oscillators** (`polars_anta.momentum`) | `rsi`, `macd`, `ppo`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | [Momentum API →](momentum.md) |
+| **3. Volatility & Channels** (`polars_anta.volatility`) | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `ulcer_index` | [Volatility API →](volatility.md) |
+| **4. Volume & Money Flow** (`polars_anta.volume`) | `vwap`, `vwap_bands`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `nvi`, `pvi`, `vpci`, `vr` | [Volume API →](volume.md) |
+| **5. Quantitative Statistics** (`polars_anta.stats`) | `zscore`, `percentile_rank`, `skewness`, `kurtosis`, `rolling_cov`, `rolling_corr`, `rolling_beta`, `rolling_alpha`, closed-form OLS `linear_regression_*` | [Statistics API →](stats.md) |
+| **6. Alpha & Microstructure** (`polars_anta.alpha`) | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, formulaic alphas (`alpha_001`–`alpha_101`) | [Alpha & Microstructure API →](alpha.md) |
+| **7. Evaluation & Backtesting** (`polars_anta.evaluation`, `backtest`) | `forward_returns`, `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`, `sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `vectorized_backtest` | [Evaluation & Backtest API →](evaluation-and-backtest.md) |
 
 ---
 
@@ -21,12 +20,12 @@ The library separates **data engineering**, **indicator & alpha expressions**, *
 
 ```text
 polars_anta/
-├── trend.py        # 28 moving averages, overlays, candlestick transforms & pivots
-├── momentum.py     # 21 momentum oscillators & cycle detectors
-├── volatility.py   # 18 volatility estimators, ATR stops & price channels
-├── volume.py       # 15 volume-weighted price, money flow & accumulation metrics
-├── stats.py        # 12 rolling moments, CAPM beta/alpha & closed-form OLS regression
-├── alpha.py        # 66 WorldQuant 101 alphas, cross-sectional ops & microstructure
+├── trend.py        # Moving averages, trend overlays, candlestick transforms & pivots
+├── momentum.py     # Momentum oscillators, cycle detectors & divergence indicators
+├── volatility.py   # OHLC volatility estimators, ATR stops & price channels
+├── volume.py       # Volume-weighted price, money flow & accumulation metrics
+├── stats.py        # Rolling moments, CAPM beta/alpha & closed-form OLS regression
+├── alpha.py        # Cross-sectional factor ops, market microstructure & formulaic alphas
 ├── evaluation.py   # Alphalens-style IC/IR, quantile monotonicity & risk metrics
 ├── backtest.py     # Loop-free vectorized backtester, crossover signals & tearsheets
 ├── resample.py     # Multi-timeframe OHLCV resampling & schema/integrity validation

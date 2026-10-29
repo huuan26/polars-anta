@@ -142,8 +142,10 @@ universe_features = universe.with_columns(
 ```python
 alpha_df = (
     panel_df.with_columns(
-        (-pl.col("close").anta.ts_delta(5).over("symbol") * pl.col("volume").anta.ts_rank(20).over("symbol"))
-        .alias("raw_alpha")
+        (
+            -pl.col("close").anta.ts_delta(5).over("symbol")
+            * pl.col("volume").anta.ts_rank(20).over("symbol")
+        ).alias("raw_alpha")
     )
     .with_columns(
         pl.col("raw_alpha")
@@ -179,9 +181,13 @@ bt_ema = (
 print(bt_ema.report())
 
 # 2. Multi-asset WorldQuant Alpha #12 Rank IC, 5-Quantiles & Dollar-Neutral Backtest
-eval_df = panel_df.anta.alpha_012(group_by="symbol").anta.forward_returns(periods=(1, 5), group_by="symbol")
+eval_df = panel_df.anta.alpha_012(group_by="symbol").anta.forward_returns(
+    periods=(1, 5), group_by="symbol"
+)
 ic_stats = eval_df.anta.ic_summary("alpha_012", "fwd_ret_1", group_by="timestamp")
-quantiles_df = eval_df.anta.quantile_analysis("alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp")
+quantiles_df = eval_df.anta.quantile_analysis(
+    "alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp"
+)
 ```
 
 ---

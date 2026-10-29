@@ -1,5 +1,5 @@
 site_name: polars-anta
-site_description: ANTA (Alpha & Numerical Technical Analysis) - Ultra-fast, zero-C technical analysis and factor library for Polars.
+site_description: ANTA (Alpha & Numerical Technical Analysis) - Ultra-fast, zero-C technical analysis, WorldQuant alpha factor, and vectorized backtesting library for Polars.
 site_author: An Phan (Phan Bùi Hữu Ân)
 site_url: https://huuan26.github.io/polars-anta/
 repo_url: https://github.com/huuan26/polars-anta
@@ -61,17 +61,18 @@ extra_javascript:
 nav:
   - Overview: index.md
   - Getting Started: getting-started.md
-  - Architecture: architecture.md
-  - Benchmarks: benchmarks.md
-  - Indicators:
-      - Catalog Overview: indicators/index.md
-      - Trend & Overlays (27): indicators/trend.md
-      - Momentum Oscillators (20): indicators/momentum.md
+  - API Reference (175):
+      - Catalog & Module Overview: indicators/index.md
+      - Trend & Overlays (28): indicators/trend.md
+      - Momentum Oscillators (21): indicators/momentum.md
       - Volatility & Channels (18): indicators/volatility.md
-      - Volume Dynamics (15): indicators/volume.md
-      - Quantitative Statistics (12): indicators/stats.md
-      - Alpha Factor Primitives (31): indicators/alpha.md
+      - Volume & Money Flow (15): indicators/volume.md
+      - Statistics & OLS Regression (12): indicators/stats.md
+      - Alpha & Microstructure (66): indicators/alpha.md
+      - Factor Evaluation & Backtesting (14+): indicators/evaluation-and-backtest.md
   - Guides:
       - Multi-Asset Scaling: guides/multi-asset.md
       - Resampling & DataFrame API: guides/resampling-and-dataframe-api.md
+      - Architecture & Vectorization: architecture.md
+      - Benchmarks: benchmarks.md
   - Contributing: contributing.md

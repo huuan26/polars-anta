@@ -1,4 +1,4 @@
-# Alpha Factor & Microstructure Primitives (37 Primitives)
+# Alpha Factor & Microstructure Primitives (66 Primitives)
 
 Inspired by Kakushadze (2015, *101 Formulaic Alphas*), WorldQuant, and modern quantitative factor investing, these building blocks allow quantitative analysts to compose complex multi-asset predictive alphas, market microstructure estimators, and portfolio weights natively in Polars expressions.
 
@@ -128,20 +128,15 @@ Kyle (1985) Price Impact Coefficient ($\lambda$). Estimates the rolling regressi
 
 ---
 
-## 5. Canonical Formulaic Alphas (Kakushadze 101 Alphas)
+## 5. Canonical Formulaic Alphas (33 WorldQuant 101 Alphas)
 
-### `alpha_001(close, returns=None, over=None)`
-WorldQuant Alpha #1:
-$$\text{rank}(\text{ts\_argmax}(\text{signed\_power}(\text{returns} < 0 \;?\; \text{std}(\text{returns}, 20) : \text{close}, 2), 5)) - 0.5$$
+`polars-anta` includes 33 pre-built institutional formulaic alphas from **Zura Kakushadze (2016), *101 Formulaic Alphas*** (`alpha_001` through `alpha_030`, `alpha_041`, `alpha_054`, and `alpha_101`). All formulaic alphas support both expression-level invocation and DataFrame/LazyFrame chaining (`df.anta.alpha_012(group_by="symbol")`).
 
-### `alpha_041(high, low, close, volume)`
-WorldQuant Alpha #41:
-$$\sqrt{\text{High} \times \text{Low}} - \text{VWAP}$$
-
-### `alpha_054(open, high, low, close)`
-WorldQuant Alpha #54:
-$$-\frac{(\text{Low} - \text{Close}) \times \text{Open}^5}{(\text{Low} - \text{High}) \times \text{Close}^5 + 10^{-4}}$$
-
-### `alpha_101(open, high, low, close)`
-WorldQuant Alpha #101:
-$$\frac{\text{Close} - \text{Open}}{(\text{High} - \text{Low}) + 10^{-4}}$$
+| Function | Inputs Required | Key Mechanism / Description |
+| :--- | :--- | :--- |
+| `alpha_001` – `alpha_010` | `open`, `high`, `low`, `close`, `volume` | Volatility-conditional signed power rank, volume-price correlation reversals, open-VWAP divergence, and 5-day trend persistence |
+| `alpha_011` – `alpha_020` | `open`, `high`, `low`, `close`, `volume` | VWAP-close extrema, momentum-volume reversal (`alpha_012`), rank covariance (`alpha_013`–`alpha_016`), and high-breakout ranking |
+| `alpha_021` – `alpha_030` | `open`, `high`, `low`, `close`, `volume` | Bollinger/volume regime switches (`alpha_021`), 20-day high breakouts (`alpha_023`), volume-rank correlation (`alpha_026`), and 3-day sign momentum (`alpha_030`) |
+| `alpha_041(high, low, close, volume)` | `high`, `low`, `close`, `volume` | Geometric High-Low midpoint vs. VWAP: $\sqrt{\text{High} \times \text{Low}} - \text{VWAP}$ |
+| `alpha_054(open, high, low, close)` | `open`, `high`, `low`, `close` | Intraday candlestick power ratio: $-\frac{(\text{Low} - \text{Close}) \cdot \text{Open}^5}{(\text{Low} - \text{High}) \cdot \text{Close}^5 + 10^{-4}}$ |
+| `alpha_101(open, high, low, close)` | `open`, `high`, `low`, `close` | Normalized intraday body-to-range momentum: $\frac{\text{Close} - \text{Open}}{(\text{High} - \text{Low}) + 10^{-4}}$ |

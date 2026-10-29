@@ -1,65 +1,89 @@
-<p align="center">
+<div align="center">
   <img src="assets/banner.png" alt="polars-anta banner" width="100%" />
-</p>
+</div>
 
-<p align="center">
-  <strong>ANTA (Alpha & Numerical Technical Analysis): Ultra-fast, zero-C-dependency technical analysis and factor library powered natively by Polars Expressions.</strong>
-</p>
+<div align="center">
+
+### Technical Analysis, WorldQuant Alpha Factors & Vectorized Backtesting in Polars
+
+**Transparent Polars expressions. Institutional alpha factors & risk analytics. Dual `.anta` / `.ta` interfaces. Zero C dependencies with Rust-accelerated performance.**
+
+</div>
 
 ---
 
 ## What is `polars-anta`?
 
-`polars-anta` is an ultra-fast, modern financial technical analysis and alpha factor library designed from the ground up for quantitative researchers, algorithmic traders, and financial engineers.
+**`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is an open-source quantitative finance library for **technical analysis, market microstructure estimation, cross-sectional alpha factor engineering, and vectorized backtesting** in Python and Polars.
 
-Unlike traditional libraries (`TA-Lib`, `pandas-ta`) that require external C compilers, introduce cumbersome binary dependencies, or execute through slow Python `for` loops, `polars-anta` implements **all 131 indicators, market microstructure estimators, and alpha factor primitives natively as Polars Expressions (`pl.Expr`)**.
+Designed for quantitative researchers, algorithmic traders, data scientists, and students, `polars-anta` implements **175 native indicators, WorldQuant 101 formulaic alphas, and evaluation tools** directly as Polars Expressions (`pl.Expr`)—combining readable, inspectable mathematical formulas with Polars' multi-threaded Rust execution engine.
 
-Every calculation is executed directly inside Polars' multi-threaded Rust query engine with zero-copy Apache Arrow memory layouts.
-
----
-
-## Key Advantages
-
-=== "Multi-Threaded Rust Engine"
-    Calculations bypass the Python GIL and run across all CPU cores automatically. Compute indicators on 1,000,000 rows in milliseconds.
-
-=== "Dual Expression Namespaces"
-    Both `pl.col("close").anta.<indicator>()` and `pl.col("close").ta.<indicator>()` are supported natively with zero overhead.
-
-=== "Zero C Dependencies"
-    No MSVC, no GCC, no headers. `pip install polars-anta` installs instantly on Linux, macOS, and Windows.
-
-=== "Native Multi-Asset Windowing"
-    Calculate indicators across entire universes (500+ tickers simultaneously) in parallel via `.over("ticker")` without slow `.groupby().apply()`.
-
-=== "Full LazyFrame & Streaming"
-    Integrates directly with Polars' `LazyFrame` query optimizer, enabling predicate pushdown and streaming out-of-core evaluation for datasets exceeding RAM.
+> **A Simple Core Idea:**
+> <p align="center"><strong>Quantitative Pipeline = OHLCV Data + Native Polars Expressions (<code>.anta</code> / <code>.ta</code>) + Cross-Sectional Alpha + Vectorized Backtest</strong></p>
 
 ---
 
-## Performance at a Glance
+## Why `polars-anta`?
 
-| Indicator / Operation | Scale | Pandas Execution | `polars-anta` Execution | Speedup |
-| :--- | :--- | :---: | :---: | :---: |
-| **Linear Regression Slope** | 1,000,000 rows | 1.8018 s | **0.0154 s** | **116.8x Faster** |
-| **Multi-Asset RSI** | 500 tickers x 2k bars | 0.4560 s | **0.0610 s** | **7.5x Faster** |
-| **Multi-Asset SMA** | 500 tickers x 2k bars | 0.1229 s | **0.0176 s** | **7.0x Faster** |
-| **Z-Score Normalization** | 1,000,000 rows | 0.0378 s | **0.0182 s** | **2.1x Faster** |
+- **Broad quantitative coverage** — 175 native tools spanning trend, momentum, volatility, volume, closed-form OLS regression, WorldQuant 101 alphas, market microstructure, Alphalens-style IC/Quantile evaluation, and vectorized backtesting.
+- **Transparent implementations** — inspect clean, closed-form algebraic Polars expressions rather than opaque C/Cython binaries.
+- **Rust-accelerated performance** — up to **112.4x faster** than Pandas on 1,000,000 rows via multi-threaded Rust query execution and zero-copy stride tricks.
+- **Zero C compilation** — installs in seconds via `pip install polars-anta` across Windows, macOS, and Linux with no `TA-Lib` C headers or MSVC/GCC toolchains.
+- **Learn by example** — explore ready-to-run Python scripts, 1-click Google Colab notebooks, and modular API reference guides.
 
 ---
 
-## 3-Line Quickstart
+## Documentation and Learning Resources
+
+| Resource | Description |
+| :--- | :--- |
+| [**API Reference & Catalog (175)**](indicators/index.md) | Complete module-by-module function signatures, struct fields, and mathematical formulas |
+| [**Getting Started Guide**](getting-started.md) | Installation, expression syntax, `pl.Struct` unnesting, and fluent DataFrame chaining |
+| [**Architecture & Vectorization**](architecture.md) | How closed-form OLS identities, Wilder recurrences, and zero-copy stride windows work |
+| [**Multi-Asset Universe Guide**](guides/multi-asset.md) | Scaling indicators and cross-sectional factors across 500+ symbols with `.over("ticker")` |
+| [**Resampling & Data Validation**](guides/resampling-and-dataframe-api.md) | Multi-timeframe OHLCV aggregation (`resample_ohlcv`) and integrity checks (`validate_ohlcv`) |
+| [**Factor Evaluation & Backtesting**](indicators/evaluation-and-backtest.md) | Rank IC, ICIR, 5-quantile monotonicity, strategy tearsheets, and `df.anta.backtest()` |
+| [**Performance Benchmarks**](benchmarks.md) | 1,000,000-row latency comparisons against Pandas and reproduction instructions |
+| [**Interactive Colab Notebooks**](https://github.com/huuan26/polars-anta/tree/master/examples) | 5 runnable Jupyter / Google Colab tutorials covering screening, momentum, and backtesting |
+
+---
+
+## 3-Step Quick Start
+
+### 1. Install
+
+```bash
+pip install polars-anta
+```
+
+### 2. Compute Indicators & Alpha Factors
 
 ```python
 import polars as pl
-import polars_anta  # Registers both .anta and .ta namespaces
+import polars_anta as pa  # Registers .anta and .ta namespaces
 
 df = pl.read_parquet("market_data.parquet")
 
-# Compute indicators cleanly within expressions
 features = df.with_columns(
-    pl.col("close").anta.sma(20).alias("sma_20"),
-    pl.col("close").anta.rsi(14).alias("rsi_14"),
-    pl.col("close").anta.bollinger_bands(20, 2.0).alias("bb"),
+    pl.col("close").anta.ema(20).over("symbol").alias("ema_20"),
+    pl.col("close").anta.rsi(14).over("symbol").alias("rsi_14"),
+    pl.col("close").anta.linear_regression_slope(14).over("symbol").alias("ols_slope"),
+    pl.col("close").anta.bollinger_bands(20, 2.0).over("symbol").alias("bb"),
+).unnest("bb")
+```
+
+### 3. Run a 1-Line Vectorized Backtest
+
+```python
+bt = (
+    df.anta.ema(12, alias="ema_12")
+    .anta.ema(26, alias="ema_26")
+    .anta.backtest(
+        entries=pl.col("ema_12").anta.crosses_above("ema_26"),
+        exits=pl.col("ema_12").anta.crosses_below("ema_26"),
+        fee_rate=0.0005,
+        initial_capital=100_000.0,
+    )
 )
+print(bt.report())
 ```

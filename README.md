@@ -2,35 +2,45 @@
 
 <img src="assets/banner.png" alt="polars-anta banner" width="100%" />
 
-<br/>
-<br/>
+### Technical analysis, WorldQuant alpha factors and vectorized backtesting in Polars
 
-**ANTA (Alpha & Numerical Technical Analysis): Ultra-fast, zero-C-dependency technical analysis, market microstructure, and alpha factor library powered natively by Polars Expressions.**
+**Transparent financial expressions. Institutional alpha factors and risk analytics. An intuitive dual `.anta` / `.ta` interface. Polars clarity with Rust-accelerated performance.**
+
+An open-source quantitative finance library for computing technical indicators, market microstructure estimators, cross-sectional alpha factors, Alphalens-style factor evaluations, and loop-free vectorized backtests. Built for quants, algorithmic traders, researchers, and students who want both speed and mathematical transparency.
 
 [![CI](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml/badge.svg)](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml)
-[![PyPI Version](https://img.shields.io/pypi/v/polars-anta.svg?color=blue)](https://pypi.org/project/polars-anta/)
+[![PyPI Version](https://img.shields.io/pypi/v/polars-anta.svg?label=PyPI&color=0077b6)](https://pypi.org/project/polars-anta/)
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-3776ab)](https://pypi.org/project/polars-anta/)
+[![Polars Version](https://img.shields.io/badge/polars-%3E%3D1.0.0-orange)](https://pola.rs)
+[![Catalog](https://img.shields.io/badge/catalog-175%20native-10b981)](#api-reference--indicator-catalog-175)
 [![Docs](https://github.com/huuan26/polars-anta/actions/workflows/docs.yml/badge.svg)](https://huuan26.github.io/polars-anta/)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb)
-[![Release](https://img.shields.io/github/v/release/huuan26/polars-anta?color=blue)](https://github.com/huuan26/polars-anta/releases/latest)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/polars-anta/)
-[![Polars Version](https://img.shields.io/badge/polars-%3E%3D1.0.0-orange)](https://pola.rs)
-[![Catalog](https://img.shields.io/badge/indicators-175%20native-10b981)](#supported-indicators-175-indicators-alpha-factors--evaluation-primitives)
-[![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![License](https://img.shields.io/badge/license-Apache%202.0-555.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/huuan26/polars-anta?style=flat&color=e0a526)](https://github.com/huuan26/polars-anta/stargazers)
 
-[Documentation](https://huuan26.github.io/polars-anta/) • [Why polars-anta?](#why-polars-anta) • [Architecture](#architecture--execution-pipeline) • [Benchmarks](#performance-benchmark-1000000-rows) • [Installation](#installation) • [Quickstart](#quickstart--quantitative-workflows) • [Indicator Catalog (175)](#supported-indicators-175-indicators-alpha-factors--evaluation-primitives) • [Development](#development--testing)
+[**Documentation**](https://huuan26.github.io/polars-anta/) • [**Quick start**](#quick-start) • [**API Reference (175)**](#api-reference--indicator-catalog-175) • [**Learning Resources**](#documentation-and-learning-resources) • [**Examples**](https://github.com/huuan26/polars-anta/tree/master/examples) • [**Report an issue**](https://github.com/huuan26/polars-anta/issues)
 
 </div>
 
-> **Try it immediately in your browser:** Run our [1-Minute Interactive Colab Demo](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) with 1-click execution & live **112.4x speedup** benchmarks!
->
-> **Latest Highlights:** Expanded to **175 native indicators, alpha factors & evaluation primitives** - featuring **33 WorldQuant 101 Formulaic Alphas** (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), an **Alphalens-Style Factor Evaluation Suite** (`information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`), **Strategy Performance Metrics** (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`), and a **Lightweight Vectorized Backtester** (`df.anta.backtest()`).
-
 ---
 
-## Why `polars-anta`?
+## What is `polars-anta`?
 
-Quantitative researchers and financial engineers have historically faced a trade-off between installation complexity, cross-sectional expressiveness, and execution speed:
+**`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is an open-source Python library for **high-speed technical analysis, cross-sectional alpha factor engineering, factor evaluation, and vectorized strategy backtesting** powered natively by [Polars](https://pola.rs/).
+
+It covers **175 native tools** across trend overlays, momentum oscillators, volatility channels, volume dynamics, closed-form OLS regressions, WorldQuant 101 formulaic alphas, market microstructure estimators, and portfolio risk analytics—with an emphasis on code that can be inspected, composed, and scaled across multi-asset universes without C compiler dependencies.
+
+### Why `polars-anta`?
+
+- **Broad quantitative coverage** — work with 175 technical indicators, 33 WorldQuant 101 alphas, liquidity/spread estimators, IC/quantile evaluation tools, and a vectorized backtester in one unified package.
+- **Transparent implementations** — inspect clean, closed-form algebraic Polars expressions (`pl.Expr`) written in readable Python rather than opaque C/Cython binaries.
+- **Rust-accelerated performance** — computations push directly into Polars' multi-threaded Rust query engine and SIMD kernels, achieving up to **112.4x speedups** over Pandas without the Python GIL.
+- **Zero C compilation** — installs cleanly via `pip install polars-anta` on Windows, macOS, and Linux with no `TA-Lib` C libraries or MSVC/GCC toolchains.
+- **Expression-first & composable** — invoke via `.anta` or `.ta` on any Polars `Expr`, `DataFrame`, or `LazyFrame`, and scale across thousands of symbols with `.over("ticker")`.
+- **Learn by example** — explore runnable scripts, 1-click Google Colab notebooks, and modular API documentation.
+
+> **A Simple Core Idea:**
+> <p align="center"><strong>Quantitative Pipeline = OHLCV Data + Native Polars Expressions (<code>.anta</code> / <code>.ta</code>) + Cross-Sectional Alpha + Vectorized Backtest</strong></p>
 
 | Capability | TA-Lib | pandas-ta | `polars-anta` |
 | :--- | :---: | :---: | :---: |
@@ -40,66 +50,25 @@ Quantitative researchers and financial engineers have historically faced a trade
 | **Dual Namespace API** | Unsupported | Single `.ta` accessor | **Both `.anta` & `.ta`** on `Expr`, `DataFrame`, `LazyFrame` |
 | **Cross-Sectional Alpha Ops** | Unsupported | Unsupported | **Built-in `cs_winsorize`, `cs_zscore`, `cs_rank`, `neutralize`** |
 | **Market Microstructure** | Unsupported | Unsupported | **Amihud Illiquidity, Kyle's $\lambda$, Roll & Corwin-Schultz Spreads** |
-| **Multi-Timeframe OHLCV** | Unsupported | Slow Pandas resampling | **Zero-copy `resample_ohlcv` & `validate_ohlcv`** |
+| **Factor Eval & Backtesting** | Unsupported | Unsupported | **Rank IC, ICIR, 5-Quantiles, `df.anta.backtest()` & Tearsheets** |
 | **Lazy Evaluation** | Unsupported | Unsupported | **Full `pl.LazyFrame`** query optimization & streaming |
-| **Memory Layout** | Array conversion overhead | High Pandas copy footprint | **Zero-copy Apache Arrow** columnar buffers |
-
-`polars-anta` eliminates this compromise by implementing technical indicators, statistical regressions, and WorldQuant-style alpha factors directly as **Polars Expressions (`pl.Expr`)**. Computations are pushed into Polars' multi-threaded Rust engine and vectorized `sliding_window_view` kernels, eliminating Python GIL bottlenecks without requiring any C compilers.
 
 ---
 
-## Architecture & Execution Pipeline
+## Quick start
 
-```mermaid
-flowchart LR
-    A["Raw Multi-Asset OHLCV<br/>(DataFrame / LazyFrame)"] --> B["1. Data Engineering<br/>validate_ohlcv() • resample()"]
-    B --> C["2. Feature & Alpha Engine<br/>175 Native .anta Expressions<br/>(TA + WorldQuant Alphas)"]
-    C --> D["3. Cross-Sectional Ops<br/>cs_winsorize → cs_zscore → neutralize"]
-    D --> E["4. Factor Evaluation<br/>Rank IC • 5-Quantiles • Turnover"]
-    E --> F["5. Vectorized Backtesting (v0.3.0)<br/>entries/exits • Fees • Tearsheet<br/>Dollar-Neutral / Long-Only"]
-```
+### 1. Install
 
-### Core Architectural Pillars
-
-- **Dual Namespaces (`.anta` & `.ta`)**: Invoke any indicator via `pl.col("close").anta.<indicator>()` or the shorthand `pl.col("close").ta.<indicator>()` across Expressions, DataFrames, and LazyFrames.
-- **Fluent Pipeline Chaining**: Chain data validation, timeframe resampling, and multi-indicator transformations directly on `df.anta...` or `lf.anta...`, or generate a complete quantitative feature suite in one call via `df.anta.add_all(group_by="symbol")`.
-- **Closed-Form Algebraic Vectorization**: Rolling OLS Linear Regression (`slope`, `intercept`, `angle`, `forecast`), CAPM `rolling_beta`/`rolling_alpha`, and `heikin_ashi` are rewritten in closed-form algebraic identities and native Polars `ewm_mean` recurrences—achieving **112.4x speedups** over rolling Python/Pandas UDFs.
-- **Zero-Loop Stride-Tricks Kernels**: Path-dependent rolling operators (`ts_rank`, `percentile_rank`, `ts_argmax`, `ts_argmin`, `ts_product`, `hurst_exponent`) use contiguous zero-copy `numpy.lib.stride_tricks.sliding_window_view` matrices instead of Python loops.
-- **Typed `pl.Struct` Outputs**: Multi-line indicators (`macd`, `bollinger_bands`, `keltner_channels`, `ichimoku`, `supertrend`, `heikin_ashi`, `squeeze_momentum`) return strongly-typed `pl.Struct` expressions with `unnest=True` support on DataFrames/LazyFrames.
-- **Loop-Free Vectorized Backtester & State Machine (v0.3.0)**: Execute single-asset and multi-asset backtests directly in Polars with 1-line `entries`/`exits` triggers via `.forward_fill()` state propagation, `.crosses_above()`/`.crosses_below()` expressions, portfolio weight normalization (`weight_scheme="dollar_neutral"` / `"long_only"`), transaction fees, slippage, Buy & Hold benchmark tracking, and formatted tearsheets (`bt.report()`, `pa.compare_strategies()`).
-- **Alphalens-Style Factor Evaluation Suite (v0.3.0)**: Validate alpha predictability before committing capital via multi-horizon `forward_returns()`, Spearman Rank IC & ICIR summary (`ic_summary()`), quantile return monotonicity testing (`quantile_analysis()`), and signal rank autocorrelation (`factor_turnover()`).
-
----
-
-## Performance Benchmark (1,000,000 Rows)
-
-<div align="center">
-
-<img src="benchmarks/benchmark_speed.png" alt="polars-anta Performance Benchmark" width="920"/>
-
-</div>
-
-Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a **500 tickers × 2,000 bars universe** (1,000,000 rows). Computations executed on Polars' multi-threaded Rust query engine vs single-threaded Pandas:
-
-| Operation / Indicator | Dataset Scale | Pandas Execution | `polars-anta` Execution | Measured Speedup |
-| :--- | :--- | :---: | :---: | :---: |
-| **Linear Regression Slope (OLS)** | 1,000,000 bars | 2.3529 s | **0.0209 s** | **112.4x Faster** |
-| **Multi-Asset RSI (14)** | 500 tickers × 2k bars | 0.4398 s | **0.0545 s** | **8.1x Faster** |
-| **Multi-Asset SMA (20)** | 500 tickers × 2k bars | 0.1345 s | **0.0168 s** | **8.0x Faster** |
-| **Z-Score Normalization** | 1,000,000 bars | 0.0450 s | **0.0267 s** | **1.7x Faster** |
-| **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
-| **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
-
-*Reproduce benchmarks locally using `pip install -e ".[benchmark]"` followed by `python benchmarks/benchmark_speed.py`.*
-
----
-
-## Installation
-
-Install directly from PyPI with zero C compiler requirements:
+`polars-anta` is available on PyPI with zero C compiler requirements:
 
 ```bash
-pip install polars-anta
+python -m pip install polars-anta
+```
+
+To upgrade to the latest release:
+
+```bash
+python -m pip install --upgrade polars-anta
 ```
 
 Or using [`uv`](https://github.com/astral-sh/uv):
@@ -108,21 +77,40 @@ Or using [`uv`](https://github.com/astral-sh/uv):
 uv add polars-anta
 ```
 
-*Requirements: Python >= 3.10, Polars >= 1.0.0, NumPy >= 1.24.0*
+### 2. Verify your installation
 
----
-
-## Quickstart & Quantitative Workflows
-
-### 1. Fluent DataFrame & LazyFrame Chaining (`.anta` or `.ta`)
-
-Validate raw OHLCV data, resample timeframes, transform candlesticks to Heikin-Ashi, and chain technical indicators on any `pl.DataFrame` or `pl.LazyFrame`:
+Importing `polars_anta` automatically registers both `.anta` and `.ta` namespaces on Polars `Expr`, `DataFrame`, and `LazyFrame` objects:
 
 ```python
 import polars as pl
-import polars_anta  # Registers .anta and .ta on Expressions, DataFrames, and LazyFrames
+import polars_anta as pa
 
-# End-to-end fluent pipeline on a multi-asset DataFrame or LazyFrame:
+df = pl.DataFrame({"close": [100.0, 102.0, 101.5, 104.0, 106.5, 105.0, 108.0]})
+out = df.with_columns(
+    pl.col("close").anta.ema(period=3).round(2).alias("ema_3"),
+    pl.col("close").anta.rsi(period=3).round(2).alias("rsi_3"),
+)
+print(out.tail(3))
+# shape: (3, 3)
+# ┌───────┬────────┬───────┐
+# │ close ┆ ema_3  ┆ rsi_3 │
+# │ ---   ┆ ---    ┆ ---   │
+# │ f64   ┆ f64    ┆ f64   │
+# ╞═══════╪════════╪═══════╡
+# │ 106.5 ┆ 104.59 ┆ 88.14 │
+# │ 105.0 ┆ 104.80 ┆ 62.61 │
+# │ 108.0 ┆ 106.40 ┆ 80.52 │
+# └───────┴────────┴───────┘
+```
+
+### 3. Explore quantitative workflows
+
+Start with our ready-to-run [example scripts](examples/) or [1-click Google Colab notebooks](#interactive-jupyter--colab-notebooks), or explore the four core workflows below:
+
+#### A. Fluent DataFrame & LazyFrame Chaining (`.anta` or `.ta`)
+
+```python
+# Validate OHLCV integrity, resample timeframes, and chain indicators on DataFrames or LazyFrames:
 df_features = (
     df.anta.validate_ohlcv()
     .anta.resample("15m", group_by="symbol")
@@ -133,80 +121,37 @@ df_features = (
     .anta.bollinger_bands(period=20, unnest=True)
 )
 
-# Or generate a comprehensive quantitative feature suite in a single call:
+# Or generate a comprehensive quantitative feature suite in one call:
 df_all = df.anta.add_all(group_by="symbol")
 ```
 
-### 2. Composable Expression Syntax (`pl.col(...).anta` or `.ta`)
-
-Compose indicators directly inside `.select()` or `.with_columns()` alongside native Polars expressions:
+#### B. Multi-Asset Parallel Execution (`.over("ticker")`)
 
 ```python
-import polars as pl
-import polars_anta as pa
-
-df = pl.DataFrame(
-    {
-        "open": [100.0, 101.5, 101.0, 102.5, 104.0, 103.5, 105.0],
-        "high": [101.8, 103.0, 102.5, 104.2, 105.8, 105.0, 106.5],
-        "low": [99.2, 100.8, 100.1, 101.8, 103.2, 102.8, 104.2],
-        "close": [101.2, 102.4, 101.8, 103.9, 105.1, 104.4, 106.0],
-        "volume": [1200, 1450, 1100, 1800, 2100, 1600, 2400],
-    }
-)
-
-result = df.with_columns(
-    pl.col("close").anta.ema(period=3).alias("ema_3"),
-    pl.col("close").anta.rsi(period=3).alias("rsi_3"),
-    pa.heikin_ashi("open", "high", "low", "close").alias("ha"),
-    pl.col("close").anta.bollinger_bands(period=3).alias("bb"),
-).unnest("ha", "bb")
-```
-
-### 3. Market-Wide Multi-Asset Parallel Execution (`.over("ticker")`)
-
-Polars automatically partitions and parallelizes `.anta` expressions across all CPU cores when combined with `.over("ticker")`:
-
-```python
-# Compute indicators across thousands of symbols simultaneously in Rust
+# Compute indicators across thousands of tickers simultaneously in Polars' Rust engine:
 universe_features = universe.with_columns(
     pl.col("close").anta.sma(20).over("ticker").alias("sma_20"),
     pl.col("close").anta.rsi(14).over("ticker").alias("rsi_14"),
-    pl.col("close").anta.stc(fast_period=23, slow_period=50).over("ticker").alias("stc"),
     pl.col("close").anta.linear_regression_slope(14).over("ticker").alias("ols_slope"),
-    pl.col("close").anta.obv("volume").over("ticker").alias("obv"),
+    pl.col("close").anta.amihud_illiquidity("volume", 20).over("ticker").alias("amihud"),
 )
 ```
 
-### 4. Institutional Alpha & Market Microstructure Pipeline
-
-Combine time-series liquidity/microstructure estimators with cross-sectional outlier clipping (`cs_winsorize`), standardization (`cs_zscore`), sector neutralization (`neutralize`), and L1 book scaling (`ts_scale`):
+#### C. Cross-Sectional Alpha Standardization & Sector Neutralization
 
 ```python
-import polars as pl
-import polars_anta as pa
-
 alpha_df = (
     panel_df.with_columns(
-        # 1. Time-series liquidity & price-impact estimators per asset
-        pl.col("close").anta.amihud_illiquidity("volume", period=20).over("symbol").alias("amihud"),
-        pl.col("close").anta.kyle_lambda("volume", period=20).over("symbol").alias("kyle_lambda"),
-        pa.corwin_schultz_spread("high", "low", period=20).over("symbol").alias("cs_spread"),
-        # 2. Raw momentum-reversal alpha signal
-        (
-            -pl.col("close").anta.ts_delta(5).over("symbol")
-            * pl.col("volume").anta.ts_rank(20).over("symbol")
-        ).alias("raw_alpha"),
+        (-pl.col("close").anta.ts_delta(5).over("symbol") * pl.col("volume").anta.ts_rank(20).over("symbol"))
+        .alias("raw_alpha")
     )
     .with_columns(
-        # 3. Cross-sectional winsorization (1%/99%) & Z-score standardization per date
         pl.col("raw_alpha")
         .anta.cs_winsorize(over="date", method="quantile", lower=0.01, upper=0.99)
         .anta.cs_zscore(over="date", clip_bound=3.0)
         .alias("clean_alpha")
     )
     .with_columns(
-        # 4. Sector-neutralize and scale to unit L1 long-short book ($1 long + $1 short)
         pa.ts_scale(
             pa.neutralize("clean_alpha", by="sector", over="date", standardize=True),
             a=1.0,
@@ -216,15 +161,10 @@ alpha_df = (
 )
 ```
 
-### 5. Factor Evaluation (IC / Quantiles) & Lightweight Vectorized Backtester
-
-Evaluate alpha predictive power with **Rank IC / ICIR**, **Quantile Monotonicity**, and run a loop-free **Vectorized Backtest** (supporting 1-line `entries`/`exits` crossover triggers, automatic portfolio weight normalization, fee/slippage deduction, and formatted tearsheets):
+#### D. Factor Evaluation (Rank IC / Quantiles) & 1-Line Vectorized Backtest
 
 ```python
-import polars as pl
-import polars_anta as pa
-
-# A. Single-Asset 1-Line Entry/Exit Crossover Backtest & Formatted Tearsheet
+# 1. Single-asset entry/exit crossover backtest & formatted tearsheet
 bt_ema = (
     df.anta.ema(period=12, alias="ema_12")
     .anta.ema(period=26, alias="ema_26")
@@ -238,62 +178,114 @@ bt_ema = (
 )
 print(bt_ema.report())
 
-# B. Multi-Asset WorldQuant Alpha #12 Evaluation (Rank IC + 5-Quantiles + Dollar-Neutral Backtest)
-eval_df = panel_df.anta.alpha_012(group_by="symbol").anta.forward_returns(
-    periods=(1, 5), group_by="symbol"
-)
-
-ic_stats = eval_df.anta.ic_summary(
-    "alpha_012", "fwd_ret_1", group_by="timestamp", method="spearman"
-)
-quantiles_df = eval_df.anta.quantile_analysis(
-    "alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp"
-)
-
-bt_portfolio = eval_df.anta.backtest(
-    signal="alpha_012",
-    group_by="symbol",
-    time_col="timestamp",
-    weight_scheme="dollar_neutral",
-    fee_rate=0.0005,
-    slippage_rate=0.0002,
-    signal_lag=1,
-    initial_capital=100_000.0,
-)
-print(pa.compare_strategies({"EMA Crossover": bt_ema, "Alpha #12 L/S": bt_portfolio}))
+# 2. Multi-asset WorldQuant Alpha #12 Rank IC, 5-Quantiles & Dollar-Neutral Backtest
+eval_df = panel_df.anta.alpha_012(group_by="symbol").anta.forward_returns(periods=(1, 5), group_by="symbol")
+ic_stats = eval_df.anta.ic_summary("alpha_012", "fwd_ret_1", group_by="timestamp")
+quantiles_df = eval_df.anta.quantile_analysis("alpha_012", "fwd_ret_1", quantiles=5, group_by="timestamp")
 ```
-
-### 6. Interactive Jupyter Notebooks
-
-Run our interactive tutorials directly in your browser with zero setup:
-
-| Notebook | Description | Interactive Demo |
-| :--- | :--- | :---: |
-| **Quickstart & Live Benchmark** | 1-minute demo covering single-asset syntax, 500-ticker scans, and live 112x speed benchmark. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
-| **01 - Quickstart Tutorial** | Comprehensive walk-through of expression syntax, `pl.Struct` unnesting, and plotting. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/01_quickstart.ipynb) |
-| **02 - Multi-Asset Portfolio Scan** | Real-world 500-ticker breakout screening in 50 milliseconds using `.over("ticker")`. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/02_multi_asset_portfolio_scan.ipynb) |
-| **03 - Crypto Multi-Pair Momentum Scan** | Cross-sectional crypto momentum & volatility ranking workflow. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
-| **04 - Vectorized Backtest & Alpha Eval** | 1-line entry/exit crossovers, formatted tearsheets, 5-quantile IC & dollar-neutral portfolio backtesting. | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_backtest_and_alpha_eval.ipynb) |
 
 ---
 
-## Supported Indicators (175 Indicators, Alpha Factors & Evaluation Primitives)
+## What can you model and compute?
 
-All 175 indicators, formulaic alphas, and evaluation functions are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces where applicable.
+| Area | Examples of functionality | Count | API Docs |
+| :--- | :--- | :---: | :---: |
+| **Trend & Overlays** | Adaptive moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `pivot_points` | **28** | [Trend Docs](https://huuan26.github.io/polars-anta/indicators/trend/) |
+| **Momentum Oscillators** | `rsi`, `macd`, `ppo`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | **21** | [Momentum Docs](https://huuan26.github.io/polars-anta/indicators/momentum/) |
+| **Volatility & Channels** | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `ulcer_index` | **18** | [Volatility Docs](https://huuan26.github.io/polars-anta/indicators/volatility/) |
+| **Volume & Money Flow** | `vwap`, `vwap_bands`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `nvi`, `pvi`, `vpci`, `vr` | **15** | [Volume Docs](https://huuan26.github.io/polars-anta/indicators/volume/) |
+| **Statistics & Vectorized OLS** | Rolling `zscore`, `percentile_rank`, `skewness`, `kurtosis`, CAPM `rolling_beta`/`rolling_alpha`, closed-form `linear_regression_*` | **12** | [Stats Docs](https://huuan26.github.io/polars-anta/indicators/stats/) |
+| **WorldQuant Alpha & Microstructure** | 33 WorldQuant 101 Alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `amihud_illiquidity`, `kyle_lambda`, `roll_spread`, `corwin_schultz_spread`, `hurst_exponent` | **66** | [Alpha Docs](https://huuan26.github.io/polars-anta/indicators/alpha/) |
+| **Factor Evaluation & Backtesting** | `forward_returns`, `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`, `sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `vectorized_backtest`, `compare_strategies` | **14** | [Eval & Backtest Docs](docs/indicators/evaluation-and-backtest.md) |
+| **Data Engineering Utilities** | Multi-timeframe OHLCV aggregation (`resample_ohlcv`), schema & price integrity checks (`validate_ohlcv`), batch generator (`df.anta.add_all()`) | **2+** | [Resampling Docs](https://huuan26.github.io/polars-anta/guides/resampling-and-dataframe-api/) |
 
-| Category / Module | Count | Key Highlights |
-| :--- | :---: | :--- |
-| **[1. Trend & Overlays](#1-trend--overlays-28-indicators)** (`polars_anta.trend`) | **28** | `sma`, `ema`, `hma`, `kama`, `t3`, `alma`, `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `ssl_channel`, `pivot_points` |
-| **[2. Momentum Oscillators](#2-momentum-oscillators-21-indicators)** (`polars_anta.momentum`) | **21** | `rsi`, `macd`, `stochastic`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst`, `ppo` |
-| **[3. Volatility & Channels](#3-volatility--channels-18-indicators)** (`polars_anta.volatility`) | **18** | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `parkinson_volatility`, `garman_klass_volatility`, `ulcer_index` |
-| **[4. Volume & Money Flow](#4-volume--money-flow-15-indicators)** (`polars_anta.volume`) | **15** | `vwap`, `vwap_bands`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `vpci`, `vr` |
-| **[5. Statistics & Vectorized OLS](#5-quantitative-statistics--regression-12-indicators)** (`polars_anta.stats`) | **12** | `zscore`, `percentile_rank`, `skewness`, `kurtosis`, `rolling_beta`, `rolling_alpha`, `linear_regression_slope`, `linear_regression_forecast` |
-| **[6. Alpha & Microstructure Primitives](#6-alpha-factor--microstructure-primitives-66-primitives)** (`polars_anta.alpha`) | **66** | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, `alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101` |
-| **[7. Factor Evaluation & Backtesting](#7-factor-evaluation-performance-metrics--vectorized-backtesting-14-tools)** (`polars_anta.evaluation`, `backtest`) | **14** | `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`, `sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`, `vectorized_backtest` |
-| **Data Engineering Utilities** (`polars_anta.resample`) | **2+** | `validate_ohlcv`, `resample_ohlcv`, `df.anta.add_all()` |
+---
 
-<details open>
-<summary><h3>1. Trend & Overlays (28 Indicators)</h3></summary>
+## How `polars-anta` is organized
+
+The library separates *data engineering*, *domain-specific indicator & alpha expressions*, *factor evaluation*, and *vectorized backtesting* into clean, self-contained modules so that each layer can be inspected and extended independently:
+
+```text
+polars_anta/
+├── trend.py        # 28 moving averages, overlays, candlestick transforms & pivot systems
+├── momentum.py     # 21 momentum oscillators, cycle detectors & divergence indicators
+├── volatility.py   # 18 OHLC volatility estimators, ATR trailing stops & price channels
+├── volume.py       # 15 institutional VWAP bands, money flow & accumulation indicators
+├── stats.py        # 12 rolling distributions, CAPM beta/alpha & closed-form OLS regression
+├── alpha.py        # 66 WorldQuant 101 alphas, cross-sectional ops & market microstructure
+├── evaluation.py   # Alphalens-style Rank IC, ICIR, quantile analysis & risk expressions
+├── backtest.py     # Loop-free vectorized backtester, crossover state machine & tearsheets
+├── resample.py     # Multi-timeframe OHLCV resampling & structural integrity validation
+└── namespace.py    # Dual .anta and .ta registration across Expr, DataFrame & LazyFrame
+```
+
+```mermaid
+flowchart LR
+    A["Raw Multi-Asset OHLCV<br/>(DataFrame / LazyFrame)"] --> B["1. Data Engineering<br/>validate_ohlcv() • resample()"]
+    B --> C["2. Feature & Alpha Engine<br/>175 Native .anta Expressions<br/>(TA + WorldQuant Alphas)"]
+    C --> D["3. Cross-Sectional Ops<br/>cs_winsorize → cs_zscore → neutralize"]
+    D --> E["4. Factor Evaluation<br/>Rank IC • 5-Quantiles • Turnover"]
+    E --> F["5. Vectorized Backtesting<br/>entries/exits • Fees • Tearsheet<br/>Dollar-Neutral / Long-Only"]
+```
+
+---
+
+## Documentation and learning resources
+
+| Resource | Description |
+| :--- | :--- |
+| [**Online Documentation**](https://huuan26.github.io/polars-anta/) | Full documentation website with search, mathematical formulas, and usage guides |
+| [**API Reference Overview**](docs/indicators/index.md) | Complete index of all 175 functions, input arguments, and `pl.Struct` output schemas |
+| [**Getting Started Guide**](docs/getting-started.md) | Introduction to Polars expressions, `.unnest()`, and fluent `.anta` / `.ta` chaining |
+| [**Multi-Asset Universe Guide**](docs/guides/multi-asset.md) | Best practices for partitioning indicators and cross-sectional alphas with `.over("ticker")` |
+| [**Factor Evaluation & Backtesting Guide**](docs/indicators/evaluation-and-backtest.md) | Evaluating alpha Rank IC / Quantiles and running `df.anta.backtest()` with transaction costs |
+| [**Architecture & Vectorization**](docs/architecture.md) | Deep dive into closed-form OLS identities, Wilder smoothing recurrences, and stride kernels |
+| [**Example Scripts**](examples/) | Standalone runnable Python scripts ([`quickstart.py`](examples/quickstart.py), [`04_backtest_showcase.py`](examples/04_backtest_showcase.py)) |
+| [**Interactive Jupyter Notebooks**](#interactive-jupyter--colab-notebooks) | 5 hands-on tutorials runnable with 1 click in Google Colab |
+| [**Benchmarks & Reproducibility**](docs/benchmarks.md) | 1,000,000-row benchmark methodology and reproduction script ([`benchmark_speed.py`](benchmarks/benchmark_speed.py)) |
+| [**Roadmap**](ROADMAP.md) & [**Changelog**](CHANGELOG.md) | Release history, upcoming milestones, and version changes |
+
+### Interactive Jupyter & Colab Notebooks
+
+| Notebook | Topic & Workflow Covered | Launch in Browser |
+| :--- | :--- | :---: |
+| **[`quickstart_colab.ipynb`](examples/quickstart_colab.ipynb)** | 1-minute interactive demo covering expression syntax, 500-ticker scans, and live 112x speed benchmarks | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
+| **[`01_quickstart.ipynb`](examples/01_quickstart.ipynb)** | Step-by-step introduction to `.anta` / `.ta` expressions, `pl.Struct` unnesting, and indicator plotting | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/01_quickstart.ipynb) |
+| **[`02_multi_asset_portfolio_scan.ipynb`](examples/02_multi_asset_portfolio_scan.ipynb)** | Screening a 500-ticker equity universe in ~50 ms using parallel `.over("ticker")` expressions | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/02_multi_asset_portfolio_scan.ipynb) |
+| **[`03_crypto_momentum_scan.ipynb`](examples/03_crypto_momentum_scan.ipynb)** | Cross-sectional cryptocurrency momentum, volatility filtering, and composite ranking workflow | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
+| **[`04_backtest_and_alpha_eval.ipynb`](examples/04_backtest_and_alpha_eval.ipynb)** | 1-line entry/exit crossovers, formatted tearsheets, 5-quantile IC analysis, and dollar-neutral portfolio backtesting | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_backtest_and_alpha_eval.ipynb) |
+
+---
+
+## Performance benchmark (1,000,000 rows)
+
+<div align="center">
+
+<img src="benchmarks/benchmark_speed.png" alt="polars-anta Performance Benchmark" width="900"/>
+
+</div>
+
+Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a **500 tickers × 2,000 bars universe** (1,000,000 rows) on Polars' multi-threaded Rust engine vs. single-threaded Pandas:
+
+| Operation / Indicator | Dataset Scale | Pandas Execution | `polars-anta` Execution | Measured Speedup |
+| :--- | :--- | :---: | :---: | :---: |
+| **Linear Regression Slope (OLS)** | 1,000,000 bars | 2.3529 s | **0.0209 s** | **112.4x Faster** |
+| **Multi-Asset RSI (14)** | 500 tickers × 2k bars | 0.4398 s | **0.0545 s** | **8.1x Faster** |
+| **Multi-Asset SMA (20)** | 500 tickers × 2k bars | 0.1345 s | **0.0168 s** | **8.0x Faster** |
+| **Z-Score Normalization** | 1,000,000 bars | 0.0450 s | **0.0267 s** | **1.7x Faster** |
+| **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
+| **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
+
+---
+
+## API Reference & Indicator Catalog (175)
+
+All 175 indicators, formulaic alphas, and evaluation functions are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces. Click any domain below to expand its complete function signature reference, or visit the [Online API Reference](https://huuan26.github.io/polars-anta/indicators/).
+
+<details>
+<summary><strong>1. Trend & Overlays (28 Indicators)</strong> — <code>polars_anta.trend</code> · <a href="docs/indicators/trend.md">Detailed Docs</a></summary>
+
+<br/>
 
 | Function Signature | Output Type / Struct Fields | Description |
 | :--- | :--- | :--- |
@@ -328,8 +320,10 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 
 </details>
 
-<details open>
-<summary><h3>2. Momentum Oscillators (21 Indicators)</h3></summary>
+<details>
+<summary><strong>2. Momentum Oscillators (21 Indicators)</strong> — <code>polars_anta.momentum</code> · <a href="docs/indicators/momentum.md">Detailed Docs</a></summary>
+
+<br/>
 
 | Function Signature | Output Type / Struct Fields | Description |
 | :--- | :--- | :--- |
@@ -357,8 +351,10 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 
 </details>
 
-<details open>
-<summary><h3>3. Volatility & Channels (18 Indicators)</h3></summary>
+<details>
+<summary><strong>3. Volatility & Channels (18 Indicators)</strong> — <code>polars_anta.volatility</code> · <a href="docs/indicators/volatility.md">Detailed Docs</a></summary>
+
+<br/>
 
 | Function Signature | Output Type / Struct Fields | Description |
 | :--- | :--- | :--- |
@@ -383,8 +379,10 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 
 </details>
 
-<details open>
-<summary><h3>4. Volume & Money Flow (15 Indicators)</h3></summary>
+<details>
+<summary><strong>4. Volume & Money Flow (15 Indicators)</strong> — <code>polars_anta.volume</code> · <a href="docs/indicators/volume.md">Detailed Docs</a></summary>
+
+<br/>
 
 | Function Signature | Output Type / Struct Fields | Description |
 | :--- | :--- | :--- |
@@ -406,8 +404,10 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 
 </details>
 
-<details open>
-<summary><h3>5. Quantitative Statistics & Regression (12 Indicators)</h3></summary>
+<details>
+<summary><strong>5. Quantitative Statistics & Regression (12 Indicators)</strong> — <code>polars_anta.stats</code> · <a href="docs/indicators/stats.md">Detailed Docs</a></summary>
+
+<br/>
 
 | Function Signature | Output Type | Description |
 | :--- | :--- | :--- |
@@ -426,8 +426,10 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 
 </details>
 
-<details open>
-<summary><h3>6. Alpha Factor & Microstructure Primitives (66 Primitives)</h3></summary>
+<details>
+<summary><strong>6. Alpha Factor & Microstructure Primitives (66 Primitives)</strong> — <code>polars_anta.alpha</code> · <a href="docs/indicators/alpha.md">Detailed Docs</a></summary>
+
+<br/>
 
 | Function Signature | Domain | Description |
 | :--- | :--- | :--- |
@@ -471,8 +473,10 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 
 </details>
 
-<details open>
-<summary><h3>7. Factor Evaluation, Performance Metrics & Vectorized Backtesting (14 Tools)</h3></summary>
+<details>
+<summary><strong>7. Factor Evaluation, Performance Metrics & Vectorized Backtesting (14 Tools)</strong> — <code>polars_anta.evaluation</code>, <code>backtest</code> · <a href="docs/indicators/evaluation-and-backtest.md">Detailed Docs</a></summary>
+
+<br/>
 
 | Function Signature | Domain | Description |
 | :--- | :--- | :--- |
@@ -497,34 +501,47 @@ All 175 indicators, formulaic alphas, and evaluation functions are exported at t
 
 ---
 
-## Development & Testing
+## Design philosophy
 
-```bash
-# Clone the repository
-git clone https://github.com/huuan26/polars-anta.git
-cd polars-anta
+`polars-anta` aims to balance **mathematical clarity**, **cross-sectional expressiveness**, and **execution speed**:
 
-# Install in editable mode with development dependencies
-pip install -e ".[dev]"
-
-# Run the test suite (169 unit tests across all 175 indicators, alpha factors & evaluation primitives)
-pytest -v
-
-# Run linter and formatter checks
-ruff check .
-ruff format --check .
-```
+1. **Keep quantitative formulas inspectable** — write indicators using closed-form algebraic identities and native Polars expressions (`pl.Expr`) rather than hiding logic behind compiled C extensions.
+2. **Eliminate Python loops** — express recursive smoothing (Wilder's RMA, Heikin-Ashi) via exact `ewm_mean` recurrences and path-dependent rolling operators via zero-copy `sliding_window_view` kernels.
+3. **Treat single-asset and multi-asset panels uniformly** — every expression composes naturally with `.over("ticker")` for time-series operations and `.over("date")` for cross-sectional ranking and neutralization.
+4. **Prevent look-ahead bias by default** — backtesting utilities shift signals by `signal_lag=1` bar out of the box and account for proportional transaction fees and slippage.
+5. **Provide reproducible examples and parity tests** — verify mathematical accuracy across 169+ unit tests and self-contained notebooks.
 
 ---
 
-## Author & Community
+## Contributing
 
-- **Author**: Phan Bui Huu An — [phanbuihuuan261103@gmail.com](mailto:phanbuihuuan261103@gmail.com)
-- **GitHub**: [@huuan26](https://github.com/huuan26)
-- **Discussions & Feature Requests**: [GitHub Discussions](https://github.com/huuan26/polars-anta/discussions)
+Contributions from quantitative researchers, developers, and finance students are welcome! You can help by implementing new indicators, expanding WorldQuant Alpha 101 formulas, improving documentation, or adding tutorial notebooks.
+
+- Browse our open [**Good First Issues & Help Wanted tasks**](https://github.com/huuan26/polars-anta/issues) to find a self-contained issue with full mathematical specifications.
+- Read [**CONTRIBUTING.md**](CONTRIBUTING.md) for development setup, testing (`pytest -v`), and linting (`ruff check .`) guidelines.
 
 ---
+
+## Project status and support
+
+`polars-anta` is an actively developed open-source project. If you find a bug, need an indicator, or want to suggest a quantitative workflow example, please [open an issue](https://github.com/huuan26/polars-anta/issues) or join [GitHub Discussions](https://github.com/huuan26/polars-anta/discussions).
+
+**Disclaimer:** `polars-anta` is provided for educational and research purposes without warranty of any kind. Quantitative models and backtest results should be independently verified before being used for live trading, investment, or risk-management decisions.
+
+## Author
+
+`polars-anta` was created and is maintained by **Phan Bui Huu An** ([@huuan26](https://github.com/huuan26) • [phanbuihuuan261103@gmail.com](mailto:phanbuihuuan261103@gmail.com)).
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+`polars-anta` is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Explore the indicators • Run the Colab notebooks • Contribute to open quantitative finance**
+
+[Documentation](https://huuan26.github.io/polars-anta/) • [API Reference](docs/indicators/index.md) • [Examples](examples/) • [GitHub Issues](https://github.com/huuan26/polars-anta/issues)
+
+</div>

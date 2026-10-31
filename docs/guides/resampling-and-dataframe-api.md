@@ -1,154 +1,86 @@
-# Multi-Timeframe Resampling & DataFrame API
+# Time Bars, Information-Driven Bars & Continuous Futures Roll (`polars_anta.resample`)
 
-In quantitative workflows, analysts and traders often ingest tick or 1-minute market data and need to resample it into higher-timeframe bars (e.g., 5-minute, 15-minute, 1-hour, 1-day) before calculating technical features.
+In institutional quantitative workflows, raw market feeds (tick data, Level-1 order book updates, or 1-minute candles) must be validated, stitched across futures contract expirations, and aggregated into chronological or activity-driven bars before feature extraction.
 
-`polars-anta` provides:
-1. **`resample_ohlcv`**: High-performance, zero-copy OHLCV aggregation powered by Polars' `group_by_dynamic`.
-2. **`validate_ohlcv`**: Instant structural integrity validation (High >= Low, non-negative prices, no out-of-order timestamps).
-3. **Fluent DataFrame & LazyFrame Namespaces**: Direct method chaining via `df.anta...` or `df.ta...` (and `lf.anta...` or `lf.ta...`).
+`polars-anta` provides six native Polars data engineering primitives in `polars_anta.resample`:
+
+1. **`resample_ohlcv`**: Chronological multi-timeframe aggregation (`"5m"`, `"15m"`, `"1h"`, `"1d"`) via Polars' `group_by_dynamic`.
+2. **`resample_volume_bars`**: Activity-synchronized Volume Bars emitted every $\Theta_V$ traded contracts/shares.
+3. **`resample_dollar_bars`**: Notional-synchronized Dollar Bars emitted every $\Theta_D$ currency value traded.
+4. **`resample_imbalance_bars`**: Order-flow-synchronized Tick / Volume Imbalance Bars (AFML) emitted whenever signed directional flow exceeds $\Theta_{\text{imb}}$.
+5. **`stitch_futures_roll`**: Continuous futures contract splicing via additive (`"panama"`), multiplicative (`"ratio"`), or unadjusted (`"none"`) roll adjustment.
+6. **`validate_ohlcv`**: High-speed structural integrity verification (`High >= Low`, non-negative prices, monotonic timestamps).
 
 ---
 
-## 1. Multi-Timeframe Resampling
+## 1. Information-Driven Bars (AFML Microstructure Sampling)
 
-### Single Asset Resampling
+### `resample_volume_bars(df, threshold, ...)` & `resample_dollar_bars(df, threshold, ...)`
+**Mathematical Formulation:**
+Let $v_t = V_t$ for Volume Bars, or $v_t = C_t \cdot V_t$ for Dollar Bars. The cumulative activity bucket index is:
+$$b_t = \left\lfloor \frac{\left(\sum_{\tau=1}^t v_\tau\right)(1 - \epsilon)}{\Theta} \right\rfloor$$
+Grouping by `bar_id = b_t` aggregates standard OHLCV columns along with `tick_count` (number of raw observations merged into the bar) and `vwap` ($\sum C_\tau V_\tau / \sum V_\tau$).
 
 ```python
-import polars as pl
-from polars_anta import resample_ohlcv
+import polars_anta as pa
 
-# Resample 1-minute bars to 1-hour bars:
-df_1h = resample_ohlcv(df_1m, every="1h")
+# Aggregate 1-minute VN30F1M bars into 5,000-contract Volume Bars
+vol_bars = df.anta.resample_volume_bars(threshold=5_000, group_by="symbol")
+
+# Aggregate into 500 Billion VND Notional Dollar Bars
+dollar_bars = df.anta.resample_dollar_bars(threshold=5e11, group_by="symbol")
 ```
 
-Under the hood, `resample_ohlcv` computes standard financial candle rules:
-- **`open`**: First open price in the window
-- **`high`**: Maximum high price in the window
-- **`low`**: Minimum low price in the window
-- **`close`**: Last close price in the window
-- **`volume`**: Sum of volume in the window (if present)
+---
 
-### Multi-Ticker Universe Resampling
+### `resample_imbalance_bars(df, threshold, mode="volume", ...)`
+**Mathematical Formulation (López de Prado, 2018):**
+Using the Lee-Ready tick rule $s_t = \text{sign}(C_t - C_{t-1})$ (forward-filled when $\Delta C_t = 0$), let signed flow be $\theta_t = s_t V_t$ (`mode="volume"`) or $\theta_t = s_t$ (`mode="tick"`). A new bar is triggered at bar $t$ whenever cumulative imbalance since the start of the current bar $t_0$ crosses `threshold`:
+$$\left| \sum_{\tau = t_0}^t \theta_\tau \right| \ge \Theta_{\text{imb}}$$
+Each output bar includes `bar_id`, `open`, `high`, `low`, `close`, `volume`, `imbalance` ($\sum_{\tau=t_0}^t \theta_\tau$), `tick_count`, and `vwap`.
 
-When handling universe data containing hundreds or thousands of tickers:
+---
+
+## 2. Continuous Futures Contract Roll Stitching
+
+### `stitch_futures_roll(df, contract_col="contract", method="panama", backward=True, ...)`
+When constructing multi-year historical series for index futures (e.g., splicing `VN30F2601` $\to$ `VN30F2602` $\to$ `VN30F2603`), contract switches create artificial price gaps $\delta_k = O_{t_k, \text{new}} - C_{t_k - 1, \text{old}}$ at roll timestamps $t_k$.
+
+| Method | Mathematical Adjustment (`backward=True`, anchoring latest contract to actual market price) | Preserved Invariant |
+| :--- | :--- | :--- |
+| **`method="panama"`** | $P_{t}^{\text{adj}} = P_t + \sum_{t_k > t} \left(O_{t_k, \text{new}} - C_{t_k - 1, \text{old}}\right)$ | Preserves exact **point differences ($\Delta P_t$)** and point-based ATR / stop distances. |
+| **`method="ratio"`** | $P_{t}^{\text{adj}} = P_t \times \prod_{t_k > t} \left(\frac{O_{t_k, \text{new}}}{C_{t_k - 1, \text{old}}}\right)$ | Preserves exact **percentage returns ($r_t$)** and keeps historical prices strictly positive. |
+| **`method="none"`** | $P_t^{\text{adj}} = P_t$ | Appends `roll_flag` and `roll_adjustment` columns for inspection without modifying OHLC. |
 
 ```python
-# Resample multi-ticker data in parallel:
-universe_1h = resample_ohlcv(
-    universe_1m,
-    every="1h",
+continuous_df = df.anta.stitch_futures_roll(
+    contract_col="contract",
+    method="panama",
+    backward=True,
+    group_by="underlying",
+)
+```
+
+---
+
+## 3. Chronological Multi-Timeframe Resampling (`resample_ohlcv`)
+
+```python
+# Resample 1-minute multi-asset universe to 15-minute bars in parallel
+df_15m = df.anta.resample(
+    every="15m",
     group_by="symbol",
     time_col="timestamp",
-)
-```
-
-You can also pass multi-column groups, such as `group_by=["exchange", "symbol"]`.
-
-### Custom Column Names and Additional Aggregations
-
-```python
-resampled = resample_ohlcv(
-    df,
-    every="15m",
-    time_col="date_time",
-    open_col="open_price",
-    high_col="high_price",
-    low_col="low_price",
-    close_col="close_price",
-    volume_col="turnover",
-    additional_aggs=[
-        pl.col("num_trades").sum().alias("trades_count"),
-        pl.col("spread").mean().alias("avg_spread"),
-    ],
+    additional_aggs=[pl.col("open_interest").last().alias("open_interest")],
 )
 ```
 
 ---
 
-## 2. OHLCV Data Validation
+## 4. Structural Integrity Validation (`validate_ohlcv`)
 
-Before training machine learning models or deploying algorithmic strategies, validating data integrity is essential:
-
-```python
-from polars_anta import validate_ohlcv
-
-# 1. Strict mode (default): returns original df if valid, raises ValueError on error
-clean_df = validate_ohlcv(df)
-
-# 2. Multi-ticker validation:
-clean_universe = validate_ohlcv(universe_df, group_by="symbol")
-
-# 3. Report mode: returns structured diagnostics dictionary without raising
-report = validate_ohlcv(df, return_report=True)
-if not report["valid"]:
-    print("Errors found:", report["errors"])
-    print("Metrics:", report["metrics"])
-```
-
-Checks performed:
-- Schema types: price columns are numeric, timestamp is `Date` or `Datetime`.
-- Candle consistency: `high >= low`, `high >= open`, `high >= close`, `low <= open`, `low <= close`.
-- Values: prices and volume are non-negative.
-- Timestamps: detects null timestamps and out-of-order timestamps per group.
-
----
-
-## 3. Fluent DataFrame & LazyFrame API (`.anta` and `.ta`)
-
-Both `.anta` and `.ta` namespaces are registered directly on `pl.DataFrame` and `pl.LazyFrame`.
-
-### Method Chaining
-
-```python
-import polars as pl
-import polars_anta
-
-df_features = (
-    df.anta.validate_ohlcv()
-    .anta.resample("15m", group_by="symbol")
-    .anta.sma(period=20)
-    .anta.ema(period=50)
-    .anta.rsi(period=14)
-    .anta.macd(unnest=True)
-    .anta.bollinger_bands(period=20, unnest=True)
-)
-```
-
-### Struct Unnesting & Prefixes
-
-Multi-output indicators (MACD, Bollinger Bands, Stochastic, Supertrend, etc.) can be kept as a `pl.Struct` or expanded into individual columns with clear prefixes:
-
-```python
-# Keep as struct column `bb`
-df.anta.bollinger_bands(period=20, unnest=False)
-
-# Unnest into `bb_upper`, `bb_middle`, `bb_lower`, `bb_bandwidth`, `bb_percent_b`
-df.anta.bollinger_bands(period=20, unnest=True, prefix="bb_")
-```
-
-### Full Quant Suite in One Pass: `.add_all()`
-
-Compute a comprehensive, standard set of technical indicators across trend, momentum, volatility, volume, and statistical alpha factors in a single parallelized pass:
-
-```python
-# Generates SMA, EMA, ADX, SuperTrend, RSI, MACD, Stoch, Williams %R, CCI, ROC,
-# ATR, Bollinger Bands, Keltner Channels, OBV, VWAP, CMF, MFI, ZScore, TS Rank
-features_df = df.anta.add_all(group_by="symbol")
-```
-
-### LazyFrame Out-of-Core Execution
-
-The DataFrame namespace works seamlessly on `pl.LazyFrame`, enabling streaming execution for datasets larger than available RAM:
-
-```python
-lf_plan = (
-    pl.scan_parquet("data/*.parquet")
-    .anta.resample("1h", group_by="ticker")
-    .anta.sma(20)
-    .anta.rsi(14)
-    .anta.add_all(group_by="ticker")
-)
-
-# Executes in multi-threaded Rust query engine
-result = lf_plan.collect()
-```
+Before training ML models or running backtests, `validate_ohlcv` checks four structural invariants in a single vectorized pass:
+1. **Schema & Types**: Price/volume columns are numeric; timestamp is `pl.Date` or `pl.Datetime`.
+2. **OHLC Envelope**: $H_t \ge \max(O_t, C_t, L_t)$ and $L_t \le \min(O_t, C_t, H_t)$.
+3. **Positivity**: Prices are strictly positive ($> 0$) and volume is non-negative ($\ge 0$).
+4. **Temporal Ordering**: No null timestamps and strictly non-decreasing timestamps within each `group_by` partition.

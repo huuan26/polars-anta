@@ -493,6 +493,77 @@ def neutralize(
     return demeaned
 
 
+def orthogonalize(
+    expr: IntoExpr,
+    factors: IntoExpr | Sequence[IntoExpr],
+    over: IntoExpr | Sequence[str] | None = None,
+    standardize: bool = True,
+    ridge: float = 0.0,
+) -> pl.Expr:
+    """Cross-Sectional Multi-Factor OLS Orthogonalization (Frisch-Waugh-Lovell / Gram-Schmidt).
+
+    Removes linear exposure of an alpha signal ``expr`` ($Y$) to one or more continuous
+    risk factors ``factors`` ($X_1, \\dots, X_K$, such as Market Beta, Volatility, Size,
+    or Amihud Illiquidity) within each cross-section ``over`` using iterated closed-form
+    Gram-Schmidt projections in native Polars expressions:
+        $$\\epsilon = (I - P_X)(Y - \\bar{Y}), \\quad \\text{Cov}(\\epsilon, X_j) = 0 \\; \\forall j = 1 \\dots K$$
+
+    :param expr: Target alpha signal column or expression to orthogonalize.
+    :param factors: Single risk factor column/expression or sequence of factor columns/expressions.
+    :param over: Optional cross-sectional grouping column(s) (typically ``'timestamp'`` or ``'date'``).
+    :param standardize: If True (default), standardizes the orthogonalized residual to unit variance
+        within each cross-section.
+    :param ridge: Optional L2 ridge regularization penalty $\\lambda \\ge 0$ added to factor variance
+        denominators (default 0.0 for exact OLS orthogonality).
+    :return: Polars expression of orthogonalized alpha residuals.
+    """
+    if ridge < 0.0:
+        raise ValueError("ridge must be non-negative")
+
+    if isinstance(factors, (str, pl.Expr)):
+        factor_exprs = [parse_expr(factors).cast(pl.Float64)]
+    else:
+        factor_exprs = [parse_expr(f).cast(pl.Float64) for f in factors]
+
+    if not factor_exprs:
+        raise ValueError("factors must contain at least one factor column or expression")
+
+    over_cols: list[str | pl.Expr] | None = None
+    if over is not None:
+        over_cols = [over] if isinstance(over, (str, pl.Expr)) else list(over)
+
+    def _cs_mean(x: pl.Expr) -> pl.Expr:
+        return x.mean().over(over_cols) if over_cols is not None else x.mean()
+
+    def _cs_std(x: pl.Expr) -> pl.Expr:
+        return x.std().over(over_cols) if over_cols is not None else x.std()
+
+    y_res = parse_expr(expr).cast(pl.Float64)
+    y_res = y_res - _cs_mean(y_res)
+    u_list = [x - _cs_mean(x) for x in factor_exprs]
+
+    k = len(u_list)
+    for j in range(k):
+        q_j = u_list[j]
+        var_q = _cs_mean(q_j * q_j)
+        denom = var_q + float(ridge)
+
+        cov_y = _cs_mean(y_res * q_j)
+        beta_y = pl.when(var_q > 1e-15).then(cov_y / denom).otherwise(0.0)
+        y_res = y_res - beta_y * q_j
+
+        for m in range(j + 1, k):
+            u_m = u_list[m]
+            cov_m = _cs_mean(u_m * q_j)
+            beta_m = pl.when(var_q > 1e-15).then(cov_m / denom).otherwise(0.0)
+            u_list[m] = u_m - beta_m * q_j
+
+    if standardize:
+        std_res = _cs_std(y_res)
+        return pl.when(std_res.is_null() | (std_res <= 1e-15)).then(0.0).otherwise(y_res / std_res)
+    return y_res
+
+
 def ts_scale(
     expr: IntoExpr,
     a: float = 1.0,
@@ -903,6 +974,231 @@ def kyle_lambda(
         .when(var_v > 0.0)
         .then((cov_rv / var_v) * float(scale))
         .otherwise(0.0)
+    )
+
+
+def vpin(
+    close: IntoExpr,
+    volume: IntoExpr,
+    period: int = 20,
+) -> pl.Expr:
+    """Volume-Synchronized Probability of Informed Trading (VPIN).
+
+    Estimates order flow toxicity using Bulk Volume Classification (Easley, López de Prado,
+    & O'Hara, 2012). Standardizes bar price changes $\\Delta P_t / \\sigma_{\\Delta P, t}$,
+    applies a high-precision closed-form Gaussian CDF approximation $\\Phi(Z_t)$ to partition
+    volume into buy-initiated ($V_t^B = V_t \\Phi(Z_t)$) and sell-initiated
+    ($V_t^S = V_t (1 - \\Phi(Z_t))$) flow, and computes the rolling ratio of absolute order
+    imbalance to total volume in $[0.0, 1.0]$.
+
+    :param close: Close price column or expression.
+    :param volume: Volume column or expression.
+    :param period: Rolling lookback window for standard deviation and flow aggregation (default 20).
+    :return: Polars expression producing VPIN values in ``[0.0, 1.0]``.
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+
+    c = parse_expr(close).cast(pl.Float64)
+    v = parse_expr(volume).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
+
+    dp = c.diff(1)
+    std_dp = dp.rolling_std(window_size=period)
+    z = pl.when(std_dp.is_null()).then(None).when(std_dp > 1e-12).then(dp / std_dp).otherwise(0.0)
+
+    # Bowling et al. (2009) closed-form Normal CDF approximation (max error < 1.4e-4)
+    logit = -(0.07056 * (z**3) + 1.5976 * z)
+    phi_z = 1.0 / (1.0 + logit.clip(-40.0, 40.0).exp())
+
+    abs_imbalance = v * (2.0 * phi_z - 1.0).abs()
+    sum_imb = abs_imbalance.rolling_sum(window_size=period)
+    sum_vol = v.rolling_sum(window_size=period)
+
+    return (
+        pl.when(sum_imb.is_null() | sum_vol.is_null())
+        .then(None)
+        .when(sum_vol > 0.0)
+        .then((sum_imb / sum_vol).clip(0.0, 1.0))
+        .otherwise(0.0)
+    )
+
+
+def ofi(
+    bid_price: IntoExpr,
+    bid_size: IntoExpr,
+    ask_price: IntoExpr,
+    ask_size: IntoExpr,
+    period: int = 1,
+) -> pl.Expr:
+    """Level-1 Order Flow Imbalance (OFI — Cont, Kukanov & Stoikov, 2014).
+
+    Measures net supply and demand queue changes at the best bid and best ask:
+    $e_t = \\mathbb{I}_{\\{P_t^B \\ge P_{t-1}^B\\}} q_t^B - \\mathbb{I}_{\\{P_t^B \\le P_{t-1}^B\\}} q_{t-1}^B - \\mathbb{I}_{\\{P_t^A \\le P_{t-1}^A\\}} q_t^A + \\mathbb{I}_{\\{P_t^A \\ge P_{t-1}^A\\}} q_{t-1}^A$.
+    When ``period > 1``, returns the rolling sum of single-bar OFI over ``period`` bars.
+
+    :param bid_price: Best bid price column or expression.
+    :param bid_size: Best bid quantity/size column or expression.
+    :param ask_price: Best ask price column or expression.
+    :param ask_size: Best ask quantity/size column or expression.
+    :param period: Rolling aggregation window (default 1 for single-bar OFI).
+    :return: Polars expression.
+    """
+    if period <= 0:
+        raise ValueError("period must be a positive integer greater than zero")
+
+    bp = parse_expr(bid_price).cast(pl.Float64)
+    bs = parse_expr(bid_size).cast(pl.Float64)
+    ap = parse_expr(ask_price).cast(pl.Float64)
+    as_ = parse_expr(ask_size).cast(pl.Float64)
+
+    prev_bp = bp.shift(1)
+    prev_bs = bs.shift(1)
+    prev_ap = ap.shift(1)
+    prev_as = as_.shift(1)
+
+    bid_flow = pl.when(bp >= prev_bp).then(bs).otherwise(0.0) - pl.when(bp <= prev_bp).then(
+        prev_bs
+    ).otherwise(0.0)
+    ask_flow = pl.when(ap <= prev_ap).then(as_).otherwise(0.0) - pl.when(ap >= prev_ap).then(
+        prev_as
+    ).otherwise(0.0)
+
+    valid = (
+        prev_bp.is_not_null()
+        & prev_bs.is_not_null()
+        & prev_ap.is_not_null()
+        & prev_as.is_not_null()
+    )
+    raw_ofi = pl.when(valid).then(bid_flow - ask_flow).otherwise(None)
+
+    if period == 1:
+        return raw_ofi
+    return raw_ofi.rolling_sum(window_size=period)
+
+
+def futures_basis(
+    futures_close: IntoExpr,
+    spot_close: IntoExpr,
+    days_to_expiry: IntoExpr | float | int | None = None,
+    period: int = 20,
+    annualization: float = 365.0,
+) -> pl.Expr:
+    """Index Futures vs. Underlying Spot Basis & Implied Carry Analytics.
+
+    Designed for index futures arbitrage and derivatives research (e.g., VN30F1M vs. VN30-Index,
+    CME E-mini vs. SPX). Returns a ``pl.Struct`` containing:
+        - ``'basis'``: Raw points spread $F_t - S_t$
+        - ``'basis_pct'``: Proportional basis $(F_t - S_t) / S_t$
+        - ``'annualized_basis'``: Annualized roll yield / implied carry rate
+        - ``'basis_zscore'``: Rolling Z-Score of proportional basis over ``period`` bars
+
+    :param futures_close: Futures price column or expression.
+    :param spot_close: Underlying spot index price column or expression.
+    :param days_to_expiry: Optional column/expression or positive scalar representing days to maturity.
+    :param period: Rolling lookback window for ``basis_zscore`` standardization (default 20).
+    :param annualization: Days per year used for carry annualization (default 365.0).
+    :return: Polars Struct expression.
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+    if annualization <= 0.0:
+        raise ValueError("annualization must be a positive number greater than zero")
+
+    f = parse_expr(futures_close).cast(pl.Float64)
+    s = parse_expr(spot_close).cast(pl.Float64)
+
+    raw_basis = f - s
+    basis_pct = pl.when(s > 0.0).then(raw_basis / s).otherwise(None)
+
+    if days_to_expiry is None:
+        ann_basis = basis_pct
+    elif isinstance(days_to_expiry, (int, float)) and not isinstance(days_to_expiry, bool):
+        dte_val = max(float(days_to_expiry), 1.0)
+        ann_basis = basis_pct * (float(annualization) / dte_val)
+    else:
+        dte_expr = parse_expr(days_to_expiry).cast(pl.Float64).clip(lower_bound=1.0)
+        ann_basis = basis_pct * (float(annualization) / dte_expr)
+
+    mean_bp = basis_pct.rolling_mean(window_size=period)
+    std_bp = basis_pct.rolling_std(window_size=period)
+    z_bp = (
+        pl.when(mean_bp.is_null() | std_bp.is_null())
+        .then(None)
+        .when(std_bp > 1e-12)
+        .then((basis_pct - mean_bp) / std_bp)
+        .otherwise(0.0)
+    )
+
+    return pl.struct(
+        [
+            raw_basis.alias("basis"),
+            basis_pct.alias("basis_pct"),
+            ann_basis.alias("annualized_basis"),
+            z_bp.alias("basis_zscore"),
+        ]
+    )
+
+
+def oi_regime(
+    close: IntoExpr,
+    open_interest: IntoExpr,
+    period: int = 1,
+) -> pl.Expr:
+    """Futures Open Interest (OI) & Price Action Regime Classifier.
+
+    Decomposes concurrent price changes $\\Delta P_t$ and open interest changes $\\Delta OI_t$
+    over ``period`` bars into the four canonical institutional positioning regimes:
+        - ``+2.0`` (**Long Buildup**): $\\Delta P_t > 0$ and $\\Delta OI_t > 0$ (new long entries driving price up)
+        - ``+1.0`` (**Short Covering**): $\\Delta P_t > 0$ and $\\Delta OI_t < 0$ (shorts buying back to exit)
+        - ``-2.0`` (**Short Buildup**): $\\Delta P_t < 0$ and $\\Delta OI_t > 0$ (new short entries driving price down)
+        - ``-1.0`` (**Long Liquidation**): $\\Delta P_t < 0$ and $\\Delta OI_t < 0$ (longs selling to exit)
+        - ``0.0`` (**Neutral / Unchanged**): $\\Delta P_t = 0$ or $\\Delta OI_t = 0$
+
+    Returns a ``pl.Struct`` containing:
+        - ``'regime'``: Numeric regime code in ``{-2.0, -1.0, 0.0, 1.0, 2.0}``
+        - ``'oi_change'``: Raw change in open interest $OI_t - OI_{t - \\text{period}}$
+        - ``'oi_pct_change'``: Percentage change in open interest
+        - ``'conviction'``: Directional OI-weighted price conviction $\\text{sign}(\\Delta P_t) \\cdot \\text{oi\\_pct\\_change}$
+
+    :param close: Futures close price column or expression.
+    :param open_interest: Open interest column or expression.
+    :param period: Lookback lag for price and OI difference (default 1).
+    :return: Polars Struct expression.
+    """
+    if period <= 0:
+        raise ValueError("period must be a positive integer greater than zero")
+
+    c = parse_expr(close).cast(pl.Float64)
+    oi = parse_expr(open_interest).cast(pl.Float64)
+    prev_oi = oi.shift(period)
+
+    dp = c.diff(period)
+    doi = oi.diff(period)
+    oi_pct = pl.when(prev_oi > 0.0).then(doi / prev_oi).otherwise(None)
+
+    regime_code = (
+        pl.when(dp.is_null() | doi.is_null())
+        .then(None)
+        .when((dp > 0.0) & (doi > 0.0))
+        .then(2.0)
+        .when((dp > 0.0) & (doi < 0.0))
+        .then(1.0)
+        .when((dp < 0.0) & (doi > 0.0))
+        .then(-2.0)
+        .when((dp < 0.0) & (doi < 0.0))
+        .then(-1.0)
+        .otherwise(0.0)
+    )
+
+    conviction = pl.when(dp.is_null() | oi_pct.is_null()).then(None).otherwise(dp.sign() * oi_pct)
+
+    return pl.struct(
+        [
+            regime_code.alias("regime"),
+            doi.alias("oi_change"),
+            oi_pct.alias("oi_pct_change"),
+            conviction.alias("conviction"),
+        ]
     )
 
 

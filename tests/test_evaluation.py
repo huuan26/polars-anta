@@ -208,3 +208,253 @@ def test_factor_evaluation_suite():
 
     with pytest.raises(ValueError, match="lag must be a positive integer"):
         factor_turnover(df, "alpha", lag=0)
+
+
+def test_triple_barrier_labels() -> None:
+    from polars_anta import triple_barrier_labels
+
+    # Construct deterministic paths:
+    # - From index 0 (100.0): jumps to 105.0 at k=1 (+5% >= +3% PT) -> label = +1.0, touch_bars = 1
+    # - From index 2 (100.0): drops to 96.0 at k=1 (-4% <= -3% SL) -> label = -1.0, touch_bars = 1
+    # - From index 4 (100.0): stays within [99.0, 101.0] for 3 bars -> vertical barrier (label = 0.0, touch_bars = 3)
+    df = pl.DataFrame(
+        {
+            "close": [100.0, 105.0, 100.0, 96.0, 100.0, 100.5, 99.8, 100.4, 100.0],
+            "side": [1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0],
+        }
+    )
+
+    out = df.anta.triple_barrier_labels(
+        close="close",
+        volatility=0.015,  # upper = +3%, lower = -3% with pt_mult=2, sl_mult=2
+        horizon=3,
+        pt_mult=2.0,
+        sl_mult=2.0,
+        side="side",
+        unnest=True,
+    )
+    assert {"tb_label", "tb_touch_bars", "tb_realized_return", "tb_meta_label"}.issubset(
+        set(out.columns)
+    )
+
+    # Bar 0: +5% at k=1 hits PT (+1.0), side=+1.0 -> meta_label = 1.0
+    assert out["tb_label"][0] == pytest.approx(1.0)
+    assert out["tb_touch_bars"][0] == 1
+    assert out["tb_realized_return"][0] == pytest.approx(0.05)
+    assert out["tb_meta_label"][0] == pytest.approx(1.0)
+
+    # Bar 2: -4% at k=1 hits SL (-1.0), side=-1.0 (short model was right!) -> meta_label = 1.0
+    assert out["tb_label"][2] == pytest.approx(-1.0)
+    assert out["tb_touch_bars"][2] == 1
+    assert out["tb_realized_return"][2] == pytest.approx(-0.04)
+    assert out["tb_meta_label"][2] == pytest.approx(1.0)
+
+    # Bar 4: stays within +/-3% for k=1..3 -> vertical barrier (label=0.0, touch_bars=3, ret=+0.004)
+    assert out["tb_label"][4] == pytest.approx(0.0)
+    assert out["tb_touch_bars"][4] == 3
+    assert out["tb_realized_return"][4] == pytest.approx(0.004)
+    assert out["tb_meta_label"][4] == pytest.approx(0.0)
+
+    # Default rolling volatility (volatility=None) and Expr namespace (.ta)
+    df_long = pl.DataFrame(
+        {
+            "ticker": ["VN30F1M"] * 12,
+            "close": [100.0 + i * 0.5 + ((-1) ** i) * 0.2 for i in range(12)],
+        }
+    )
+    expr_out = df_long.select(
+        pl.col("close")
+        .ta.triple_barrier_labels(horizon=2, vol_period=3, min_ret=0.001)
+        .over("ticker")
+        .alias("tb")
+    ).unnest("tb")
+    assert expr_out["label"].null_count() < len(df_long)
+
+    # Disable upper or lower barrier (pt_mult=0 or sl_mult=0) and custom volatility column
+    only_sl = (
+        df.with_columns(pl.lit(0.015).alias("vol_col"))
+        .select(
+            triple_barrier_labels(
+                "close", volatility="vol_col", horizon=2, pt_mult=0.0, sl_mult=2.0
+            ).alias("tb")
+        )
+        .unnest("tb")
+    )
+    # Bar 0 (+5% at k=1, 0% at k=2) does not trigger upper barrier because pt_mult=0
+    assert only_sl["label"][0] == pytest.approx(0.0)
+    assert only_sl["label"][2] == pytest.approx(-1.0)
+
+    only_pt = df.select(
+        triple_barrier_labels("close", volatility=0.015, horizon=2, pt_mult=2.0, sl_mult=0.0).alias(
+            "tb"
+        )
+    ).unnest("tb")
+    assert only_pt["label"][0] == pytest.approx(1.0)
+    assert only_pt["label"][2] == pytest.approx(0.0)
+
+    # Validation checks
+    with pytest.raises(ValueError, match="horizon must be a positive integer"):
+        triple_barrier_labels("close", horizon=0)
+    with pytest.raises(ValueError, match="pt_mult and sl_mult must be non-negative"):
+        triple_barrier_labels("close", pt_mult=-1.0)
+    with pytest.raises(ValueError, match="min_ret must be non-negative"):
+        triple_barrier_labels("close", min_ret=-0.01)
+    with pytest.raises(ValueError, match="vol_period must be an integer greater than 1"):
+        triple_barrier_labels("close", vol_period=1)
+    with pytest.raises(ValueError, match="scalar volatility must be a positive number"):
+        triple_barrier_labels("close", volatility=0.0)
+
+
+def test_trend_scanning_labels() -> None:
+    from polars_anta import trend_scanning_labels
+
+    # First segment: exponential uptrend -> +1.0 with positive t-value
+    # Second segment: exponential downtrend -> -1.0 with negative t-value
+    up_prices = [100.0 * (1.015**i) for i in range(12)]
+    down_prices = [up_prices[-1] * (0.98**i) for i in range(1, 12)]
+    df = pl.DataFrame(
+        {
+            "ticker": ["VN30F1M"] * (len(up_prices) + len(down_prices)),
+            "close": up_prices + down_prices,
+        }
+    )
+
+    out = df.anta.trend_scanning_labels(
+        close="close",
+        min_window=4,
+        max_window=8,
+        step=2,
+        unnest=True,
+        group_by="ticker",
+    )
+    assert {
+        "ts_label_label",
+        "ts_label_t_value",
+        "ts_label_optimal_window",
+        "ts_label_ret",
+    }.issubset(set(out.columns))
+
+    # Start of uptrend (bar 0): strongly positive t-stat and +1.0 label
+    assert out["ts_label_label"][0] == pytest.approx(1.0)
+    assert out["ts_label_t_value"][0] > 10.0
+    assert out["ts_label_optimal_window"][0] in (4, 6, 8)
+    assert out["ts_label_ret"][0] > 0.0
+
+    # Start of downtrend (bar 11): strongly negative t-stat and -1.0 label
+    assert out["ts_label_label"][11] == pytest.approx(-1.0)
+    assert out["ts_label_t_value"][11] < -10.0
+    assert out["ts_label_optimal_window"][11] in (4, 6, 8)
+    assert out["ts_label_ret"][11] < 0.0
+
+    # Expr namespace (.ta)
+    expr_res = df.select(
+        pl.col("close").ta.trend_scanning_labels(min_window=4, max_window=6).alias("ts")
+    ).unnest("ts")
+    assert expr_res["label"][0] == pytest.approx(1.0)
+
+    # Validation checks
+    with pytest.raises(
+        ValueError, match="min_window must be an integer greater than or equal to 3"
+    ):
+        trend_scanning_labels("close", min_window=2, max_window=5)
+    with pytest.raises(ValueError, match="max_window must be greater than or equal to min_window"):
+        trend_scanning_labels("close", min_window=6, max_window=5)
+    with pytest.raises(ValueError, match="step must be a positive integer"):
+        trend_scanning_labels("close", min_window=4, max_window=8, step=0)
+
+
+def test_probabilistic_and_deflated_sharpe_ratio() -> None:
+    from polars_anta import deflated_sharpe_ratio, probabilistic_sharpe_ratio
+
+    # Strong positive strategy vs negative strategy over 60 bars
+    pos_rets = [0.008 + ((-1) ** i) * 0.003 for i in range(60)]
+    neg_rets = [-0.005 + ((-1) ** i) * 0.004 for i in range(60)]
+    df = pl.DataFrame({"pos": pos_rets, "neg": neg_rets, "flat": [0.0] * 60})
+
+    res = df.select(
+        [
+            pl.col("pos").anta.probabilistic_sharpe_ratio(benchmark_sr=0.0).alias("psr_pos"),
+            pl.col("neg").ta.probabilistic_sharpe_ratio(benchmark_sr=0.0).alias("psr_neg"),
+            probabilistic_sharpe_ratio("flat", benchmark_sr=0.0).alias("psr_flat"),
+            pl.col("pos").anta.deflated_sharpe_ratio(n_trials=1, trials_sr_std=0.5).alias("dsr_n1"),
+            pl.col("pos").ta.deflated_sharpe_ratio(n_trials=50, trials_sr_std=0.8).alias("dsr_n50"),
+        ]
+    )
+
+    assert res["psr_pos"][0] > 0.99
+    assert res["psr_neg"][0] < 0.01
+    assert res["psr_flat"][0] == pytest.approx(0.0)
+    # When n_trials=1, DSR equals PSR(benchmark_sr=0.0)
+    assert res["dsr_n1"][0] == pytest.approx(res["psr_pos"][0])
+    # Penalizing for 50 trials raises the hurdle SR and lowers DSR
+    assert 0.0 <= res["dsr_n50"][0] <= res["dsr_n1"][0]
+
+    with pytest.raises(ValueError, match="annualization must be a positive"):
+        probabilistic_sharpe_ratio("pos", annualization=0.0)
+    with pytest.raises(ValueError, match="n_trials must be a positive integer"):
+        deflated_sharpe_ratio("pos", n_trials=0)
+    with pytest.raises(ValueError, match="trials_sr_std must be non-negative"):
+        deflated_sharpe_ratio("pos", trials_sr_std=-0.1)
+    with pytest.raises(ValueError, match="annualization must be a positive"):
+        deflated_sharpe_ratio("pos", annualization=0.0)
+
+
+def test_newey_west_ic_summary_and_ic_decay() -> None:
+    from polars_anta import ic_decay, ic_summary
+
+    # Build a multi-asset panel across 15 dates x 5 tickers where factor predicts future prices
+    rows = []
+    for d_idx in range(1, 16):
+        date_str = f"2026-01-{d_idx:02d}"
+        for t_idx in range(1, 6):
+            ticker = f"T{t_idx}"
+            # Positive drift proportional to t_idx with slight period variation in rank
+            base_price = 100.0 * ((1.0 + 0.005 * t_idx) ** d_idx)
+            alpha_val = float(t_idx) + (1.5 if (d_idx % 4 == 0 and t_idx == 2) else 0.0)
+            rows.append(
+                {"date": date_str, "ticker": ticker, "close": base_price, "alpha": alpha_val}
+            )
+
+    panel = pl.DataFrame(rows)
+    panel_fwd = panel.anta.forward_returns(close_col="close", periods=(1, 2), group_by="ticker")
+
+    summary = panel_fwd.anta.ic_summary(
+        factor_col="alpha", return_col="fwd_ret_1", group_by="date", nw_lags=2
+    )
+    assert "nw_t_stat" in summary
+    assert summary["ic_mean"] > 0.8
+    assert summary["nw_t_stat"] != 0.0
+
+    with pytest.raises(ValueError, match="nw_lags must be a non-negative integer"):
+        ic_summary(panel_fwd, "alpha", "fwd_ret_1", group_by="date", nw_lags=-1)
+
+    decay_df = panel.ta.ic_decay(
+        factor_col="alpha",
+        close_col="close",
+        horizons=(1, 2, 3),
+        asset_col="ticker",
+        group_by="date",
+    )
+    assert len(decay_df) == 3
+    assert {
+        "horizon",
+        "ic_mean",
+        "ic_std",
+        "icir",
+        "t_stat",
+        "nw_t_stat",
+        "hit_rate",
+        "n_periods",
+        "half_life",
+    }.issubset(set(decay_df.columns))
+    assert decay_df["horizon"].to_list() == [1, 2, 3]
+    assert decay_df["half_life"][0] > 0.0
+
+    # Single horizon edge case for ic_decay
+    single_h = ic_decay(panel, "alpha", horizons=(1,), asset_col="ticker", group_by="date")
+    assert len(single_h) == 1
+
+    with pytest.raises(ValueError, match="horizons must contain at least one"):
+        ic_decay(panel, "alpha", horizons=())
+    with pytest.raises(ValueError, match="each horizon in horizons must be a positive"):
+        ic_decay(panel, "alpha", horizons=(0,))

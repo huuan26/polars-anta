@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import polars as pl
 
 from .core import IntoExpr, parse_expr
@@ -489,3 +491,78 @@ def vr(
 
     den = sum_down + 0.5 * sum_flat
     return pl.when(den > 0.0).then(100.0 * (sum_up + 0.5 * sum_flat) / den).otherwise(100.0)
+
+
+def session_vwap(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    session_by: IntoExpr | Sequence[str | pl.Expr] | None = None,
+    mult1: float = 1.0,
+    mult2: float = 2.0,
+) -> pl.Expr:
+    """Session-Anchored Volume-Weighted Average Price (VWAP) with Bands & Deviation Z-Score.
+
+    Resets cumulative volume-weighted price and variance calculations at the start of
+    each trading session (e.g., per trading date or morning/afternoon session on VN30F1M).
+    When ``session_by`` is None, computes cumulative anchored VWAP over the active
+    expression window context (e.g., ``.over(['symbol', 'date'])``).
+
+    Returns a ``pl.Struct`` with fields:
+        - ``'vwap'``: Session-anchored Volume-Weighted Average Price
+        - ``'upper_1'``, ``'lower_1'``: ``vwap +/- mult1 * session_std``
+        - ``'upper_2'``, ``'lower_2'``: ``vwap +/- mult2 * session_std``
+        - ``'zscore'``: Intraday price deviation from session VWAP in standard deviations
+
+    :param high: High price column or expression.
+    :param low: Low price column or expression.
+    :param close: Close price column or expression.
+    :param volume: Volume column or expression.
+    :param session_by: Optional session partition column(s) or expression(s) (e.g. ``'date'``
+        or ``['symbol', 'date']``).
+    :param mult1: Inner standard deviation band multiplier (default 1.0).
+    :param mult2: Outer standard deviation band multiplier (default 2.0).
+    :return: Polars Struct expression.
+    """
+    if mult1 <= 0.0 or mult2 <= 0.0:
+        raise ValueError("band multipliers mult1 and mult2 must be positive numbers")
+
+    hi = parse_expr(high).cast(pl.Float64)
+    lo = parse_expr(low).cast(pl.Float64)
+    c = parse_expr(close).cast(pl.Float64)
+    v = parse_expr(volume).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
+
+    tp = (hi + lo + c) / 3.0
+    pv = tp * v
+    pv2 = (tp**2) * v
+
+    if session_by is not None:
+        if isinstance(session_by, (str, pl.Expr)):
+            part_cols: list[str | pl.Expr] = [session_by]
+        else:
+            part_cols = list(session_by)
+        cum_v = v.cum_sum().over(part_cols)
+        cum_pv = pv.cum_sum().over(part_cols)
+        cum_pv2 = pv2.cum_sum().over(part_cols)
+    else:
+        cum_v = v.cum_sum()
+        cum_pv = pv.cum_sum()
+        cum_pv2 = pv2.cum_sum()
+
+    vwap_val = pl.when(cum_v > 0.0).then(cum_pv / cum_v).otherwise(tp)
+    vwap2_val = pl.when(cum_v > 0.0).then(cum_pv2 / cum_v).otherwise(tp**2)
+    variance = (vwap2_val - vwap_val**2).clip(lower_bound=0.0)
+    std_val = variance.sqrt()
+    zscore_val = pl.when(std_val > 1e-12).then((c - vwap_val) / std_val).otherwise(0.0)
+
+    return pl.struct(
+        [
+            vwap_val.alias("vwap"),
+            (vwap_val + float(mult1) * std_val).alias("upper_1"),
+            (vwap_val - float(mult1) * std_val).alias("lower_1"),
+            (vwap_val + float(mult2) * std_val).alias("upper_2"),
+            (vwap_val - float(mult2) * std_val).alias("lower_2"),
+            zscore_val.alias("zscore"),
+        ]
+    )

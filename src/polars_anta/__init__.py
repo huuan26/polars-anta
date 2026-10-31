@@ -46,10 +46,14 @@ from .alpha import (
     decay_linear,
     entropy,
     fractal_dimension,
+    futures_basis,
     hl_ratio,
     hurst_exponent,
     kyle_lambda,
     neutralize,
+    ofi,
+    oi_regime,
+    orthogonalize,
     relative_spread,
     returns_divergence,
     roll_spread,
@@ -70,27 +74,35 @@ from .alpha import (
     ts_zscore,
     twap,
     volume_weighted_momentum,
+    vpin,
 )
 from .backtest import (
     BacktestResult,
     compare_strategies,
     crosses_above,
     crosses_below,
+    extract_trades,
+    parameter_sweep,
     signals_to_positions,
     vectorized_backtest,
 )
 from .evaluation import (
     calmar_ratio,
+    deflated_sharpe_ratio,
     drawdown_series,
     factor_turnover,
     forward_returns,
+    ic_decay,
     ic_summary,
     information_coefficient,
     max_drawdown,
+    probabilistic_sharpe_ratio,
     profit_factor,
     quantile_analysis,
     sharpe_ratio,
     sortino_ratio,
+    trend_scanning_labels,
+    triple_barrier_labels,
     win_rate,
 )
 from .momentum import (
@@ -117,10 +129,15 @@ from .momentum import (
     williams_r,
 )
 from .resample import (
+    resample_dollar_bars,
+    resample_imbalance_bars,
     resample_ohlcv,
+    resample_volume_bars,
+    stitch_futures_roll,
     validate_ohlcv,
 )
 from .stats import (
+    frac_diff,
     kurtosis,
     linear_regression_angle,
     linear_regression_forecast,
@@ -195,6 +212,7 @@ from .volume import (
     obv,
     pvi,
     pvt,
+    session_vwap,
     vpci,
     vr,
     vwap,
@@ -275,10 +293,11 @@ __all__ = [
     "keltner_width",
     "bollinger_delta",
     "starc_bands",
-    # Volume (15)
+    # Volume (16)
     "obv",
     "vwap",
     "vwap_bands",
+    "session_vwap",
     "vwma",
     "cmf",
     "adl",
@@ -291,7 +310,7 @@ __all__ = [
     "force_index",
     "vpci",
     "vr",
-    # Quantitative Statistics & Regression (12)
+    # Quantitative Statistics & Regression (13)
     "zscore",
     "percentile_rank",
     "skewness",
@@ -304,6 +323,7 @@ __all__ = [
     "linear_regression_intercept",
     "linear_regression_angle",
     "linear_regression_forecast",
+    "frac_diff",
     # Alpha Factor & Microstructure Primitives (66)
     "ts_rank",
     "ts_argmax",
@@ -323,6 +343,7 @@ __all__ = [
     "cs_zscore",
     "cs_winsorize",
     "neutralize",
+    "orthogonalize",
     "ts_scale",
     "ts_delta",
     "ts_delay",
@@ -338,6 +359,10 @@ __all__ = [
     "roll_spread",
     "corwin_schultz_spread",
     "kyle_lambda",
+    "vpin",
+    "ofi",
+    "futures_basis",
+    "oi_regime",
     "alpha_001",
     "alpha_002",
     "alpha_003",
@@ -371,7 +396,7 @@ __all__ = [
     "alpha_041",
     "alpha_054",
     "alpha_101",
-    # Factor Evaluation & Strategy Performance Metrics (12)
+    # Factor Evaluation, AFML Labeling & Strategy Performance Metrics (17)
     "drawdown_series",
     "max_drawdown",
     "sharpe_ratio",
@@ -379,19 +404,30 @@ __all__ = [
     "calmar_ratio",
     "profit_factor",
     "win_rate",
+    "probabilistic_sharpe_ratio",
+    "deflated_sharpe_ratio",
     "forward_returns",
     "information_coefficient",
     "ic_summary",
+    "ic_decay",
     "quantile_analysis",
     "factor_turnover",
-    # Vectorized Backtesting (6)
+    "triple_barrier_labels",
+    "trend_scanning_labels",
+    # Vectorized Backtesting & Trade Analytics (8)
     "BacktestResult",
     "vectorized_backtest",
+    "extract_trades",
+    "parameter_sweep",
     "crosses_above",
     "crosses_below",
     "signals_to_positions",
     "compare_strategies",
-    # Multi-Timeframe Resampling & Validation (2)
+    # Multi-Timeframe Resampling, Information Bars & Validation (6)
     "resample_ohlcv",
+    "resample_volume_bars",
+    "resample_dollar_bars",
+    "resample_imbalance_bars",
+    "stitch_futures_roll",
     "validate_ohlcv",
 ]

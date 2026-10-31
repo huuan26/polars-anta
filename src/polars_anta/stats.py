@@ -264,3 +264,47 @@ def linear_regression_forecast(
     sma = c.rolling_mean(window_size=period)
     wma = _wma(c, period=period)
     return 3.0 * wma - 2.0 * sma
+
+
+def frac_diff(
+    close: IntoExpr,
+    d: float = 0.4,
+    window: int = 20,
+) -> pl.Expr:
+    """Fixed-Window Fractional Differentiation (FFD — López de Prado, 2018).
+
+    Applies the fractional differencing operator $(1 - B)^d = \\sum_{k=0}^{W-1} \\omega_k B^k$
+    with binomial weights $\\omega_0 = 1, \\omega_k = -\\omega_{k-1} \\frac{d - k + 1}{k}$ over
+    a fixed trailing window $W$. Achieves time-series stationarity for machine learning
+    features while preserving long-range memory ($d \\in (0, 1)$).
+
+    :param close: Price or feature column/expression to fractionally differentiate.
+    :param d: Fractional differencing order (default 0.4; ``d=0`` returns original series,
+        ``d=1`` returns first difference). Must be non-negative.
+    :param window: Fixed lookback window length $W \\ge 2$ (default 20).
+    :return: Polars expression.
+    """
+    if d < 0.0:
+        raise ValueError("d must be a non-negative number")
+    if window < 2:
+        raise ValueError("window must be an integer greater than or equal to 2")
+
+    c = parse_expr(close).cast(pl.Float64)
+
+    k = np.arange(1, window, dtype=np.float64)
+    factors = -(float(d) - k + 1.0) / k
+    weights = np.empty(window, dtype=np.float64)
+    weights[0] = 1.0
+    weights[1:] = np.cumprod(factors)
+    w_rev = weights[::-1].copy()
+
+    def _calc_ffd(s: pl.Series) -> pl.Series:
+        vals = s.to_numpy().astype(np.float64, copy=False)
+        n = len(vals)
+        out = np.full(n, np.nan, dtype=np.float64)
+        if n >= window:
+            windows = np.lib.stride_tricks.sliding_window_view(vals, window)
+            out[window - 1 :] = windows @ w_rev
+        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
+
+    return c.map_batches(_calc_ffd, return_dtype=pl.Float64)

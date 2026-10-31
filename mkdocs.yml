@@ -39,7 +39,11 @@ theme:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
@@ -70,9 +74,10 @@ nav:
       - Statistics & OLS Regression: indicators/stats.md
       - Alpha & Microstructure: indicators/alpha.md
       - Factor Evaluation & Backtesting: indicators/evaluation-and-backtest.md
-  - Guides:
-      - Multi-Asset Scaling: guides/multi-asset.md
-      - Resampling & DataFrame API: guides/resampling-and-dataframe-api.md
-      - Architecture & Vectorization: architecture.md
+  - Guides & Quantitative Theory:
+      - Quantitative Theory & Workflows: guides/quant-theory-and-workflows.md
+      - Multi-Asset & Cross-Sectional Scaling: guides/multi-asset.md
+      - Information Bars, Roll & Resampling: guides/resampling-and-dataframe-api.md
+      - Architecture & Mathematical Proofs: architecture.md
       - Benchmarks: benchmarks.md
   - Contributing: contributing.md

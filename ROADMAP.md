@@ -27,10 +27,19 @@ This document outlines the development roadmap and strategic milestones for **po
 - [x] Strategy Performance & Risk Metrics (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`, `win_rate`)
 - [x] Lightweight Vectorized Backtester (`df.anta.backtest()`, `vectorized_backtest`, `BacktestResult`)
 
-### Phase 3: Ecosystem & Advanced Acceleration (v0.4.0+)
-- [ ] Polars GPU engine integration (GPU-accelerated expression execution)
-- [ ] Interactive charting hooks with lightweight candlestick visualizers
-- [ ] Integration recipes for backtesting frameworks (VectorBT, NautilusTrader)
+### Phase 3: Institutional Quantitative Research & Derivatives Expansion (v0.3.0 Continuous Expansion)
+- [x] **Pillar 1 — Derivatives & Intraday Microstructure (`futures` & `resample`)**:
+  - Information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`)
+  - Index futures & session primitives (`session_vwap`, `futures_basis`, `oi_regime`, `stitch_futures_roll`, `vpin`, `ofi`)
+- [x] **Pillar 2 — Quantitative Machine Learning & AFML Primitives (`labeling` & `stationarity`)**:
+  - Fixed-window fractional differentiation (`frac_diff`)
+  - Dynamic Triple-Barrier labeling (`triple_barrier_labels`), Meta-Labeling, and Trend-Scanning labels (`trend_scanning_labels`)
+- [x] **Pillar 3 — Institutional Factor Validation & Orthogonalization (`evaluation`)**:
+  - Multiple-testing risk adjustments (`probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`)
+  - Multi-horizon IC decay (`ic_decay`), Newey-West HAC $t$-statistics, and Cross-Sectional OLS multi-factor orthogonalization (`orthogonalize`)
+- [x] **Pillar 4 — Execution-Realistic Backtesting & Portfolio Optimization (`backtest`)**:
+  - Next-open / TWAP / VWAP execution, intraday EOD session flattening, volatility targeting, and no-trade buffer zones
+  - Round-trip trade-level ledger (`BacktestResult.trades`, `extract_trades`) with MAE/MFE excursion analytics and multi-parameter sweeps (`parameter_sweep`)
 
 ---
 

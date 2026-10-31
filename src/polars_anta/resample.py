@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Literal, TypeVar
 
+import numpy as np
 import polars as pl
 
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
@@ -295,3 +296,509 @@ def resample_ohlcv(
         resampled = resampled.sort(sort_keys)
 
     return resampled
+
+
+def _build_information_bar_aggs(
+    schema: pl.Schema | dict[str, Any],
+    time_col: str | None,
+    open_col: str,
+    high_col: str,
+    low_col: str,
+    close_col: str,
+    volume_col: str | None,
+    label: Literal["left", "right"],
+    additional_aggs: Sequence[pl.Expr] | None,
+    extra_cols: Sequence[pl.Expr] | None = None,
+) -> list[pl.Expr]:
+    """Construct standard OHLCV + VWAP + observation count aggregations for information-driven bars."""
+    aggs: list[pl.Expr] = []
+    if time_col is not None and time_col in schema:
+        time_expr = (
+            pl.col(time_col).first().alias(time_col)
+            if label == "left"
+            else pl.col(time_col).last().alias(time_col)
+        )
+        aggs.append(time_expr)
+
+    src_open = open_col if open_col in schema else close_col
+    src_high = high_col if high_col in schema else close_col
+    src_low = low_col if low_col in schema else close_col
+
+    aggs.extend(
+        [
+            pl.col(src_open).first().alias(open_col),
+            pl.col(src_high).max().alias(high_col),
+            pl.col(src_low).min().alias(low_col),
+            pl.col(close_col).last().alias(close_col),
+        ]
+    )
+
+    if volume_col is not None and volume_col in schema:
+        v_sum = pl.col(volume_col).sum()
+        pv_sum = (pl.col(close_col).cast(pl.Float64) * pl.col(volume_col).cast(pl.Float64)).sum()
+        aggs.append(v_sum.alias(volume_col))
+        aggs.append(
+            pl.when(v_sum > 0.0)
+            .then(pv_sum / v_sum)
+            .otherwise(pl.col(close_col).mean())
+            .alias("vwap")
+        )
+
+    if extra_cols:
+        aggs.extend(extra_cols)
+
+    aggs.append(pl.len().cast(pl.Int64).alias("n_obs"))
+
+    if additional_aggs:
+        aggs.extend(additional_aggs)
+
+    return aggs
+
+
+def resample_volume_bars(
+    df: FrameType,
+    threshold: float,
+    volume_col: str = "volume",
+    time_col: str | None = "timestamp",
+    group_by: str | Sequence[str] | None = None,
+    open_col: str = "open",
+    high_col: str = "high",
+    low_col: str = "low",
+    close_col: str = "close",
+    label: Literal["left", "right"] = "right",
+    additional_aggs: Sequence[pl.Expr] | None = None,
+    sort: bool = True,
+) -> FrameType:
+    """Resample tick or lower-timeframe OHLCV data into Information-Driven Volume Bars.
+
+    Samples a new bar every time cumulative traded volume reaches ``threshold`` units
+    (López de Prado, *Advances in Financial Machine Learning*). Accepts both full OHLCV
+    bars and raw tick data (where only ``close_col`` and ``volume_col`` are present).
+
+    :param df: Input Polars DataFrame or LazyFrame.
+    :param threshold: Volume threshold per bar (must be strictly positive).
+    :param volume_col: Column name for volume (default ``'volume'``).
+    :param time_col: Optional timestamp column name (default ``'timestamp'``).
+    :param group_by: Optional symbol/ticker column(s) for multi-asset universes.
+    :param open_col: Column name for open price (falls back to ``close_col`` if absent).
+    :param high_col: Column name for high price (falls back to ``close_col`` if absent).
+    :param low_col: Column name for low price (falls back to ``close_col`` if absent).
+    :param close_col: Column name for close/trade price (default ``'close'``).
+    :param label: Which boundary timestamp to assign to the bar: ``'right'`` (close time, default)
+        or ``'left'`` (open time).
+    :param additional_aggs: Optional custom Polars aggregation expressions.
+    :param sort: When True, sorts chronologically per group before bucketing.
+    :return: Volume-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
+        ``volume``, ``vwap``, and ``n_obs`` columns.
+    """
+    if threshold <= 0.0:
+        raise ValueError("threshold must be a positive number greater than zero")
+    if label not in ("left", "right"):
+        raise ValueError("label must be either 'left' or 'right'")
+
+    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+    if close_col not in schema:
+        raise ValueError(f"Required close column '{close_col}' not found in schema.")
+    if volume_col not in schema:
+        raise ValueError(f"Required volume column '{volume_col}' not found in schema.")
+
+    gb_cols: list[str] = []
+    if group_by is not None:
+        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
+        for g_col in gb_cols:
+            if g_col not in schema:
+                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
+
+    has_time = time_col is not None and time_col in schema
+    if sort and (gb_cols or has_time):
+        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
+        working_df = df.sort(sort_keys)
+    else:
+        working_df = df
+
+    v_clean = pl.col(volume_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
+    cum_v = v_clean.cum_sum().over(gb_cols) if gb_cols else v_clean.cum_sum()
+    bar_id_expr = (
+        ((cum_v * (1.0 - 1e-12)) / float(threshold))
+        .floor()
+        .clip(lower_bound=0.0)
+        .fill_null(0.0)
+        .cast(pl.Int64)
+        .alias("_anta_bar_id")
+    )
+
+    aggs = _build_information_bar_aggs(
+        schema=schema,
+        time_col=time_col,
+        open_col=open_col,
+        high_col=high_col,
+        low_col=low_col,
+        close_col=close_col,
+        volume_col=volume_col,
+        label=label,
+        additional_aggs=additional_aggs,
+    )
+
+    group_keys = gb_cols + ["_anta_bar_id"]
+    return (
+        working_df.with_columns(bar_id_expr)
+        .group_by(group_keys, maintain_order=True)
+        .agg(aggs)
+        .drop("_anta_bar_id")
+    )
+
+
+def resample_dollar_bars(
+    df: FrameType,
+    threshold: float,
+    close_col: str = "close",
+    volume_col: str = "volume",
+    multiplier: float = 1.0,
+    time_col: str | None = "timestamp",
+    group_by: str | Sequence[str] | None = None,
+    open_col: str = "open",
+    high_col: str = "high",
+    low_col: str = "low",
+    label: Literal["left", "right"] = "right",
+    additional_aggs: Sequence[pl.Expr] | None = None,
+    sort: bool = True,
+) -> FrameType:
+    """Resample tick or lower-timeframe OHLCV data into Information-Driven Dollar Value Bars.
+
+    Samples a new bar every time cumulative traded notional value
+    ``Close * Volume * multiplier`` reaches ``threshold`` currency units. Particularly
+    effective for index futures (e.g., VN30F1M with ``multiplier=100_000``) and assets
+    experiencing large price appreciation/depreciation.
+
+    :param df: Input Polars DataFrame or LazyFrame.
+    :param threshold: Notional dollar/currency value threshold per bar (must be > 0).
+    :param close_col: Column name for close/trade price (default ``'close'``).
+    :param volume_col: Column name for volume (default ``'volume'``).
+    :param multiplier: Contract point multiplier (default 1.0; e.g. 100,000 for VN30F1M).
+    :param time_col: Optional timestamp column name (default ``'timestamp'``).
+    :param group_by: Optional symbol/ticker column(s) for multi-asset universes.
+    :param open_col: Column name for open price (falls back to ``close_col`` if absent).
+    :param high_col: Column name for high price (falls back to ``close_col`` if absent).
+    :param low_col: Column name for low price (falls back to ``close_col`` if absent).
+    :param label: ``'right'`` (bar close timestamp, default) or ``'left'`` (bar open timestamp).
+    :param additional_aggs: Optional custom Polars aggregation expressions.
+    :param sort: When True, sorts chronologically per group before bucketing.
+    :return: Dollar-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
+        ``volume``, ``vwap``, ``dollar_volume``, and ``n_obs`` columns.
+    """
+    if threshold <= 0.0:
+        raise ValueError("threshold must be a positive number greater than zero")
+    if multiplier <= 0.0:
+        raise ValueError("multiplier must be a positive number greater than zero")
+    if label not in ("left", "right"):
+        raise ValueError("label must be either 'left' or 'right'")
+
+    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+    if close_col not in schema:
+        raise ValueError(f"Required close column '{close_col}' not found in schema.")
+    if volume_col not in schema:
+        raise ValueError(f"Required volume column '{volume_col}' not found in schema.")
+
+    gb_cols: list[str] = []
+    if group_by is not None:
+        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
+        for g_col in gb_cols:
+            if g_col not in schema:
+                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
+
+    has_time = time_col is not None and time_col in schema
+    if sort and (gb_cols or has_time):
+        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
+        working_df = df.sort(sort_keys)
+    else:
+        working_df = df
+
+    dvol_expr = (
+        pl.col(close_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
+        * pl.col(volume_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
+        * float(multiplier)
+    )
+    cum_dvol = dvol_expr.cum_sum().over(gb_cols) if gb_cols else dvol_expr.cum_sum()
+    bar_id_expr = (
+        ((cum_dvol * (1.0 - 1e-12)) / float(threshold))
+        .floor()
+        .clip(lower_bound=0.0)
+        .fill_null(0.0)
+        .cast(pl.Int64)
+        .alias("_anta_bar_id")
+    )
+
+    aggs = _build_information_bar_aggs(
+        schema=schema,
+        time_col=time_col,
+        open_col=open_col,
+        high_col=high_col,
+        low_col=low_col,
+        close_col=close_col,
+        volume_col=volume_col,
+        label=label,
+        additional_aggs=additional_aggs,
+        extra_cols=[pl.col("_anta_dvol").sum().alias("dollar_volume")],
+    )
+
+    group_keys = gb_cols + ["_anta_bar_id"]
+    return (
+        working_df.with_columns([dvol_expr.alias("_anta_dvol"), bar_id_expr])
+        .group_by(group_keys, maintain_order=True)
+        .agg(aggs)
+        .drop("_anta_bar_id")
+    )
+
+
+def resample_imbalance_bars(
+    df: FrameType,
+    threshold: float,
+    close_col: str = "close",
+    volume_col: str | None = "volume",
+    time_col: str | None = "timestamp",
+    group_by: str | Sequence[str] | None = None,
+    open_col: str = "open",
+    high_col: str = "high",
+    low_col: str = "low",
+    label: Literal["left", "right"] = "right",
+    additional_aggs: Sequence[pl.Expr] | None = None,
+    sort: bool = True,
+) -> FrameType:
+    """Resample tick or lower-timeframe OHLCV data into Tick or Volume Imbalance Bars (TIB / VIB).
+
+    Classifies each trade/bar direction $b_t \\in \\{-1, +1\\}$ via the Lee-Ready tick rule
+    (propagating the previous sign when $\\Delta P_t = 0$) and samples a new bar whenever
+    the absolute cumulative signed imbalance $|\\sum \\theta_t| \\ge \\text{threshold}$, where
+    $\\theta_t = b_t \\cdot v_t$ (Volume Imbalance Bars when ``volume_col`` is provided) or
+    $\\theta_t = b_t$ (Tick Imbalance Bars when ``volume_col=None``).
+
+    :param df: Input Polars DataFrame or LazyFrame.
+    :param threshold: Absolute signed imbalance threshold triggering a bar close (must be > 0).
+    :param close_col: Column name for close/trade price (default ``'close'``).
+    :param volume_col: Column name for volume (default ``'volume'`` for VIB, or ``None`` for TIB).
+    :param time_col: Optional timestamp column name (default ``'timestamp'``).
+    :param group_by: Optional symbol/ticker column(s) for multi-asset universes.
+    :param open_col: Column name for open price (falls back to ``close_col`` if absent).
+    :param high_col: Column name for high price (falls back to ``close_col`` if absent).
+    :param low_col: Column name for low price (falls back to ``close_col`` if absent).
+    :param label: ``'right'`` (bar close timestamp, default) or ``'left'`` (bar open timestamp).
+    :param additional_aggs: Optional custom Polars aggregation expressions.
+    :param sort: When True, sorts chronologically per group before bucketing.
+    :return: Imbalance-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
+        ``imbalance``, and ``n_obs`` (plus ``volume`` and ``vwap`` if ``volume_col`` is present).
+    """
+    if threshold <= 0.0:
+        raise ValueError("threshold must be a positive number greater than zero")
+    if label not in ("left", "right"):
+        raise ValueError("label must be either 'left' or 'right'")
+
+    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+    if close_col not in schema:
+        raise ValueError(f"Required close column '{close_col}' not found in schema.")
+    if volume_col is not None and volume_col not in schema:
+        raise ValueError(f"Specified volume column '{volume_col}' not found in schema.")
+
+    gb_cols: list[str] = []
+    if group_by is not None:
+        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
+        for g_col in gb_cols:
+            if g_col not in schema:
+                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
+
+    has_time = time_col is not None and time_col in schema
+    if sort and (gb_cols or has_time):
+        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
+        working_df = df.sort(sort_keys)
+    else:
+        working_df = df
+
+    c = pl.col(close_col).cast(pl.Float64)
+    diff = c.diff().over(gb_cols) if gb_cols else c.diff()
+    raw_sign = pl.when(diff > 0.0).then(1.0).when(diff < 0.0).then(-1.0).otherwise(None)
+    tick_sign = (
+        raw_sign.forward_fill().over(gb_cols).fill_null(1.0)
+        if gb_cols
+        else raw_sign.forward_fill().fill_null(1.0)
+    )
+
+    if volume_col is not None:
+        v = pl.col(volume_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
+        theta_expr = tick_sign * v
+    else:
+        theta_expr = tick_sign
+
+    thresh_val = float(threshold)
+    _reset_ufunc = np.frompyfunc(
+        lambda acc, x: 0.0 if abs(acc + x) >= thresh_val else acc + x, 2, 1
+    )
+
+    def _compute_imbalance_bar_ids(s: pl.Series) -> pl.Series:
+        vals = s.to_numpy().astype(np.float64, copy=False)
+        n = len(vals)
+        if n == 0:
+            return pl.Series(np.empty(0, dtype=np.int64), dtype=pl.Int64)
+        padded = np.empty(n + 1, dtype=object)
+        padded[0] = 0.0
+        padded[1:] = vals
+        acc = _reset_ufunc.accumulate(padded, dtype=object)[1:].astype(np.float64)
+        triggered = (acc == 0.0) & (np.abs(vals) > 0.0)
+        shifted = np.empty(n, dtype=np.int64)
+        shifted[0] = 0
+        shifted[1:] = triggered[:-1].astype(np.int64)
+        return pl.Series(np.cumsum(shifted), dtype=pl.Int64)
+
+    bar_id_expr = theta_expr.map_batches(_compute_imbalance_bar_ids, return_dtype=pl.Int64)
+    if gb_cols:
+        bar_id_expr = bar_id_expr.over(gb_cols)
+
+    aggs = _build_information_bar_aggs(
+        schema=schema,
+        time_col=time_col,
+        open_col=open_col,
+        high_col=high_col,
+        low_col=low_col,
+        close_col=close_col,
+        volume_col=volume_col,
+        label=label,
+        additional_aggs=additional_aggs,
+        extra_cols=[pl.col("_anta_theta").sum().alias("imbalance")],
+    )
+
+    group_keys = gb_cols + ["_anta_bar_id"]
+    return (
+        working_df.with_columns(
+            [
+                theta_expr.alias("_anta_theta"),
+                bar_id_expr.alias("_anta_bar_id"),
+            ]
+        )
+        .group_by(group_keys, maintain_order=True)
+        .agg(aggs)
+        .drop("_anta_bar_id")
+    )
+
+
+def stitch_futures_roll(
+    df: FrameType,
+    contract_col: str = "contract",
+    open_col: str = "open",
+    high_col: str = "high",
+    low_col: str = "low",
+    close_col: str = "close",
+    method: Literal["back_adjust", "forward_adjust", "ratio"] = "back_adjust",
+    roll_measure: Literal["open_to_close", "close_to_close"] = "open_to_close",
+    group_by: str | Sequence[str] | None = None,
+    time_col: str | None = "timestamp",
+    sort: bool = True,
+) -> FrameType:
+    """Stitch discrete futures contracts into a continuous roll-adjusted price series.
+
+    Eliminates artificial expiration roll gaps (e.g., VN30F1M third-Thursday monthly rolls)
+    using pure Polars cumulative expressions:
+    - ``'back_adjust'`` (Panama Canal method): preserves current live contract prices
+      unchanged and shifts historical contracts by cumulative roll gaps.
+    - ``'forward_adjust'``: preserves earliest contract prices unchanged and shifts
+      subsequent contracts by cumulative roll gaps.
+    - ``'ratio'``: multiplicatively scales historical contracts by cumulative price ratios,
+      preserving percentage returns and strictly positive prices.
+
+    :param df: Input Polars DataFrame or LazyFrame containing a contract identifier column.
+    :param contract_col: Column identifying the active futures contract (e.g. ``'VN30F2610'``).
+    :param open_col: Column name for open price (default ``'open'``).
+    :param high_col: Column name for high price (default ``'high'``).
+    :param low_col: Column name for low price (default ``'low'``).
+    :param close_col: Column name for close price (default ``'close'``).
+    :param method: Adjustment method: ``'back_adjust'`` (default), ``'forward_adjust'``, or ``'ratio'``.
+    :param roll_measure: How the roll gap is measured on the transition bar:
+        ``'open_to_close'`` (``Open_new[t] - Close_old[t-1]``, default) or
+        ``'close_to_close'`` (``Close_new[t] - Close_old[t-1]``).
+    :param group_by: Optional root symbol column(s) for multi-instrument futures panels.
+    :param time_col: Optional timestamp column used when ``sort=True``.
+    :param sort: When True, sorts chronologically per group before computing roll adjustments.
+    :return: Continuous roll-adjusted DataFrame or LazyFrame with an added ``roll_adjustment`` column.
+    """
+    if method not in ("back_adjust", "forward_adjust", "ratio"):
+        raise ValueError("method must be one of 'back_adjust', 'forward_adjust', or 'ratio'")
+    if roll_measure not in ("open_to_close", "close_to_close"):
+        raise ValueError("roll_measure must be either 'open_to_close' or 'close_to_close'")
+
+    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+    if contract_col not in schema:
+        raise ValueError(f"Required contract column '{contract_col}' not found in schema.")
+    if close_col not in schema:
+        raise ValueError(f"Required close column '{close_col}' not found in schema.")
+
+    gb_cols: list[str] = []
+    if group_by is not None:
+        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
+        for g_col in gb_cols:
+            if g_col not in schema:
+                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
+
+    has_time = time_col is not None and time_col in schema
+    if sort and (gb_cols or has_time):
+        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
+        working_df = df.sort(sort_keys)
+    else:
+        working_df = df
+
+    price_cols = [c for c in (open_col, high_col, low_col, close_col) if c in schema]
+    ref_new_col = (
+        open_col if (roll_measure == "open_to_close" and open_col in schema) else close_col
+    )
+
+    prev_contract = (
+        pl.col(contract_col).shift(1).over(gb_cols) if gb_cols else pl.col(contract_col).shift(1)
+    )
+    prev_close = (
+        pl.col(close_col).cast(pl.Float64).shift(1).over(gb_cols)
+        if gb_cols
+        else pl.col(close_col).cast(pl.Float64).shift(1)
+    )
+    is_roll = (
+        pl.col(contract_col).is_not_null()
+        & prev_contract.is_not_null()
+        & (pl.col(contract_col) != prev_contract)
+    )
+
+    if method in ("back_adjust", "forward_adjust"):
+        step_gap = (
+            pl.when(is_roll)
+            .then(pl.col(ref_new_col).cast(pl.Float64) - prev_close)
+            .otherwise(0.0)
+            .fill_null(0.0)
+        )
+        cum_gap = step_gap.cum_sum().over(gb_cols) if gb_cols else step_gap.cum_sum()
+        if method == "back_adjust":
+            total_gap = step_gap.sum().over(gb_cols) if gb_cols else step_gap.sum()
+            adj_expr = (total_gap - cum_gap).alias("roll_adjustment")
+        else:
+            adj_expr = (-cum_gap).alias("roll_adjustment")
+
+        out_df = working_df.with_columns(adj_expr)
+        return out_df.with_columns(
+            [
+                (pl.col(col).cast(pl.Float64) + pl.col("roll_adjustment")).alias(col)
+                for col in price_cols
+            ]
+        )
+
+    # Ratio adjustment
+    step_ratio = (
+        pl.when(is_roll & (prev_close > 0.0) & (pl.col(ref_new_col).cast(pl.Float64) > 0.0))
+        .then(pl.col(ref_new_col).cast(pl.Float64) / prev_close)
+        .otherwise(1.0)
+        .fill_null(1.0)
+    )
+    log_r = step_ratio.log()
+    cum_log_r = log_r.cum_sum().over(gb_cols) if gb_cols else log_r.cum_sum()
+    total_log_r = log_r.sum().over(gb_cols) if gb_cols else log_r.sum()
+    factor_expr = (total_log_r - cum_log_r).exp().alias("roll_adjustment")
+
+    out_df = working_df.with_columns(factor_expr)
+    return out_df.with_columns(
+        [
+            (pl.col(col).cast(pl.Float64) * pl.col("roll_adjustment")).alias(col)
+            for col in price_cols
+        ]
+    )

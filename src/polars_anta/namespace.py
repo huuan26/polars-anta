@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 import polars as pl
@@ -736,6 +736,26 @@ class TechnicalAnalysisExpr:
             mult3=mult3,
         )
 
+    def session_vwap(
+        self,
+        high: IntoExpr,
+        low: IntoExpr,
+        volume_col: IntoExpr,
+        session_by: IntoExpr | Sequence[str | pl.Expr] | None = None,
+        mult1: float = 1.0,
+        mult2: float = 2.0,
+    ) -> pl.Expr:
+        """Session-Anchored VWAP with Standard Deviation Bands and Deviation Z-Score."""
+        return volume.session_vwap(
+            high=high,
+            low=low,
+            close=self._expr,
+            volume=volume_col,
+            session_by=session_by,
+            mult1=mult1,
+            mult2=mult2,
+        )
+
     def vwma(self, volume_col: IntoExpr, period: int = 20) -> pl.Expr:
         """Volume-Weighted Moving Average (VWMA)."""
         return volume.vwma(close=self._expr, volume=volume_col, period=period)
@@ -922,6 +942,10 @@ class TechnicalAnalysisExpr:
         """Rolling Linear Regression Forecast value."""
         return stats.linear_regression_forecast(self._expr, period=period)
 
+    def frac_diff(self, d: float = 0.4, window: int = 20) -> pl.Expr:
+        """Fixed-Window Fractional Differentiation (FFD)."""
+        return stats.frac_diff(self._expr, d=d, window=window)
+
     # =========================================================================
     # Alpha Factor Primitives & Signal Transforms (12)
     # =========================================================================
@@ -1026,6 +1050,22 @@ class TechnicalAnalysisExpr:
         """Group / Industry Neutralization (WorldQuant Alpha primitive 'indneutralize(x, g)')."""
         return alpha.neutralize(self._expr, by=by, over=over, standardize=standardize)
 
+    def orthogonalize(
+        self,
+        factors: IntoExpr | Sequence[IntoExpr],
+        over: IntoExpr | Sequence[str] | None = None,
+        standardize: bool = True,
+        ridge: float = 0.0,
+    ) -> pl.Expr:
+        """Cross-Sectional Multi-Factor OLS Orthogonalization."""
+        return alpha.orthogonalize(
+            self._expr,
+            factors=factors,
+            over=over,
+            standardize=standardize,
+            ridge=ridge,
+        )
+
     def ts_scale(
         self,
         a: float = 1.0,
@@ -1108,6 +1148,58 @@ class TechnicalAnalysisExpr:
             volume=volume,
             period=period,
             scale=scale,
+        )
+
+    def vpin(
+        self,
+        volume: IntoExpr,
+        period: int = 20,
+    ) -> pl.Expr:
+        """Volume-Synchronized Probability of Informed Trading (VPIN)."""
+        return alpha.vpin(close=self._expr, volume=volume, period=period)
+
+    def ofi(
+        self,
+        bid_size: IntoExpr,
+        ask_price: IntoExpr,
+        ask_size: IntoExpr,
+        period: int = 1,
+    ) -> pl.Expr:
+        """Level-1 Order Flow Imbalance (OFI) with self as ``bid_price``."""
+        return alpha.ofi(
+            bid_price=self._expr,
+            bid_size=bid_size,
+            ask_price=ask_price,
+            ask_size=ask_size,
+            period=period,
+        )
+
+    def futures_basis(
+        self,
+        spot_close: IntoExpr,
+        days_to_expiry: IntoExpr | float | int | None = None,
+        period: int = 20,
+        annualization: float = 365.0,
+    ) -> pl.Expr:
+        """Index Futures vs. Underlying Spot Basis & Implied Carry Analytics."""
+        return alpha.futures_basis(
+            futures_close=self._expr,
+            spot_close=spot_close,
+            days_to_expiry=days_to_expiry,
+            period=period,
+            annualization=annualization,
+        )
+
+    def oi_regime(
+        self,
+        open_interest: IntoExpr,
+        period: int = 1,
+    ) -> pl.Expr:
+        """Futures Open Interest (OI) & Price Action Regime Classifier."""
+        return alpha.oi_regime(
+            close=self._expr,
+            open_interest=open_interest,
+            period=period,
         )
 
     def alpha_001(
@@ -1455,6 +1547,72 @@ class TechnicalAnalysisExpr:
         """Win Rate (fraction of positive returns) scalar expression."""
         return evaluation.win_rate(self._expr, include_zeros=include_zeros)
 
+    def probabilistic_sharpe_ratio(
+        self,
+        benchmark_sr: float = 0.0,
+        risk_free_rate: float = 0.0,
+        annualization: float = 252.0,
+    ) -> pl.Expr:
+        """Probabilistic Sharpe Ratio (PSR) scalar expression in [0.0, 1.0]."""
+        return evaluation.probabilistic_sharpe_ratio(
+            self._expr,
+            benchmark_sr=benchmark_sr,
+            risk_free_rate=risk_free_rate,
+            annualization=annualization,
+        )
+
+    def deflated_sharpe_ratio(
+        self,
+        n_trials: int = 10,
+        trials_sr_std: float = 0.5,
+        risk_free_rate: float = 0.0,
+        annualization: float = 252.0,
+    ) -> pl.Expr:
+        """Deflated Sharpe Ratio (DSR) scalar expression in [0.0, 1.0]."""
+        return evaluation.deflated_sharpe_ratio(
+            self._expr,
+            n_trials=n_trials,
+            trials_sr_std=trials_sr_std,
+            risk_free_rate=risk_free_rate,
+            annualization=annualization,
+        )
+
+    def triple_barrier_labels(
+        self,
+        volatility: IntoExpr | float | int | None = None,
+        horizon: int = 10,
+        pt_mult: float = 2.0,
+        sl_mult: float = 2.0,
+        min_ret: float = 0.0,
+        vol_period: int = 20,
+        side: IntoExpr | None = None,
+    ) -> pl.Expr:
+        """AFML Triple-Barrier Method & Meta-Labeling returns a Struct of (label, touch_bars, realized_return, meta_label)."""
+        return evaluation.triple_barrier_labels(
+            self._expr,
+            volatility=volatility,
+            horizon=horizon,
+            pt_mult=pt_mult,
+            sl_mult=sl_mult,
+            min_ret=min_ret,
+            vol_period=vol_period,
+            side=side,
+        )
+
+    def trend_scanning_labels(
+        self,
+        min_window: int = 5,
+        max_window: int = 20,
+        step: int = 1,
+    ) -> pl.Expr:
+        """AFML Trend-Scanning Labels returns a Struct of (label, t_value, optimal_window, ret)."""
+        return evaluation.trend_scanning_labels(
+            self._expr,
+            min_window=min_window,
+            max_window=max_window,
+            step=step,
+        )
+
     def crosses_above(
         self,
         other: IntoExpr | float | int,
@@ -1565,6 +1723,126 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             group_by=group_by,
             check_data=check_data,
             return_report=return_report,
+        )
+
+    def resample_volume_bars(
+        self,
+        threshold: float,
+        volume_col: str = "volume",
+        time_col: str | None = "timestamp",
+        group_by: str | Sequence[str] | None = None,
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        close_col: str = "close",
+        label: Literal["left", "right"] = "right",
+        additional_aggs: Sequence[pl.Expr] | None = None,
+        sort: bool = True,
+    ) -> FrameType:
+        """Resample tick or lower-timeframe OHLCV data into Information-Driven Volume Bars."""
+        return resample.resample_volume_bars(
+            self._df,
+            threshold=threshold,
+            volume_col=volume_col,
+            time_col=time_col,
+            group_by=group_by,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            close_col=close_col,
+            label=label,
+            additional_aggs=additional_aggs,
+            sort=sort,
+        )
+
+    def resample_dollar_bars(
+        self,
+        threshold: float,
+        close_col: str = "close",
+        volume_col: str = "volume",
+        multiplier: float = 1.0,
+        time_col: str | None = "timestamp",
+        group_by: str | Sequence[str] | None = None,
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        label: Literal["left", "right"] = "right",
+        additional_aggs: Sequence[pl.Expr] | None = None,
+        sort: bool = True,
+    ) -> FrameType:
+        """Resample tick or lower-timeframe OHLCV data into Information-Driven Dollar Value Bars."""
+        return resample.resample_dollar_bars(
+            self._df,
+            threshold=threshold,
+            close_col=close_col,
+            volume_col=volume_col,
+            multiplier=multiplier,
+            time_col=time_col,
+            group_by=group_by,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            label=label,
+            additional_aggs=additional_aggs,
+            sort=sort,
+        )
+
+    def resample_imbalance_bars(
+        self,
+        threshold: float,
+        close_col: str = "close",
+        volume_col: str | None = "volume",
+        time_col: str | None = "timestamp",
+        group_by: str | Sequence[str] | None = None,
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        label: Literal["left", "right"] = "right",
+        additional_aggs: Sequence[pl.Expr] | None = None,
+        sort: bool = True,
+    ) -> FrameType:
+        """Resample tick or lower-timeframe OHLCV data into Tick or Volume Imbalance Bars."""
+        return resample.resample_imbalance_bars(
+            self._df,
+            threshold=threshold,
+            close_col=close_col,
+            volume_col=volume_col,
+            time_col=time_col,
+            group_by=group_by,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            label=label,
+            additional_aggs=additional_aggs,
+            sort=sort,
+        )
+
+    def stitch_futures_roll(
+        self,
+        contract_col: str = "contract",
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        close_col: str = "close",
+        method: Literal["back_adjust", "forward_adjust", "ratio"] = "back_adjust",
+        roll_measure: Literal["open_to_close", "close_to_close"] = "open_to_close",
+        group_by: str | Sequence[str] | None = None,
+        time_col: str | None = "timestamp",
+        sort: bool = True,
+    ) -> FrameType:
+        """Stitch discrete futures contracts into a continuous roll-adjusted price series."""
+        return resample.stitch_futures_roll(
+            self._df,
+            contract_col=contract_col,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            close_col=close_col,
+            method=method,
+            roll_measure=roll_measure,
+            group_by=group_by,
+            time_col=time_col,
+            sort=sort,
         )
 
     # =========================================================================
@@ -2201,6 +2479,32 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         )
         return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
 
+    def session_vwap(
+        self,
+        high: IntoExpr = "high",
+        low: IntoExpr = "low",
+        close: IntoExpr = "close",
+        volume_col: IntoExpr = "volume",
+        session_by: IntoExpr | Sequence[str | pl.Expr] | None = None,
+        mult1: float = 1.0,
+        mult2: float = 2.0,
+        alias: str = "session_vwap_bands",
+        unnest: bool = False,
+        prefix: str | None = "session_",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Session-Anchored VWAP with Standard Deviation Bands and Deviation Z-Score."""
+        expr = volume.session_vwap(
+            high=high,
+            low=low,
+            close=close,
+            volume=volume_col,
+            session_by=session_by,
+            mult1=mult1,
+            mult2=mult2,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
     def cmf(
         self,
         period: int = 20,
@@ -2263,6 +2567,20 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         alias_name = alias or f"percentile_rank_{period}"
         return self._apply_expr(
             stats.percentile_rank(col, period=period), alias_name, group_by=group_by
+        )
+
+    def frac_diff(
+        self,
+        d: float = 0.4,
+        window: int = 20,
+        col: IntoExpr = "close",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Fixed-Window Fractional Differentiation (FFD)."""
+        alias_name = alias or f"frac_diff_{window}"
+        return self._apply_expr(
+            stats.frac_diff(col, d=d, window=window), alias_name, group_by=group_by
         )
 
     def ts_rank(
@@ -2539,6 +2857,27 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             alias,
         )
 
+    def orthogonalize(
+        self,
+        col: IntoExpr,
+        factors: IntoExpr | Sequence[IntoExpr],
+        over: IntoExpr | Sequence[str] | None = None,
+        standardize: bool = True,
+        ridge: float = 0.0,
+        alias: str = "orthogonalized",
+    ) -> FrameType:
+        """Cross-Sectional Multi-Factor OLS Orthogonalization."""
+        return self._apply_expr(
+            alpha.orthogonalize(
+                col,
+                factors=factors,
+                over=over,
+                standardize=standardize,
+                ridge=ridge,
+            ),
+            alias,
+        )
+
     def amihud_illiquidity(
         self,
         period: int = 20,
@@ -2603,6 +2942,82 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             alias_name,
             group_by=group_by,
         )
+
+    def vpin(
+        self,
+        period: int = 20,
+        close: IntoExpr = "close",
+        volume: IntoExpr = "volume",
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Volume-Synchronized Probability of Informed Trading (VPIN)."""
+        alias_name = alias or f"vpin_{period}"
+        return self._apply_expr(
+            alpha.vpin(close=close, volume=volume, period=period),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def ofi(
+        self,
+        bid_price: IntoExpr = "bid_price",
+        bid_size: IntoExpr = "bid_size",
+        ask_price: IntoExpr = "ask_price",
+        ask_size: IntoExpr = "ask_size",
+        period: int = 1,
+        alias: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Level-1 Order Flow Imbalance (OFI)."""
+        alias_name = alias or (f"ofi_{period}" if period > 1 else "ofi")
+        return self._apply_expr(
+            alpha.ofi(
+                bid_price=bid_price,
+                bid_size=bid_size,
+                ask_price=ask_price,
+                ask_size=ask_size,
+                period=period,
+            ),
+            alias_name,
+            group_by=group_by,
+        )
+
+    def futures_basis(
+        self,
+        futures_close: IntoExpr = "close",
+        spot_close: IntoExpr = "spot_close",
+        days_to_expiry: IntoExpr | float | int | None = None,
+        period: int = 20,
+        annualization: float = 365.0,
+        alias: str = "futures_basis",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Index Futures vs. Underlying Spot Basis & Implied Carry Analytics."""
+        expr = alpha.futures_basis(
+            futures_close=futures_close,
+            spot_close=spot_close,
+            days_to_expiry=days_to_expiry,
+            period=period,
+            annualization=annualization,
+        )
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
+
+    def oi_regime(
+        self,
+        close: IntoExpr = "close",
+        open_interest: IntoExpr = "open_interest",
+        period: int = 1,
+        alias: str = "oi_regime",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Futures Open Interest (OI) & Price Action Regime Classifier."""
+        expr = alpha.oi_regime(close=close, open_interest=open_interest, period=period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
 
     def alpha_001(
         self,
@@ -3102,6 +3517,64 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             group_by=group_by,
         )
 
+    def triple_barrier_labels(
+        self,
+        close: IntoExpr = "close",
+        volatility: IntoExpr | float | int | None = None,
+        horizon: int = 10,
+        pt_mult: float = 2.0,
+        sl_mult: float = 2.0,
+        min_ret: float = 0.0,
+        vol_period: int = 20,
+        side: IntoExpr | None = None,
+        alias: str = "triple_barrier",
+        unnest: bool = False,
+        prefix: str | None = "tb_",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Append AFML Triple-Barrier Method & Meta-Labeling columns."""
+        return self._apply_expr(
+            evaluation.triple_barrier_labels(
+                close,
+                volatility=volatility,
+                horizon=horizon,
+                pt_mult=pt_mult,
+                sl_mult=sl_mult,
+                min_ret=min_ret,
+                vol_period=vol_period,
+                side=side,
+            ),
+            alias,
+            unnest=unnest,
+            prefix=prefix,
+            group_by=group_by,
+        )
+
+    def trend_scanning_labels(
+        self,
+        close: IntoExpr = "close",
+        min_window: int = 5,
+        max_window: int = 20,
+        step: int = 1,
+        alias: str = "trend_scan",
+        unnest: bool = False,
+        prefix: str | None = "ts_label_",
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Append AFML Trend-Scanning Label columns."""
+        return self._apply_expr(
+            evaluation.trend_scanning_labels(
+                close,
+                min_window=min_window,
+                max_window=max_window,
+                step=step,
+            ),
+            alias,
+            unnest=unnest,
+            prefix=prefix,
+            group_by=group_by,
+        )
+
     def forward_returns(
         self,
         close_col: str = "close",
@@ -3140,12 +3613,34 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         return_col: str,
         group_by: str | Sequence[str] | None = None,
         method: Literal["spearman", "pearson"] = "spearman",
+        nw_lags: int | None = None,
     ) -> dict[str, float]:
-        """Compute Information Coefficient (IC) summary metrics (mean, std, ICIR, t-stat, hit rate)."""
+        """Compute Information Coefficient (IC) summary metrics (mean, std, ICIR, t-stat, nw_t_stat, hit rate)."""
         return evaluation.ic_summary(
             self._df,
             factor_col=factor_col,
             return_col=return_col,
+            group_by=group_by,
+            method=method,
+            nw_lags=nw_lags,
+        )
+
+    def ic_decay(
+        self,
+        factor_col: str,
+        close_col: str = "close",
+        horizons: Sequence[int] = (1, 2, 3, 5, 10, 20),
+        asset_col: str | Sequence[str] | None = None,
+        group_by: str | Sequence[str] | None = None,
+        method: Literal["spearman", "pearson"] = "spearman",
+    ) -> pl.DataFrame:
+        """Compute Multi-Horizon Information Coefficient (IC) Decay and Alpha Half-Life."""
+        return evaluation.ic_decay(
+            self._df,
+            factor_col=factor_col,
+            close_col=close_col,
+            horizons=horizons,
+            asset_col=asset_col,
             group_by=group_by,
             method=method,
         )
@@ -3204,6 +3699,15 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         short_entries: IntoExpr | None = None,
         short_exits: IntoExpr | None = None,
         weight_scheme: Literal["raw", "dollar_neutral", "long_only", "equal_weight"] = "raw",
+        execution_price: Literal["close", "open", "twap", "vwap"] = "close",
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        flat_mask: IntoExpr | None = None,
+        vol_target: float | None = None,
+        vol_lookback: int = 20,
+        max_leverage: float = 2.0,
+        no_trade_buffer: float = 0.0,
     ) -> BacktestResult:
         """Run a lightweight vectorized backtest with fee/slippage deduction and tearsheet summary."""
         return backtest.vectorized_backtest(
@@ -3226,4 +3730,63 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             short_entries=short_entries,
             short_exits=short_exits,
             weight_scheme=weight_scheme,
+            execution_price=execution_price,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            flat_mask=flat_mask,
+            vol_target=vol_target,
+            vol_lookback=vol_lookback,
+            max_leverage=max_leverage,
+            no_trade_buffer=no_trade_buffer,
+        )
+
+    def parameter_sweep(
+        self,
+        signals: Mapping[str, IntoExpr],
+        close_col: str = "close",
+        return_col: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+        time_col: str | None = None,
+        fee_rate: float = 0.0,
+        slippage_rate: float = 0.0,
+        signal_lag: int = 1,
+        initial_capital: float = 1.0,
+        annualization: float = 252.0,
+        risk_free_rate: float = 0.0,
+        weight_scheme: Literal["raw", "dollar_neutral", "long_only", "equal_weight"] = "raw",
+        execution_price: Literal["close", "open", "twap", "vwap"] = "close",
+        open_col: str = "open",
+        high_col: str = "high",
+        low_col: str = "low",
+        flat_mask: IntoExpr | None = None,
+        vol_target: float | None = None,
+        vol_lookback: int = 20,
+        max_leverage: float = 2.0,
+        no_trade_buffer: float = 0.0,
+    ) -> pl.DataFrame:
+        """Evaluate a grid of candidate signals and compute Deflated Sharpe Ratios across trials."""
+        return backtest.parameter_sweep(
+            self._df,
+            signals=signals,
+            close_col=close_col,
+            return_col=return_col,
+            group_by=group_by,
+            time_col=time_col,
+            fee_rate=fee_rate,
+            slippage_rate=slippage_rate,
+            signal_lag=signal_lag,
+            initial_capital=initial_capital,
+            annualization=annualization,
+            risk_free_rate=risk_free_rate,
+            weight_scheme=weight_scheme,
+            execution_price=execution_price,
+            open_col=open_col,
+            high_col=high_col,
+            low_col=low_col,
+            flat_mask=flat_mask,
+            vol_target=vol_target,
+            vol_lookback=vol_lookback,
+            max_leverage=max_leverage,
+            no_trade_buffer=no_trade_buffer,
         )

@@ -16,6 +16,7 @@ from polars_anta.volume import (
     obv,
     pvi,
     pvt,
+    session_vwap,
     vpci,
     vr,
     vwap,
@@ -182,3 +183,44 @@ def test_vwap_bands(sample_ohlcv_df: pl.DataFrame):
     # Invalid period
     with pytest.raises(ValueError, match="period must be a positive integer"):
         sample_ohlcv_df.select(vwap_bands("high", "low", "close", "volume", period=0))
+
+
+def test_session_vwap():
+    """Test session-anchored VWAP resetting across trading dates and symbols."""
+    df = pl.DataFrame(
+        {
+            "symbol": ["VN30F1M"] * 4,
+            "date": ["2026-10-01", "2026-10-01", "2026-10-02", "2026-10-02"],
+            "high": [100.0, 106.0, 200.0, 206.0],
+            "low": [100.0, 106.0, 200.0, 206.0],
+            "close": [100.0, 106.0, 200.0, 206.0],
+            "volume": [100.0, 100.0, 50.0, 50.0],
+        }
+    )
+    # Day 1 bar 0: vwap = 100.0, zscore = 0.0
+    # Day 1 bar 1: vwap = 103.0, std = 3.0, zscore = +1.0
+    # Day 2 bar 0: resets! vwap = 200.0, zscore = 0.0
+    # Day 2 bar 1: vwap = 203.0, std = 3.0, zscore = +1.0
+    res = df.anta.session_vwap(session_by=["symbol", "date"], unnest=True)
+    assert res["session_vwap"].to_list() == [100.0, 103.0, 200.0, 203.0]
+    assert res["session_zscore"].to_list() == pytest.approx([0.0, 1.0, 0.0, 1.0])
+    assert res["session_upper_1"][1] == pytest.approx(106.0)
+    assert res["session_lower_1"][1] == pytest.approx(100.0)
+
+    # Expression namespace (.anta and .ta) with .over() when session_by=None
+    expr_res = df.select(
+        pl.col("close")
+        .ta.session_vwap("high", "low", "volume")
+        .over(["symbol", "date"])
+        .alias("sv")
+    ).unnest("sv")
+    assert expr_res["vwap"].to_list() == [100.0, 103.0, 200.0, 203.0]
+
+    # Single string session_by
+    single_res = df.select(
+        pl.col("close").anta.session_vwap("high", "low", "volume", session_by="date").alias("sv")
+    ).unnest("sv")
+    assert single_res["vwap"].to_list() == [100.0, 103.0, 200.0, 203.0]
+
+    with pytest.raises(ValueError, match="band multipliers"):
+        session_vwap("high", "low", "close", "volume", mult1=0.0)

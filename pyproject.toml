@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "polars-anta"
 version = "0.3.0"
-description = "ANTA (Alpha & Numerical Technical Analysis): Ultra-fast, zero-C technical analysis and factor library for Polars."
+description = "ANTA (Alpha & Numerical Technical Analysis): Institutional-grade alpha research, market microstructure, quantitative feature engineering, and vectorized backtesting engine for Polars."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -15,11 +15,14 @@ authors = [
 keywords = [
     "polars",
     "anta",
-    "technical-analysis",
-    "trading",
     "quantitative-finance",
     "alpha-factors",
-    "indicators",
+    "market-microstructure",
+    "statistical-arbitrage",
+    "index-futures",
+    "financial-machine-learning",
+    "backtesting",
+    "technical-analysis",
     "algorithmic-trading",
 ]
 classifiers = [

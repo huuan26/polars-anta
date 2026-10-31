@@ -612,3 +612,176 @@ def test_worldquant_alphas_002_to_030():
         col = f"alpha_{idx:03d}"
         assert func_df[col].equals(expr_df[col])
         assert func_df[col].equals(frame_df[col])
+
+
+def test_pillar1_microstructure_and_futures(multi_asset_ohlcv_df: pl.DataFrame):
+    """Test VPIN, OFI, Futures Basis, and OI Regime across functions and namespaces."""
+    import polars_anta as pa
+
+    # 1. VPIN
+    vpin_df = multi_asset_ohlcv_df.anta.vpin(period=5, group_by="ticker")
+    valid_vpin = vpin_df["vpin_5"].drop_nulls().to_list()
+    assert len(valid_vpin) > 0
+    assert all(0.0 <= v <= 1.0 for v in valid_vpin)
+
+    vpin_expr = multi_asset_ohlcv_df.with_columns(
+        pl.col("close").ta.vpin("volume", period=5).over("ticker").alias("vpin_5")
+    )
+    assert vpin_df["vpin_5"].equals(vpin_expr["vpin_5"])
+
+    with pytest.raises(ValueError, match="period must be an integer greater than 1"):
+        pa.vpin("close", "volume", period=1)
+
+    # 2. Level-1 Order Flow Imbalance (OFI)
+    lob_df = pl.DataFrame(
+        {
+            "symbol": ["VN30F1M"] * 4,
+            "bid_price": [1250.0, 1250.5, 1250.5, 1250.0],
+            "bid_size": [100.0, 150.0, 80.0, 90.0],
+            "ask_price": [1250.5, 1251.0, 1250.5, 1250.5],
+            "ask_size": [120.0, 100.0, 140.0, 60.0],
+        }
+    )
+    # Row 1: bp > prev_bp (+150), ap > prev_ap (-(-120) = +120) -> OFI = +270
+    # Row 2: bp == prev_bp (80 - 150 = -70), ap < prev_ap (-140) -> OFI = -210
+    ofi_res = lob_df.anta.ofi(period=1, group_by="symbol")
+    assert ofi_res["ofi"][0] is None
+    assert ofi_res["ofi"][1] == pytest.approx(270.0)
+    assert ofi_res["ofi"][2] == pytest.approx(-210.0)
+
+    ofi_roll = lob_df.with_columns(
+        pl.col("bid_price")
+        .ta.ofi("bid_size", "ask_price", "ask_size", period=2)
+        .over("symbol")
+        .alias("ofi_2")
+    )
+    assert ofi_roll["ofi_2"][2] == pytest.approx(60.0)
+
+    with pytest.raises(ValueError, match="period must be a positive integer"):
+        pa.ofi("bid_price", "bid_size", "ask_price", "ask_size", period=0)
+
+    # 3. Futures Basis
+    fut_df = pl.DataFrame(
+        {
+            "symbol": ["VN30F1M"] * 5,
+            "close": [1260.0, 1265.0, 1255.0, 1270.0, 1275.0],
+            "spot_close": [1250.0, 1250.0, 1250.0, 1250.0, 1250.0],
+            "dte": [30, 29, 28, 27, 26],
+        }
+    )
+    basis_res = fut_df.anta.futures_basis(
+        futures_close="close",
+        spot_close="spot_close",
+        days_to_expiry="dte",
+        period=3,
+        unnest=True,
+        group_by="symbol",
+    )
+    assert basis_res["basis"][0] == pytest.approx(10.0)
+    assert basis_res["basis_pct"][0] == pytest.approx(10.0 / 1250.0)
+    assert basis_res["annualized_basis"][0] == pytest.approx((10.0 / 1250.0) * (365.0 / 30.0))
+    assert basis_res["basis_zscore"][2] is not None
+
+    # Scalar days_to_expiry and None days_to_expiry via expression namespace
+    basis_scalar = fut_df.select(
+        pl.col("close").ta.futures_basis("spot_close", days_to_expiry=30, period=3).alias("fb")
+    ).unnest("fb")
+    assert basis_scalar["annualized_basis"][0] == pytest.approx((10.0 / 1250.0) * (365.0 / 30.0))
+
+    basis_none = fut_df.select(
+        pl.col("close").anta.futures_basis("spot_close", days_to_expiry=None, period=3).alias("fb")
+    ).unnest("fb")
+    assert basis_none["annualized_basis"][0] == pytest.approx(10.0 / 1250.0)
+
+    with pytest.raises(ValueError, match="period must be an integer greater than 1"):
+        pa.futures_basis("close", "spot_close", period=1)
+    with pytest.raises(ValueError, match="annualization must be a positive"):
+        pa.futures_basis("close", "spot_close", annualization=0.0)
+
+    # 4. Open Interest Regime (oi_regime)
+    oi_df = pl.DataFrame(
+        {
+            "symbol": ["VN30F1M"] * 6,
+            "close": [1250.0, 1260.0, 1270.0, 1260.0, 1250.0, 1250.0],
+            "open_interest": [40000.0, 42000.0, 41000.0, 43000.0, 39000.0, 39000.0],
+        }
+    )
+    # Row 1: dp>0, doi>0 -> +2.0 (Long Buildup)
+    # Row 2: dp>0, doi<0 -> +1.0 (Short Covering)
+    # Row 3: dp<0, doi>0 -> -2.0 (Short Buildup)
+    # Row 4: dp<0, doi<0 -> -1.0 (Long Liquidation)
+    # Row 5: dp=0, doi=0 ->  0.0 (Neutral)
+    oi_res = oi_df.anta.oi_regime(unnest=True, group_by="symbol")
+    assert oi_res["regime"].to_list() == [None, 2.0, 1.0, -2.0, -1.0, 0.0]
+    assert oi_res["oi_change"][1] == pytest.approx(2000.0)
+    assert oi_res["conviction"][1] > 0.0
+    assert oi_res["conviction"][2] < 0.0
+
+    oi_expr = oi_df.select(
+        pl.col("close").ta.oi_regime("open_interest", period=1).over("symbol").alias("oir")
+    ).unnest("oir")
+    assert oi_expr["regime"].to_list() == [None, 2.0, 1.0, -2.0, -1.0, 0.0]
+
+    with pytest.raises(ValueError, match="period must be a positive integer"):
+        pa.oi_regime("close", "open_interest", period=0)
+
+
+def test_orthogonalize() -> None:
+    import numpy as np
+
+    import polars_anta as pa
+
+    rng = np.random.default_rng(42)
+    n = 40
+    f1 = rng.normal(0.0, 1.0, size=n)
+    f2 = 0.5 * f1 + rng.normal(0.0, 1.0, size=n)
+    pure_alpha = rng.normal(0.0, 1.0, size=n)
+    # Raw signal contaminated with linear exposure to f1 and f2
+    raw_signal = 2.5 * f1 - 1.8 * f2 + pure_alpha
+
+    df = pl.DataFrame(
+        {
+            "date": ["2026-01-01"] * (n // 2) + ["2026-01-02"] * (n // 2),
+            "raw_alpha": raw_signal,
+            "beta": f1,
+            "vol": f2,
+        }
+    )
+
+    # 1. Multi-factor cross-sectional orthogonalization per date
+    res = df.anta.orthogonalize(
+        col="raw_alpha",
+        factors=["beta", "vol"],
+        over="date",
+        standardize=True,
+        alias="clean_alpha",
+    )
+    assert "clean_alpha" in res.columns
+
+    for dt in ("2026-01-01", "2026-01-02"):
+        sub = res.filter(pl.col("date") == dt)
+        corr_f1 = sub.select(pl.corr("clean_alpha", "beta")).item()
+        corr_f2 = sub.select(pl.corr("clean_alpha", "vol")).item()
+        # Residual must have zero linear correlation with both risk factors!
+        assert corr_f1 == pytest.approx(0.0, abs=1e-10)
+        assert corr_f2 == pytest.approx(0.0, abs=1e-10)
+        # Standardized to unit variance and zero mean
+        assert sub["clean_alpha"].mean() == pytest.approx(0.0, abs=1e-10)
+        assert sub["clean_alpha"].std() == pytest.approx(1.0, abs=1e-10)
+
+    # 2. Single-factor global orthogonalization (over=None, standardize=False) via Expr namespace
+    single_res = df.select(
+        pl.col("raw_alpha")
+        .ta.orthogonalize(factors="beta", over=None, standardize=False)
+        .alias("orth_single")
+    )
+    global_corr = (
+        df.with_columns(single_res["orth_single"]).select(pl.corr("orth_single", "beta")).item()
+    )
+    assert global_corr == pytest.approx(0.0, abs=1e-10)
+
+    # 3. Validation checks
+    with pytest.raises(ValueError, match="ridge must be non-negative"):
+        pa.orthogonalize("raw_alpha", factors="beta", ridge=-1.0)
+    with pytest.raises(ValueError, match="factors must contain at least one"):
+        pa.orthogonalize("raw_alpha", factors=[])

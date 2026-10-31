@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from statistics import NormalDist
 from typing import Literal, TypeVar
 
+import numpy as np
 import polars as pl
 
 from .core import IntoExpr, parse_expr
+from .trend import wma as _wma
 
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
 
@@ -170,6 +173,115 @@ def win_rate(
     return pl.when(total == 0.0).then(0.0).otherwise(wins / total)
 
 
+def _norm_cdf_expr(z: pl.Expr) -> pl.Expr:
+    """Closed-form Abramowitz & Stegun (7.1.26) Standard Normal CDF $\\Phi(z)$ expression."""
+    x = z.abs() / math.sqrt(2.0)
+    t = 1.0 / (1.0 + 0.3275911 * x)
+    poly = t * (
+        0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429)))
+    )
+    erf_x = 1.0 - poly * (-x * x).exp()
+    return (0.5 * (1.0 + z.sign() * erf_x)).clip(0.0, 1.0)
+
+
+def probabilistic_sharpe_ratio(
+    returns: IntoExpr,
+    benchmark_sr: float = 0.0,
+    risk_free_rate: float = 0.0,
+    annualization: float = 252.0,
+) -> pl.Expr:
+    """Compute the Probabilistic Sharpe Ratio (PSR — Bailey & López de Prado, 2012) scalar expression.
+
+    Estimates the probability $\\text{PSR}(SR^*) \\in [0, 1]$ that the observed Sharpe ratio
+    exceeds ``benchmark_sr`` after adjusting for sample length $T$, skewness $\\hat{\\gamma}_3$,
+    and fat-tailed Pearson kurtosis $\\hat{\\gamma}_4$:
+        $$\\hat{\\sigma}(\\widehat{SR}) = \\sqrt{\\frac{1 - \\hat{\\gamma}_3 \\widehat{SR} + \\frac{\\hat{\\gamma}_4 - 1}{4} \\widehat{SR}^2}{T - 1}}$$
+        $$\\text{PSR}(SR^*) = \\Phi\\left(\\frac{\\widehat{SR} - SR^*}{\\hat{\\sigma}(\\widehat{SR})}\\right)$$
+
+    :param returns: Period returns column or expression.
+    :param benchmark_sr: Annualized hurdle Sharpe ratio $SR^*_{\\text{ann}}$ to beat (default 0.0).
+    :param risk_free_rate: Annualized risk-free rate (default 0.0).
+    :param annualization: Number of trading periods per year (default 252.0).
+    :return: Scalar Polars expression in ``[0.0, 1.0]``.
+    """
+    if annualization <= 0.0:
+        raise ValueError("annualization must be a positive number greater than zero")
+
+    r = parse_expr(returns).cast(pl.Float64)
+    rf_per_bar = float(risk_free_rate) / float(annualization)
+    excess = r - rf_per_bar
+
+    t_obs = excess.count().cast(pl.Float64)
+    mean_ex = excess.mean()
+    std_ex = excess.std()
+    sr_hat = mean_ex / std_ex
+    sr_star = float(benchmark_sr) / math.sqrt(float(annualization))
+
+    skew_hat = excess.skew().fill_null(0.0).fill_nan(0.0)
+    kurt_pearson = excess.kurtosis(fisher=False).fill_null(3.0).fill_nan(3.0)
+
+    var_num = (1.0 - skew_hat * sr_hat + ((kurt_pearson - 1.0) / 4.0) * (sr_hat * sr_hat)).clip(
+        lower_bound=1e-12
+    )
+    se_sr = (var_num / (t_obs - 1.0)).sqrt()
+    z_stat = (sr_hat - sr_star) / se_sr
+
+    return (
+        pl.when(
+            (t_obs < 3.0) | std_ex.is_null() | (std_ex == 0.0) | mean_ex.is_null() | z_stat.is_nan()
+        )
+        .then(0.0)
+        .otherwise(_norm_cdf_expr(z_stat))
+    )
+
+
+def deflated_sharpe_ratio(
+    returns: IntoExpr,
+    n_trials: int = 10,
+    trials_sr_std: float = 0.5,
+    risk_free_rate: float = 0.0,
+    annualization: float = 252.0,
+) -> pl.Expr:
+    """Compute the Deflated Sharpe Ratio (DSR — Bailey & López de Prado, 2014) scalar expression.
+
+    Adjusts the Probabilistic Sharpe Ratio for multiple-testing selection bias across
+    ``n_trials`` independent backtest configurations by computing the expected maximum
+    annualized Sharpe ratio under the null hypothesis using Extreme Value Theory:
+        $$SR^*_{\\text{ann}} = \\sigma_{\\{SR\\}} \\left[ (1 - \\gamma) \\Phi^{-1}\\left(1 - \\frac{1}{N}\\right) + \\gamma \\Phi^{-1}\\left(1 - \\frac{1}{N \\cdot e}\\right) \\right]$$
+    where $\\gamma \\approx 0.5772156649$ is the Euler-Mascheroni constant.
+
+    :param returns: Period returns column or expression.
+    :param n_trials: Total number of independent strategy/parameter trials tested $N \\ge 1$ (default 10).
+    :param trials_sr_std: Standard deviation of annualized Sharpe ratios across trials (default 0.5).
+    :param risk_free_rate: Annualized risk-free rate (default 0.0).
+    :param annualization: Number of trading periods per year (default 252.0).
+    :return: Scalar Polars expression in ``[0.0, 1.0]``.
+    """
+    if n_trials < 1:
+        raise ValueError("n_trials must be a positive integer greater than or equal to 1")
+    if trials_sr_std < 0.0:
+        raise ValueError("trials_sr_std must be non-negative")
+    if annualization <= 0.0:
+        raise ValueError("annualization must be a positive number greater than zero")
+
+    if n_trials == 1 or trials_sr_std == 0.0:
+        hurdle_sr = 0.0
+    else:
+        euler_gamma = 0.5772156649015329
+        std_norm = NormalDist(0.0, 1.0)
+        n_f = float(n_trials)
+        z1 = std_norm.inv_cdf(1.0 - 1.0 / n_f)
+        z2 = std_norm.inv_cdf(1.0 - 1.0 / (n_f * math.e))
+        hurdle_sr = float(trials_sr_std) * ((1.0 - euler_gamma) * z1 + euler_gamma * z2)
+
+    return probabilistic_sharpe_ratio(
+        returns,
+        benchmark_sr=hurdle_sr,
+        risk_free_rate=risk_free_rate,
+        annualization=annualization,
+    )
+
+
 # =============================================================================
 # DataFrame / LazyFrame Factor Evaluation Suite
 # =============================================================================
@@ -255,14 +367,16 @@ def ic_summary(
     return_col: str,
     group_by: str | Sequence[str] | None = None,
     method: Literal["spearman", "pearson"] = "spearman",
+    nw_lags: int | None = None,
 ) -> dict[str, float]:
-    """Compute comprehensive Information Coefficient (IC) summary statistics.
+    """Compute comprehensive Information Coefficient (IC) summary statistics with Newey-West HAC t-stat.
 
     Returns a dictionary containing:
     - ``ic_mean``: Mean IC across cross-sections.
     - ``ic_std``: Standard deviation of IC.
     - ``icir``: Information Ratio of IC (``ic_mean / ic_std``).
-    - ``t_stat``: t-statistic testing ``IC != 0``.
+    - ``t_stat``: Independent-sample t-statistic testing ``IC != 0``.
+    - ``nw_t_stat``: Newey-West (1987) HAC autocorrelation-consistent t-statistic.
     - ``hit_rate``: Proportion of periods where ``IC > 0``.
     - ``n_periods``: Total number of valid periods evaluated.
 
@@ -271,8 +385,13 @@ def ic_summary(
     :param return_col: Column name of the target forward return.
     :param group_by: Optional cross-sectional time column(s) (e.g., ``'timestamp'`` or ``'date'``).
     :param method: ``'spearman'`` (Rank IC) or ``'pearson'`` (Normal IC).
+    :param nw_lags: Optional Bartlett kernel maximum lag $L \\ge 0$ for Newey-West HAC standard error.
+        When None, uses the Newey-West (1994) automatic plug-in rule $\\max(1, \\lfloor 4(T/100)^{2/9} \\rfloor)$.
     :return: Dictionary of summary metrics.
     """
+    if nw_lags is not None and nw_lags < 0:
+        raise ValueError("nw_lags must be a non-negative integer")
+
     ic_df = information_coefficient(
         df,
         factor_col=factor_col,
@@ -288,6 +407,7 @@ def ic_summary(
             "ic_std": 0.0,
             "icir": 0.0,
             "t_stat": 0.0,
+            "nw_t_stat": 0.0,
             "hit_rate": 0.0,
             "n_periods": 0.0,
         }
@@ -299,14 +419,123 @@ def ic_summary(
     t_stat_val = (mean_val / (std_val / math.sqrt(float(n)))) if std_val > 1e-12 else 0.0
     hit_rate_val = float((ic_series > 0.0).mean() or 0.0)
 
+    if n > 1 and std_val > 1e-12:
+        u = ic_series.to_numpy().astype(np.float64, copy=False) - mean_val
+        max_lag = (
+            min(int(nw_lags), n - 1)
+            if nw_lags is not None
+            else min(max(1, int(4.0 * ((n / 100.0) ** (2.0 / 9.0)))), n - 1)
+        )
+        gamma_0 = float(np.dot(u, u)) / float(n)
+        lrv = gamma_0
+        for lag_j in range(1, max_lag + 1):
+            weight = 1.0 - float(lag_j) / float(max_lag + 1)
+            gamma_j = float(np.dot(u[lag_j:], u[:-lag_j])) / float(n)
+            lrv += 2.0 * weight * gamma_j
+        # Guard against negative Bartlett variance in tiny/degenerate samples
+        lrv = max(lrv, 1e-24)
+        nw_se = math.sqrt(lrv / float(n))
+        nw_t_stat_val = mean_val / nw_se
+    else:
+        nw_t_stat_val = 0.0
+
     return {
         "ic_mean": mean_val,
         "ic_std": std_val,
         "icir": icir_val,
         "t_stat": t_stat_val,
+        "nw_t_stat": nw_t_stat_val,
         "hit_rate": hit_rate_val,
         "n_periods": float(n),
     }
+
+
+def ic_decay(
+    df: pl.DataFrame | pl.LazyFrame,
+    factor_col: str,
+    close_col: str = "close",
+    horizons: Sequence[int] = (1, 2, 3, 5, 10, 20),
+    asset_col: str | Sequence[str] | None = None,
+    group_by: str | Sequence[str] | None = None,
+    method: Literal["spearman", "pearson"] = "spearman",
+) -> pl.DataFrame:
+    """Compute Multi-Horizon Information Coefficient (IC) Decay and Alpha Half-Life.
+
+    Evaluates ``ic_summary`` across a grid of forward return horizons $h \\in \\text{horizons}$,
+    automatically setting Newey-West HAC bandwidth ``nw_lags = max(1, h - 1)`` to correct for
+    overlapping return autocorrelation, and estimates the exponential decay half-life (in bars).
+
+    :param df: Input Polars DataFrame or LazyFrame.
+    :param factor_col: Column name of the alpha factor signal.
+    :param close_col: Column name of the close price (default 'close').
+    :param horizons: Sequence of forward return horizons to evaluate (default ``(1, 2, 3, 5, 10, 20)``).
+    :param asset_col: Optional asset/symbol column(s) for computing forward returns per instrument.
+    :param group_by: Optional cross-sectional time column(s) (e.g., ``'timestamp'`` or ``'date'``).
+    :param method: Correlation method: ``'spearman'`` (Rank IC, default) or ``'pearson'`` (Normal IC).
+    :return: Eager Polars DataFrame with columns ``['horizon', 'ic_mean', 'ic_std', 'icir',
+        't_stat', 'nw_t_stat', 'hit_rate', 'n_periods', 'half_life']``.
+    """
+    if not horizons:
+        raise ValueError("horizons must contain at least one positive integer")
+    for h in horizons:
+        if h <= 0:
+            raise ValueError("each horizon in horizons must be a positive integer")
+
+    prefix = "_anta_decay_ret_"
+    with_fwd = forward_returns(
+        df,
+        close_col=close_col,
+        periods=horizons,
+        group_by=asset_col,
+        prefix=prefix,
+    )
+    eager_df = with_fwd.collect() if isinstance(with_fwd, pl.LazyFrame) else with_fwd
+
+    rows: list[dict[str, float | int]] = []
+    abs_ics: list[float] = []
+    h_vals: list[float] = []
+
+    for h in horizons:
+        ret_col = f"{prefix}{h}"
+        stats = ic_summary(
+            eager_df,
+            factor_col=factor_col,
+            return_col=ret_col,
+            group_by=group_by,
+            method=method,
+            nw_lags=max(1, int(h) - 1),
+        )
+        rows.append(
+            {
+                "horizon": int(h),
+                "ic_mean": stats["ic_mean"],
+                "ic_std": stats["ic_std"],
+                "icir": stats["icir"],
+                "t_stat": stats["t_stat"],
+                "nw_t_stat": stats["nw_t_stat"],
+                "hit_rate": stats["hit_rate"],
+                "n_periods": stats["n_periods"],
+            }
+        )
+        abs_ics.append(max(abs(stats["ic_mean"]), 1e-8))
+        h_vals.append(float(h))
+
+    if len(h_vals) >= 2:
+        x_arr = np.asarray(h_vals, dtype=np.float64)
+        y_arr = np.log(np.asarray(abs_ics, dtype=np.float64))
+        x_centered = x_arr - x_arr.mean()
+        denom = float(np.dot(x_centered, x_centered))
+        decay_rate = (
+            -float(np.dot(x_centered, y_arr - y_arr.mean())) / denom if denom > 0.0 else 0.0
+        )
+        half_life = math.log(2.0) / decay_rate if decay_rate > 1e-8 else float("inf")
+    else:
+        half_life = float("inf")
+
+    for row in rows:
+        row["half_life"] = half_life
+
+    return pl.DataFrame(rows)
 
 
 def quantile_analysis(
@@ -417,3 +646,264 @@ def factor_turnover(
     )
 
     return res.collect() if isinstance(res, pl.LazyFrame) else res
+
+
+# =============================================================================
+# Quantitative Machine Learning Labeling (AFML Primitives)
+# =============================================================================
+
+
+def triple_barrier_labels(
+    close: IntoExpr,
+    volatility: IntoExpr | float | int | None = None,
+    horizon: int = 10,
+    pt_mult: float = 2.0,
+    sl_mult: float = 2.0,
+    min_ret: float = 0.0,
+    vol_period: int = 20,
+    side: IntoExpr | None = None,
+) -> pl.Expr:
+    """Dynamic Triple-Barrier & Meta-Labeling Method (López de Prado, 2018).
+
+    Evaluates the forward price trajectory over ``horizon`` bars against two dynamic
+    horizontal barriers scaled by local volatility $\\sigma_t$ — an upper Profit-Taking (PT)
+    barrier $+\\max(\\text{pt\\_mult} \\cdot \\sigma_t, \\text{min\\_ret})$ and a lower Stop-Loss (SL)
+    barrier $-\\max(\\text{sl\\_mult} \\cdot \\sigma_t, \\text{min\\_ret})$ — plus a vertical expiration
+    barrier at $t + \\text{horizon}$.
+
+    Returns a ``pl.Struct`` with fields:
+        - ``'label'``: ``+1.0`` if upper barrier touched first, ``-1.0`` if lower barrier
+          touched first, or ``0.0`` if vertical horizon expired first.
+        - ``'touch_bars'``: Number of bars elapsed until the first barrier touch ($1 \\dots \\text{horizon}$).
+        - ``'realized_return'``: Realized return at the first touched barrier.
+        - ``'meta_label'``: Binary meta-label in ``{0.0, 1.0}`` indicating whether the trade
+          achieved its profit-taking target.
+
+    :param close: Close price column or expression.
+    :param volatility: Optional per-bar volatility column/expression or positive scalar target.
+        When None, defaults to rolling standard deviation of returns over ``vol_period``.
+    :param horizon: Vertical barrier maximum holding period in bars (default 10).
+    :param pt_mult: Profit-taking volatility multiplier (default 2.0; set 0.0 to disable PT barrier).
+    :param sl_mult: Stop-loss volatility multiplier (default 2.0; set 0.0 to disable SL barrier).
+    :param min_ret: Minimum absolute return barrier threshold (default 0.0).
+    :param vol_period: Rolling window used when ``volatility=None`` (default 20).
+    :param side: Optional primary model directional signal ($\\in \\{-1, +1\\}$) for Meta-Labeling.
+    :return: Polars Struct expression.
+    """
+    if horizon <= 0:
+        raise ValueError("horizon must be a positive integer greater than zero")
+    if pt_mult < 0.0 or sl_mult < 0.0:
+        raise ValueError("pt_mult and sl_mult must be non-negative")
+    if min_ret < 0.0:
+        raise ValueError("min_ret must be non-negative")
+    if vol_period <= 1:
+        raise ValueError("vol_period must be an integer greater than 1")
+
+    c = parse_expr(close).cast(pl.Float64)
+
+    if volatility is None:
+        vol_expr = (
+            c.pct_change()
+            .rolling_std(window_size=vol_period, min_samples=2)
+            .fill_null(strategy="backward")
+            .fill_null(0.01)
+        )
+    elif isinstance(volatility, (int, float)) and not isinstance(volatility, bool):
+        if volatility <= 0.0:
+            raise ValueError("scalar volatility must be a positive number")
+        vol_expr = pl.lit(float(volatility), dtype=pl.Float64)
+    else:
+        vol_expr = parse_expr(volatility).cast(pl.Float64)
+
+    side_expr = (
+        parse_expr(side).cast(pl.Float64).sign().fill_null(1.0)
+        if side is not None
+        else pl.lit(1.0, dtype=pl.Float64)
+    )
+
+    h = int(horizon)
+    pt_m = float(pt_mult)
+    sl_m = float(sl_mult)
+    min_r = float(min_ret)
+
+    return_dtype = pl.Struct(
+        [
+            pl.Field("label", pl.Float64),
+            pl.Field("touch_bars", pl.Int64),
+            pl.Field("realized_return", pl.Float64),
+            pl.Field("meta_label", pl.Float64),
+        ]
+    )
+
+    def _calc_tb(s_struct: pl.Series) -> pl.Series:
+        df_chunk = s_struct.struct.unnest()
+        c_vals = df_chunk["close"].to_numpy().astype(np.float64, copy=False)
+        v_vals = df_chunk["vol"].to_numpy().astype(np.float64, copy=False)
+        s_vals = df_chunk["side"].to_numpy().astype(np.float64, copy=False)
+        n = len(c_vals)
+
+        labels = np.full(n, np.nan, dtype=np.float64)
+        touch_bars = np.full(n, -1, dtype=np.int64)
+        realized_ret = np.full(n, np.nan, dtype=np.float64)
+        meta_labels = np.full(n, np.nan, dtype=np.float64)
+
+        if n > h:
+            windows = np.lib.stride_tricks.sliding_window_view(c_vals, h + 1)
+            m = len(windows)
+            p0 = windows[:, :1]
+            valid_mask = (
+                (~np.isnan(windows).any(axis=1))
+                & (p0[:, 0] > 0.0)
+                & (~np.isnan(v_vals[:m]))
+                & (s_vals[:m] != 0.0)
+            )
+
+            if valid_mask.any():
+                valid_w = windows[valid_mask]
+                valid_v = np.maximum(v_vals[:m][valid_mask], 1e-8)
+                valid_s = np.sign(s_vals[:m][valid_mask])
+                k = len(valid_w)
+
+                raw_rets = (valid_w[:, 1:] - valid_w[:, :1]) / valid_w[:, :1]
+                dir_rets = raw_rets * valid_s[:, None]
+
+                if pt_m > 0.0:
+                    u_thresh = np.maximum(pt_m * valid_v, min_r)[:, None]
+                    hit_pt = dir_rets >= u_thresh
+                    first_pt = np.where(hit_pt.any(axis=1), np.argmax(hit_pt, axis=1) + 1, h + 1)
+                else:
+                    first_pt = np.full(k, h + 1, dtype=np.int64)
+
+                if sl_m > 0.0:
+                    l_thresh = np.maximum(sl_m * valid_v, min_r)[:, None]
+                    hit_sl = dir_rets <= -l_thresh
+                    first_sl = np.where(hit_sl.any(axis=1), np.argmax(hit_sl, axis=1) + 1, h + 1)
+                else:
+                    first_sl = np.full(k, h + 1, dtype=np.int64)
+
+                pt_wins = (first_pt < first_sl) & (first_pt <= h)
+                sl_wins = (first_sl < first_pt) & (first_sl <= h)
+                tie_hit = (first_pt == first_sl) & (first_pt <= h)
+
+                lbl_trade = np.where(
+                    pt_wins | (tie_hit & (dir_rets[:, 0] >= 0.0)),
+                    1.0,
+                    np.where(sl_wins | tie_hit, -1.0, 0.0),
+                )
+                lbl_valid = np.where(lbl_trade == 0.0, 0.0, lbl_trade * valid_s)
+                t_bars_valid = np.minimum(np.minimum(first_pt, first_sl), h).astype(np.int64)
+                row_idx = np.arange(k)
+                r_ret_valid = raw_rets[row_idx, t_bars_valid - 1]
+                meta_valid = np.where(lbl_trade > 0.0, 1.0, 0.0)
+
+                labels_slice = labels[:m]
+                t_bars_slice = touch_bars[:m]
+                r_ret_slice = realized_ret[:m]
+                meta_slice = meta_labels[:m]
+
+                labels_slice[valid_mask] = lbl_valid
+                t_bars_slice[valid_mask] = t_bars_valid
+                r_ret_slice[valid_mask] = r_ret_valid
+                meta_slice[valid_mask] = meta_valid
+
+        tb_series = pl.Series("touch_bars", touch_bars, dtype=pl.Int64)
+        tb_series = pl.select(
+            pl.when(tb_series > 0).then(tb_series).otherwise(None).alias("touch_bars")
+        )["touch_bars"]
+
+        return pl.DataFrame(
+            {
+                "label": pl.Series(labels, dtype=pl.Float64).fill_nan(None),
+                "touch_bars": tb_series,
+                "realized_return": pl.Series(realized_ret, dtype=pl.Float64).fill_nan(None),
+                "meta_label": pl.Series(meta_labels, dtype=pl.Float64).fill_nan(None),
+            }
+        ).to_struct("triple_barrier")
+
+    combined = pl.struct(
+        [
+            c.alias("close"),
+            vol_expr.alias("vol"),
+            side_expr.alias("side"),
+        ]
+    )
+    return combined.map_batches(_calc_tb, return_dtype=return_dtype)
+
+
+def trend_scanning_labels(
+    close: IntoExpr,
+    min_window: int = 5,
+    max_window: int = 20,
+    step: int = 1,
+) -> pl.Expr:
+    """Trend-Scanning Multi-Horizon OLS Regression Labeling (López de Prado, 2020).
+
+    Fits forward Ordinary Least Squares (OLS) linear regressions across all candidate
+    lookahead windows $L \\in [\\text{min\\_window}, \\text{max\\_window}]$ (stepping by ``step``)
+    using closed-form Polars expressions and selects the horizon $L^*$ that maximizes the
+    absolute slope $t$-statistic $|\\hat{\\beta}_1(L) / \\text{SE}(\\hat{\\beta}_1(L))|$.
+
+    Returns a ``pl.Struct`` with fields:
+        - ``'label'``: Trend direction $\\text{sign}(t_{L^*}) \\in \\{-1.0, 0.0, 1.0\\}$
+        - ``'t_value'``: Maximum-magnitude OLS slope $t$-statistic $t_{L^*}$
+        - ``'optimal_window'``: Lookahead window length $L^*$ achieving $t_{L^*}$
+        - ``'ret'``: Forward return $(P_{t + L^* - 1} / P_t) - 1$ over the optimal window
+
+    :param close: Close price column or expression.
+    :param min_window: Minimum forward regression window length $L \\ge 3$ (default 5).
+    :param max_window: Maximum forward regression window length $L \\ge \\text{min\\_window}$ (default 20).
+    :param step: Grid step size between candidate windows (default 1).
+    :return: Polars Struct expression.
+    """
+    if min_window < 3:
+        raise ValueError("min_window must be an integer greater than or equal to 3")
+    if max_window < min_window:
+        raise ValueError("max_window must be greater than or equal to min_window")
+    if step <= 0:
+        raise ValueError("step must be a positive integer")
+
+    c = parse_expr(close).cast(pl.Float64)
+    windows = list(range(min_window, max_window + 1, step))
+
+    best_t: pl.Expr = pl.lit(None, dtype=pl.Float64)
+    best_w: pl.Expr = pl.lit(None, dtype=pl.Int64)
+    best_ret: pl.Expr = pl.lit(None, dtype=pl.Float64)
+
+    for w in windows:
+        shift_k = w - 1
+        sma_w = c.rolling_mean(window_size=w)
+        wma_w = _wma(c, period=w)
+        slope_w = (wma_w - sma_w) * (6.0 / float(w - 1))
+
+        s_xx = float(w * (w - 1) * (w + 1)) / 12.0
+        s_yy = float(w - 1) * c.rolling_var(window_size=w)
+        rss = (s_yy - (slope_w**2) * s_xx).clip(lower_bound=0.0)
+        se_slope = (rss / (float(w - 2) * s_xx)).sqrt()
+
+        t_trailing = (
+            pl.when(slope_w.is_null() | s_yy.is_null())
+            .then(None)
+            .when(se_slope > 1e-12)
+            .then((slope_w / se_slope).clip(-1e6, 1e6))
+            .when(slope_w.abs() > 1e-12)
+            .then(slope_w.sign() * 1e6)
+            .otherwise(0.0)
+        )
+        t_fwd = t_trailing.shift(-shift_k)
+        ret_fwd = (c.shift(-shift_k) / c) - 1.0
+
+        take_this = t_fwd.is_not_null() & (best_t.is_null() | (t_fwd.abs() > best_t.abs()))
+        best_t = pl.when(take_this).then(t_fwd).otherwise(best_t)
+        best_w = pl.when(take_this).then(pl.lit(w, dtype=pl.Int64)).otherwise(best_w)
+        best_ret = pl.when(take_this).then(ret_fwd).otherwise(best_ret)
+
+    label_expr = pl.when(best_t.is_null()).then(None).otherwise(best_t.sign())
+
+    return pl.struct(
+        [
+            label_expr.alias("label"),
+            best_t.alias("t_value"),
+            best_w.alias("optimal_window"),
+            best_ret.alias("ret"),
+        ]
+    )

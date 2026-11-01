@@ -9,15 +9,26 @@ The `polars_anta.momentum` module provides **21 velocity oscillators, double-smo
 ### `rsi(close, period=14)` & `cmo(close, period=14)`
 Let $\Delta C_t = C_t - C_{t-1}$, $U_t = \max(\Delta C_t, 0)$, and $D_t = \max(-\Delta C_t, 0)$.
 - **Wilder's Relative Strength Index (`rsi`)**: Uses Wilder's recursive smoothing $\bar{U}_t = \text{RMA}_n(U_t)$ and $\bar{D}_t = \text{RMA}_n(D_t)$:
-  $$\text{RS}_t = \frac{\bar{U}_t}{\bar{D}_t}, \qquad \text{RSI}_t = 100 - \frac{100}{1 + \text{RS}_t} = 100 \frac{\bar{U}_t}{\bar{U}_t + \bar{D}_t} \in [0, 100]$$
+
+$$
+\text{RS}_t = \frac{\bar{U}_t}{\bar{D}_t}, \qquad \text{RSI}_t = 100 - \frac{100}{1 + \text{RS}_t} = 100 \frac{\bar{U}_t}{\bar{U}_t + \bar{D}_t} \in [0, 100]
+$$
+
 - **Chande Momentum Oscillator (`cmo`)**: Uses unsmoothed rolling sums over $n$ bars and scales symmetrically into $[-100, +100]$:
-  $$\text{CMO}_t = 100 \frac{\sum_{i=0}^{n-1} U_{t-i} - \sum_{i=0}^{n-1} D_{t-i}}{\sum_{i=0}^{n-1} U_{t-i} + \sum_{i=0}^{n-1} D_{t-i}} \in [-100, +100]$$
+
+$$
+\text{CMO}_t = 100 \frac{\sum_{i=0}^{n-1} U_{t-i} - \sum_{i=0}^{n-1} D_{t-i}}{\sum_{i=0}^{n-1} U_{t-i} + \sum_{i=0}^{n-1} D_{t-i}} \in [-100, +100]
+$$
 
 ---
 
 ### `stochastic(high, low, close, k_period=14, d_period=3, smooth_k=1)`, `stoch_rsi(...)`, & `williams_r(high, low, close, period=14)`
 Let $H_t^{(n)} = \max_{0 \le i < n} H_{t-i}$ and $L_t^{(n)} = \min_{0 \le i < n} L_{t-i}$:
-$$\%K_t^{\text{raw}} = 100 \frac{C_t - L_t^{(n)}}{H_t^{(n)} - L_t^{(n)}} \in [0, 100], \qquad \%R_t = -100 \frac{H_t^{(n)} - C_t}{H_t^{(n)} - L_t^{(n)}} = \%K_t^{\text{raw}} - 100 \in [-100, 0]$$
+
+$$
+\%K_t^{\text{raw}} = 100 \frac{C_t - L_t^{(n)}}{H_t^{(n)} - L_t^{(n)}} \in [0, 100], \qquad \%R_t = -100 \frac{H_t^{(n)} - C_t}{H_t^{(n)} - L_t^{(n)}} = \%K_t^{\text{raw}} - 100 \in [-100, 0]
+$$
+
 - `stochastic` returns `Struct(k, d)` where $k = \text{SMA}_{\text{smooth\_k}}(\%K^{\text{raw}})$ and $d = \text{SMA}_{\text{d\_period}}(k)$.
 - `stoch_rsi` applies the Stochastic normalization directly to the $\text{RSI}_t$ series, returning `Struct(k, d)`.
 
@@ -27,16 +38,27 @@ $$\%K_t^{\text{raw}} = 100 \frac{C_t - L_t^{(n)}}{H_t^{(n)} - L_t^{(n)}} \in [0,
 
 ### `macd(close, fast_period=12, slow_period=26, signal_period=9)` & `ppo(close, fast_period=12, slow_period=26, signal_period=9)`
 - **MACD (`Struct(macd, signal, histogram)`)**:
-  $$\text{MACD}_t = \text{EMA}_{12}(C_t) - \text{EMA}_{26}(C_t), \quad \text{Signal}_t = \text{EMA}_9(\text{MACD}_t), \quad \text{Hist}_t = \text{MACD}_t - \text{Signal}_t$$
+
+$$
+\text{MACD}_t = \text{EMA}_{12}(C_t) - \text{EMA}_{26}(C_t), \quad \text{Signal}_t = \text{EMA}_9(\text{MACD}_t), \quad \text{Hist}_t = \text{MACD}_t - \text{Signal}_t
+$$
+
 - **Percentage Price Oscillator (`ppo`, `Struct(ppo, signal, histogram)`)**: Normalizes MACD by $\text{EMA}_{26}(C_t)$ so momentum magnitudes can be compared across assets at different price levels:
-  $$\text{PPO}_t = \frac{\text{EMA}_{12}(C_t) - \text{EMA}_{26}(C_t)}{\text{EMA}_{26}(C_t)} \times 100$$
+
+$$
+\text{PPO}_t = \frac{\text{EMA}_{12}(C_t) - \text{EMA}_{26}(C_t)}{\text{EMA}_{26}(C_t)} \times 100
+$$
 
 ---
 
 ### `tsi(close, long_period=25, short_period=13)`
 **William Blau's True Strength Index:**
 Applies a cascaded double-EMA filter to both raw price change $\Delta C_t$ and absolute price change $|\Delta C_t|$:
-$$\text{TSI}_t = 100 \cdot \frac{\text{EMA}_{13}\!\left(\text{EMA}_{25}(\Delta C_t)\right)}{\text{EMA}_{13}\!\left(\text{EMA}_{25}(|\Delta C_t|)\right)} \in [-100, +100]$$
+
+$$
+\text{TSI}_t = 100 \cdot \frac{\text{EMA}_{13}\!\left(\text{EMA}_{25}(\Delta C_t)\right)}{\text{EMA}_{13}\!\left(\text{EMA}_{25}(|\Delta C_t|)\right)} \in [-100, +100]
+$$
+
 Because the denominator normalizes by double-smoothed volatility, `tsi` acts as a high-signal-to-noise continuous Sharpe-like momentum oscillator.
 
 ---
@@ -46,7 +68,11 @@ Because the denominator normalizes by double-smoothed volatility, `tsi` acts as 
 ### `fisher_transform(high, low, period=10)`
 **John Ehlers' Fisher Transform (`Struct(fisher, trigger)`)**:
 Empirical financial price series have approximately uniform or leptokurtic distributions within a rolling channel, meaning extreme readings do not cluster cleanly at turning points. Ehlers first normalizes midpoint price $M_t = (H_t + L_t)/2$ into $(-1, +1)$ (smoothed via $X_t$ and clipped to $(-0.999, +0.999)$) and applies the inverse hyperbolic tangent (**Fisher $z$-transformation**):
-$$F_t = \frac{1}{2} \ln\!\left(\frac{1 + X_t}{1 - X_t}\right) + \frac{1}{2} F_{t-1} = \operatorname{artanh}(X_t) + \frac{1}{2} F_{t-1}$$
+
+$$
+F_t = \frac{1}{2} \ln\!\left(\frac{1 + X_t}{1 - X_t}\right) + \frac{1}{2} F_{t-1} = \operatorname{artanh}(X_t) + \frac{1}{2} F_{t-1}
+$$
+
 This maps bounded price position into an approximately **Gaussian normal distribution** with sharp, unambiguous probability spikes at cycle reversals.
 
 ---

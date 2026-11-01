@@ -8,7 +8,10 @@ The `polars_anta.stats` module provides **13 vectorized statistical, econometric
 
 ### `zscore(close, period=20)`
 **Mathematical Formulation:**
-$$Z_t = \frac{x_t - \hat{\mu}_t}{\hat{\sigma}_t}, \qquad \hat{\mu}_t = \frac{1}{n}\sum_{i=0}^{n-1} x_{t-i}, \qquad \hat{\sigma}_t = \sqrt{\frac{1}{n - 1}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^2}$$
+
+$$
+Z_t = \frac{x_t - \hat{\mu}_t}{\hat{\sigma}_t}, \qquad \hat{\mu}_t = \frac{1}{n}\sum_{i=0}^{n-1} x_{t-i}, \qquad \hat{\sigma}_t = \sqrt{\frac{1}{n - 1}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^2}
+$$
 
 - **Quantitative Interpretation**: Measures how many rolling standard deviations the current observation lies away from its trailing mean. Widely used in statistical arbitrage (Ornstein-Uhlenbeck mean-reversion triggers when $|Z_t| > 2.0$) and time-series feature normalization.
 - **Tech / Polars Execution**: Pure native Rust `rolling_mean(period)` and `rolling_std(period)` with zero-division protection (`0.0` when $\hat{\sigma}_t = 0$).
@@ -17,7 +20,10 @@ $$Z_t = \frac{x_t - \hat{\mu}_t}{\hat{\sigma}_t}, \qquad \hat{\mu}_t = \frac{1}{
 
 ### `percentile_rank(close, period=20)`
 **Mathematical Formulation:**
-$$\text{PctRank}_t = \frac{1}{n - 1} \sum_{i=1}^{n-1} \left( \mathbb{I}_{\{x_{t-i} < x_t\}} + \frac{1}{2}\mathbb{I}_{\{x_{t-i} = x_t\}} \right) \in [0.0, 1.0]$$
+
+$$
+\text{PctRank}_t = \frac{1}{n - 1} \sum_{i=1}^{n-1} \left( \mathbb{I}_{\{x_{t-i} < x_t\}} + \frac{1}{2}\mathbb{I}_{\{x_{t-i} = x_t\}} \right) \in [0.0, 1.0]
+$$
 
 - **Quantitative Interpretation**: Non-parametric, outlier-resistant alternative to `zscore`. Because financial returns exhibit heavy tails where a single volatility shock can distort $\hat{\sigma}_t$ for $n$ subsequent bars, `percentile_rank` maps any fat-tailed distribution uniformly onto $[0, 1]$.
 - **Tech / Polars Execution**: Vectorized via zero-copy `sliding_window_view` pairwise comparison against the rightmost column `windows[:, -1:]`.
@@ -26,7 +32,10 @@ $$\text{PctRank}_t = \frac{1}{n - 1} \sum_{i=1}^{n-1} \left( \mathbb{I}_{\{x_{t-
 
 ### `skewness(close, period=20)` & `kurtosis(close, period=20)`
 **Mathematical Formulations:**
-$$\hat{\gamma}_{3, t} = \frac{\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^3}{\left(\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^2\right)^{3/2}}, \qquad \hat{\gamma}_{4, t} = \frac{\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^4}{\left(\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^2\right)^{2}} - 3$$
+
+$$
+\hat{\gamma}_{3, t} = \frac{\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^3}{\left(\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^2\right)^{3/2}}, \qquad \hat{\gamma}_{4, t} = \frac{\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^4}{\left(\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)^2\right)^{2}} - 3
+$$
 
 - **Quantitative Interpretation**:
   - **Skewness ($\hat{\gamma}_3$)**: Quantifies distributional asymmetry. Negative return skewness ($\hat{\gamma}_3 < 0$) warns of "crash risk" (frequent small gains punctuated by sharp drawdowns, typical of short-volatility or carry strategies).
@@ -39,7 +48,10 @@ $$\hat{\gamma}_{3, t} = \frac{\frac{1}{n}\sum_{i=0}^{n-1}(x_{t-i} - \hat{\mu}_t)
 
 ### `rolling_cov(x, y, period=20)` & `rolling_corr(x, y, period=20)`
 **Mathematical Formulations:**
-$$\text{Cov}_t(X, Y) = \frac{1}{n - 1} \sum_{i=0}^{n-1} (x_{t-i} - \bar{x}_t)(y_{t-i} - \bar{y}_t), \qquad \rho_t(X, Y) = \frac{\text{Cov}_t(X, Y)}{\hat{\sigma}_{X, t}\,\hat{\sigma}_{Y, t}} \in [-1, 1]$$
+
+$$
+\text{Cov}_t(X, Y) = \frac{1}{n - 1} \sum_{i=0}^{n-1} (x_{t-i} - \bar{x}_t)(y_{t-i} - \bar{y}_t), \qquad \rho_t(X, Y) = \frac{\text{Cov}_t(X, Y)}{\hat{\sigma}_{X, t}\,\hat{\sigma}_{Y, t}} \in [-1, 1]
+$$
 
 - **Tech / Polars Execution**: Computed via Polars' native `pl.rolling_cov(x, y, window_size=period)` and `pl.rolling_corr(x, y, window_size=period)` in Rust.
 
@@ -47,7 +59,10 @@ $$\text{Cov}_t(X, Y) = \frac{1}{n - 1} \sum_{i=0}^{n-1} (x_{t-i} - \bar{x}_t)(y_
 
 ### `rolling_beta(asset_returns, benchmark_returns, period=60)` & `rolling_alpha(asset_returns, benchmark_returns, rf=0.0, period=60)`
 **Mathematical Formulations (Sharpe-Lintner CAPM):**
-$$\hat{\beta}_t = \frac{\text{Cov}_t(R_a, R_m)}{\text{Var}_t(R_m)}, \qquad \hat{\alpha}_t = (\bar{R}_{a, t} - r_f) - \hat{\beta}_t (\bar{R}_{m, t} - r_f)$$
+
+$$
+\hat{\beta}_t = \frac{\text{Cov}_t(R_a, R_m)}{\text{Var}_t(R_m)}, \qquad \hat{\alpha}_t = (\bar{R}_{a, t} - r_f) - \hat{\beta}_t (\bar{R}_{m, t} - r_f)
+$$
 
 - **Quantitative Interpretation**:
   - `rolling_beta` measures time-varying systematic exposure of an asset or strategy $R_a$ to the market benchmark $R_m$ (e.g., VN30 Index). It is the foundational input for constructing **Beta-Neutral** long/short portfolios ($w_i^{\text{hedged}} = w_i - \hat{\beta}_i w_m$) and passing into `orthogonalize`.
@@ -72,7 +87,10 @@ Fitting $y_{t-n+1+i} = \beta_0 + \beta_1 \cdot i + \epsilon_i$ for $i \in \{0, 1
 
 ### `frac_diff(close, d=0.4, window=20)`
 **Mathematical Formulation (Fixed-Window Fractional Differentiation — López de Prado, 2018):**
-$$\tilde{X}_t^{(d, W)} = \sum_{k=0}^{W-1} \omega_k X_{t-k}, \qquad \omega_0 = 1, \qquad \omega_k = -\omega_{k-1} \frac{d - k + 1}{k} \quad (k = 1, \dots, W - 1)$$
+
+$$
+\tilde{X}_t^{(d, W)} = \sum_{k=0}^{W-1} \omega_k X_{t-k}, \qquad \omega_0 = 1, \qquad \omega_k = -\omega_{k-1} \frac{d - k + 1}{k} \quad (k = 1, \dots, W - 1)
+$$
 
 - **Quantitative Theory**:
   - When $d = 0.0$, $\omega_0 = 1$ and $\omega_k = 0$ ($\forall k \ge 1$), returning the raw non-stationary price series $X_t$.

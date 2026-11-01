@@ -25,8 +25,14 @@ In continuous-time finance ($d\ln P_t = \sigma\,dW_t$), the standard Close-to-Cl
 
 ### `true_range(high, low, close)`, `atr(high, low, close, period=14)`, & `natr(high, low, close, period=14)`
 **Mathematical Formulations (J. Welles Wilder Jr., 1978):**
-$$\text{TR}_t = \max\left(H_t - L_t,\, |H_t - C_{t-1}|,\, |L_t - C_{t-1}|\right)$$
-$$\text{ATR}_t(n) = \text{RMA}_n(\text{TR}_t) = \frac{(n - 1)\,\text{ATR}_{t-1} + \text{TR}_t}{n}, \qquad \text{NATR}_t(n) = \frac{\text{ATR}_t(n)}{C_t} \times 100$$
+
+$$
+\text{TR}_t = \max\left(H_t - L_t,\, |H_t - C_{t-1}|,\, |L_t - C_{t-1}|\right)
+$$
+
+$$
+\text{ATR}_t(n) = \text{RMA}_n(\text{TR}_t) = \frac{(n - 1)\,\text{ATR}_{t-1} + \text{TR}_t}{n}, \qquad \text{NATR}_t(n) = \frac{\text{ATR}_t(n)}{C_t} \times 100
+$$
 
 - **Quantitative Interpretation**: `true_range` accounts for overnight or inter-bar gaps ($|H_t - C_{t-1}|$ and $|L_t - C_{t-1}|$). While `atr` is denominated in raw price points (ideal for sizing point stops on VN30F1M), `natr` normalizes by price level so volatility can be ranked cross-sectionally across assets trading at different nominal prices.
 - **Tech / Polars Execution**: Formulated as an exact `ewm_mean(alpha=1.0 / period, adjust=False, min_samples=period)` kernel in Rust.
@@ -35,20 +41,29 @@ $$\text{ATR}_t(n) = \text{RMA}_n(\text{TR}_t) = \frac{(n - 1)\,\text{ATR}_{t-1} 
 
 ### `chandelier_exit(high, low, close, period=22, multiplier=3.0)`
 **Chuck LeBeau's ATR Trailing Stop (`pl.Struct: ("long_stop", "short_stop")`)**:
-$$\text{LongStop}_t = \max_{0 \le i < n} H_{t-i} - m \cdot \text{ATR}_t(n), \qquad \text{ShortStop}_t = \min_{0 \le i < n} L_{t-i} + m \cdot \text{ATR}_t(n)$$
+
+$$
+\text{LongStop}_t = \max_{0 \le i < n} H_{t-i} - m \cdot \text{ATR}_t(n), \qquad \text{ShortStop}_t = \min_{0 \le i < n} L_{t-i} + m \cdot \text{ATR}_t(n)
+$$
 
 ---
 
 ### `ulcer_index(close, period=14)`
 **Peter Martin's Downside Drawdown Volatility (1987):**
 Unlike standard deviation (`stddev`), which penalizes upside rallies and downside crashes equally, `ulcer_index` measures the root-mean-square depth and duration of rolling percentage drawdowns:
-$$R_t = \frac{C_t - \max_{0 \le i < n} C_{t-i}}{\max_{0 \le i < n} C_{t-i}} \times 100 \le 0, \qquad \text{UI}_t(n) = \sqrt{\frac{1}{n}\sum_{i=0}^{n-1} R_{t-i}^2}$$
+
+$$
+R_t = \frac{C_t - \max_{0 \le i < n} C_{t-i}}{\max_{0 \le i < n} C_{t-i}} \times 100 \le 0, \qquad \text{UI}_t(n) = \sqrt{\frac{1}{n}\sum_{i=0}^{n-1} R_{t-i}^2}
+$$
 
 ---
 
 ### `chaikin_volatility(high, low, ema_period=10, roc_period=10)`
 Measures the rate of expansion or contraction of the smoothed High-Low trading range:
-$$\text{HL\_EMA}_t = \text{EMA}_{n_1}(H_t - L_t), \qquad \text{ChaikinVol}_t = \frac{\text{HL\_EMA}_t - \text{HL\_EMA}_{t - n_2}}{\text{HL\_EMA}_{t - n_2}} \times 100$$
+
+$$
+\text{HL\_EMA}_t = \text{EMA}_{n_1}(H_t - L_t), \qquad \text{ChaikinVol}_t = \frac{\text{HL\_EMA}_t - \text{HL\_EMA}_{t - n_2}}{\text{HL\_EMA}_{t - n_2}} \times 100
+$$
 
 ---
 

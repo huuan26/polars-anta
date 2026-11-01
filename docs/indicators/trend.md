@@ -29,8 +29,15 @@ Unlike fixed-period filters, **adaptive moving averages** dynamically modulate t
 ### `kama(close, period=10, fast_period=2, slow_period=30)`
 **Perry Kaufman's Adaptive Moving Average:**
 Computes the **Efficiency Ratio ($\text{ER}_t \in [0, 1]$)** — the ratio of net directional displacement to total path length:
-$$\text{ER}_t = \frac{|C_t - C_{t-n}|}{\sum_{i=0}^{n-1} |C_{t-i} - C_{t-i-1}|}, \qquad \text{SC}_t = \left[ \text{ER}_t (\alpha_{\text{fast}} - \alpha_{\text{slow}}) + \alpha_{\text{slow}} \right]^2$$
-$$\text{KAMA}_t = \text{KAMA}_{t-1} + \text{SC}_t (C_t - \text{KAMA}_{t-1})$$
+
+$$
+\text{ER}_t = \frac{|C_t - C_{t-n}|}{\sum_{i=0}^{n-1} |C_{t-i} - C_{t-i-1}|}, \qquad \text{SC}_t = \left[ \text{ER}_t (\alpha_{\text{fast}} - \alpha_{\text{slow}}) + \alpha_{\text{slow}} \right]^2
+$$
+
+$$
+\text{KAMA}_t = \text{KAMA}_{t-1} + \text{SC}_t (C_t - \text{KAMA}_{t-1})
+$$
+
 When price moves in a straight line ($\text{ER}_t \to 1$), $\text{KAMA}_t$ tracks closely at `fast_period`; during sideways chop ($\text{ER}_t \to 0$), $\text{SC}_t^2 \to \alpha_{\text{slow}}^2$, freezing the average flat to prevent whipsaws.
 
 ---
@@ -38,7 +45,10 @@ When price moves in a straight line ($\text{ER}_t \to 1$), $\text{KAMA}_t$ track
 ### `vidya(close, period=14, hist_period=None)` & `mcginley_dynamic(close, period=14)`
 - **Tushar Chande's VIDYA**: Modulates $\alpha_t = \alpha_0 \cdot |\text{CMO}_t| / 100$ using the absolute Chande Momentum Oscillator.
 - **John McGinley's Dynamic Indicator**: Adjusts smoothing inversely to the fourth power of price velocity:
-  $$\text{MD}_t = \text{MD}_{t-1} + \frac{C_t - \text{MD}_{t-1}}{n \cdot (C_t / \text{MD}_{t-1})^4}$$
+
+$$
+\text{MD}_t = \text{MD}_{t-1} + \frac{C_t - \text{MD}_{t-1}}{n \cdot (C_t / \text{MD}_{t-1})^4}
+$$
 
 ---
 
@@ -46,15 +56,28 @@ When price moves in a straight line ($\text{ER}_t \to 1$), $\text{KAMA}_t$ track
 
 ### `adx(high, low, close, period=14)`
 **J. Welles Wilder's Directional Movement System (`pl.Struct: ("adx", "plus_di", "minus_di")`)**:
-$$\text{+DM}_t = \max(H_t - H_{t-1}, 0)\,\mathbb{I}_{\{H_t - H_{t-1} > L_{t-1} - L_t\}}, \qquad \text{-DM}_t = \max(L_{t-1} - L_t, 0)\,\mathbb{I}_{\{L_{t-1} - L_t > H_t - H_{t-1}\}}$$
-$$\text{+DI}_t = 100 \frac{\text{RMA}_n(\text{+DM}_t)}{\text{ATR}_t(n)}, \qquad \text{-DI}_t = 100 \frac{\text{RMA}_n(\text{-DM}_t)}{\text{ATR}_t(n)}$$
-$$\text{DX}_t = 100 \frac{|\text{+DI}_t - \text{-DI}_t|}{\text{+DI}_t + \text{-DI}_t}, \qquad \text{ADX}_t = \text{RMA}_n(\text{DX}_t)$$
+
+$$
+\text{+DM}_t = \max(H_t - H_{t-1}, 0)\,\mathbb{I}_{\{H_t - H_{t-1} > L_{t-1} - L_t\}}, \qquad \text{-DM}_t = \max(L_{t-1} - L_t, 0)\,\mathbb{I}_{\{L_{t-1} - L_t > H_t - H_{t-1}\}}
+$$
+
+$$
+\text{+DI}_t = 100 \frac{\text{RMA}_n(\text{+DM}_t)}{\text{ATR}_t(n)}, \qquad \text{-DI}_t = 100 \frac{\text{RMA}_n(\text{-DM}_t)}{\text{ATR}_t(n)}
+$$
+
+$$
+\text{DX}_t = 100 \frac{|\text{+DI}_t - \text{-DI}_t|}{\text{+DI}_t + \text{-DI}_t}, \qquad \text{ADX}_t = \text{RMA}_n(\text{DX}_t)
+$$
 
 ---
 
 ### `chop(high, low, close, period=14)`
 **E.W. Dreiss's Choppiness Index (Fractal Consolidation Filter):**
-$$\text{CHOP}_t(n) = 100 \cdot \frac{\log_{10}\!\left(\frac{\sum_{i=0}^{n-1} \text{TR}_{t-i}}{\max_{0 \le i < n} H_{t-i} - \min_{0 \le i < n} L_{t-i}}\right)}{\log_{10}(n)} \in [0, 100]$$
+
+$$
+\text{CHOP}_t(n) = 100 \cdot \frac{\log_{10}\!\left(\frac{\sum_{i=0}^{n-1} \text{TR}_{t-i}}{\max_{0 \le i < n} H_{t-i} - \min_{0 \le i < n} L_{t-i}}\right)}{\log_{10}(n)} \in [0, 100]
+$$
+
 - $\text{CHOP}_t > 61.8$: Market is range-bound / consolidating (Fibonacci retracement threshold).
 - $\text{CHOP}_t < 38.2$: Strong directional trend is underway.
 
@@ -69,7 +92,7 @@ $$\text{CHOP}_t(n) = 100 \cdot \frac{\log_{10}\!\left(\frac{\sum_{i=0}^{n-1} \te
 ### `vortex`, `aroon`, `mass_index`, `ssl_channel`, `trend_intensity_index`, `center_of_gravity`
 | Function Signature | Output Type / Struct Fields | Mathematical Mechanism |
 | :--- | :--- | :--- |
-| `vortex(high, low, close, period=14)` | `Struct(vi_plus, vi_minus)` | $\text{VI}^\pm_t = \frac{\sum_{i=0}^{n-1} |H_{t-i} - L_{t-i-1}|}{\sum_{i=0}^{n-1} \text{TR}_{t-i}}$ (Botes & Siepman, 2010) |
+| `vortex(high, low, close, period=14)` | `Struct(vi_plus, vi_minus)` | $\text{VI}^\pm_t = \frac{\sum_{i=0}^{n-1} \vert H_{t-i} - L_{t-i-1}\vert }{\sum_{i=0}^{n-1} \text{TR}_{t-i}}$ (Botes & Siepman, 2010) |
 | `aroon(high, low, period=14)` | `Struct(aroon_up, aroon_down, oscillator)` | $\text{AroonUp}_t = \frac{n - \text{bars\_since\_high}_n}{n} \times 100$ (Tushar Chande, 1995) |
 | `mass_index(high, low, ema_period=9, sum_period=25)` | `Float64` | $\sum_{i=0}^{24} \frac{\text{EMA}_9(H - L)_{t-i}}{\text{EMA}_9(\text{EMA}_9(H - L))_{t-i}}$ (Donald Dorsey reversal bulge $> 27$) |
 | `ssl_channel(high, low, close, period=10)` | `Struct(ssl_down, ssl_up)` | State-flipped SMA(High) and SMA(Low) channel lines |

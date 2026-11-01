@@ -18,7 +18,11 @@ In institutional quantitative workflows, raw market feeds (tick data, Level-1 or
 ### `resample_volume_bars(df, threshold, ...)` & `resample_dollar_bars(df, threshold, ...)`
 **Mathematical Formulation:**
 Let $v_t = V_t$ for Volume Bars, or $v_t = C_t \cdot V_t$ for Dollar Bars. The cumulative activity bucket index is:
-$$b_t = \left\lfloor \frac{\left(\sum_{\tau=1}^t v_\tau\right)(1 - \epsilon)}{\Theta} \right\rfloor$$
+
+$$
+b_t = \left\lfloor \frac{\left(\sum_{\tau=1}^t v_\tau\right)(1 - \epsilon)}{\Theta} \right\rfloor
+$$
+
 Grouping by `bar_id = b_t` aggregates standard OHLCV columns along with `tick_count` (number of raw observations merged into the bar) and `vwap` ($\sum C_\tau V_\tau / \sum V_\tau$).
 
 ```python
@@ -36,7 +40,11 @@ dollar_bars = df.anta.resample_dollar_bars(threshold=5e11, group_by="symbol")
 ### `resample_imbalance_bars(df, threshold, mode="volume", ...)`
 **Mathematical Formulation (López de Prado, 2018):**
 Using the Lee-Ready tick rule $s_t = \text{sign}(C_t - C_{t-1})$ (forward-filled when $\Delta C_t = 0$), let signed flow be $\theta_t = s_t V_t$ (`mode="volume"`) or $\theta_t = s_t$ (`mode="tick"`). A new bar is triggered at bar $t$ whenever cumulative imbalance since the start of the current bar $t_0$ crosses `threshold`:
-$$\left| \sum_{\tau = t_0}^t \theta_\tau \right| \ge \Theta_{\text{imb}}$$
+
+$$
+\left| \sum_{\tau = t_0}^t \theta_\tau \right| \ge \Theta_{\text{imb}}
+$$
+
 Each output bar includes `bar_id`, `open`, `high`, `low`, `close`, `volume`, `imbalance` ($\sum_{\tau=t_0}^t \theta_\tau$), `tick_count`, and `vwap`.
 
 ---

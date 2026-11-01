@@ -62,20 +62,42 @@ In naive implementations (such as `scipy.stats.linregress` inside `Series.rollin
 Let $y_{t-n+1}, \dots, y_t$ be the $n$ observations in the window ending at bar $t$, indexed by local time $x_i = i$ for $i \in \{0, 1, \dots, n - 1\}$. The OLS linear model is $y_i = \beta_0 + \beta_1 x_i + \epsilon_i$.
 
 The sample mean of the time index is:
-$$\bar{x} = \frac{1}{n} \sum_{i=0}^{n-1} i = \frac{n - 1}{2}$$
+
+$$
+\bar{x} = \frac{1}{n} \sum_{i=0}^{n-1} i = \frac{n - 1}{2}
+$$
+
 The sum of squared deviations of the time index is:
-$$S_{xx} = \sum_{i=0}^{n-1} (i - \bar{x})^2 = \frac{n(n^2 - 1)}{12}$$
+
+$$
+S_{xx} = \sum_{i=0}^{n-1} (i - \bar{x})^2 = \frac{n(n^2 - 1)}{12}
+$$
+
 Recall the definitions of the $n$-period **Simple Moving Average ($\text{SMA}_t$)** and **Linearly Weighted Moving Average ($\text{WMA}_t$)**:
-$$\text{SMA}_t = \frac{1}{n} \sum_{i=0}^{n-1} y_{t - n + 1 + i}, \qquad \text{WMA}_t = \frac{2}{n(n + 1)} \sum_{i=0}^{n-1} (i + 1) y_{t - n + 1 + i}$$
+
+$$
+\text{SMA}_t = \frac{1}{n} \sum_{i=0}^{n-1} y_{t - n + 1 + i}, \qquad \text{WMA}_t = \frac{2}{n(n + 1)} \sum_{i=0}^{n-1} (i + 1) y_{t - n + 1 + i}
+$$
+
 Expanding the sample covariance $S_{xy} = \sum_{i=0}^{n-1} (i - \bar{x}) y_{t - n + 1 + i}$:
-$$S_{xy} = \sum_{i=0}^{n-1} (i + 1) y_{t - n + 1 + i} - \frac{n + 1}{2} \sum_{i=0}^{n-1} y_{t - n + 1 + i} = \frac{n(n + 1)}{2} \left( \text{WMA}_t - \text{SMA}_t \right)$$
+
+$$
+S_{xy} = \sum_{i=0}^{n-1} (i + 1) y_{t - n + 1 + i} - \frac{n + 1}{2} \sum_{i=0}^{n-1} y_{t - n + 1 + i} = \frac{n(n + 1)}{2} \left( \text{WMA}_t - \text{SMA}_t \right)
+$$
+
 Dividing $S_{xy}$ by $S_{xx}$ yields the exact closed-form identities implemented in [`polars_anta.stats`](indicators/stats.md):
 
-$$\hat{\beta}_1(t) = \frac{S_{xy}}{S_{xx}} = \frac{6}{n - 1} \left( \text{WMA}_t - \text{SMA}_t \right)$$
+$$
+\hat{\beta}_1(t) = \frac{S_{xy}}{S_{xx}} = \frac{6}{n - 1} \left( \text{WMA}_t - \text{SMA}_t \right)
+$$
 
-$$\hat{\beta}_0(t) = \text{SMA}_t - \hat{\beta}_1(t) \frac{n - 1}{2} = 4\,\text{SMA}_t - 3\,\text{WMA}_t$$
+$$
+\hat{\beta}_0(t) = \text{SMA}_t - \hat{\beta}_1(t) \frac{n - 1}{2} = 4\,\text{SMA}_t - 3\,\text{WMA}_t
+$$
 
-$$\hat{y}_t = \hat{\beta}_0(t) + \hat{\beta}_1(t)(n - 1) = 3\,\text{WMA}_t - 2\,\text{SMA}_t$$
+$$
+\hat{y}_t = \hat{\beta}_0(t) + \hat{\beta}_1(t)(n - 1) = 3\,\text{WMA}_t - 2\,\text{SMA}_t
+$$
 
 Because both $\text{SMA}_t$ and $\text{WMA}_t$ execute natively in Rust, `linear_regression_slope`, `linear_regression_intercept`, and `linear_regression_forecast` evaluate **1,000,000 rows in 20.9 ms** (**112.4x faster** than Pandas).
 
@@ -86,12 +108,20 @@ Because both $\text{SMA}_t$ and $\text{WMA}_t$ execute natively in Rust, `linear
 Several classical indicators appear to require sequential bar-by-bar Python loops due to path-dependent recurrences:
 
 1. **Wilder's Smoothing (RMA)** used in `rsi`, `atr`, `adx`, and `natr`:
-   $$\text{RMA}_t = \frac{(n - 1)\,\text{RMA}_{t-1} + x_t}{n} = \left(1 - \frac{1}{n}\right)\text{RMA}_{t-1} + \frac{1}{n} x_t$$
+
+$$
+\text{RMA}_t = \frac{(n - 1)\,\text{RMA}_{t-1} + x_t}{n} = \left(1 - \frac{1}{n}\right)\text{RMA}_{t-1} + \frac{1}{n} x_t
+$$
+
    This is mathematically identical to an Exponential Moving Average with smoothing factor $\alpha = \frac{1}{n}$ (or equivalent span $S = 2n - 1$), which maps directly to Polars' native C/Rust kernel `expr.ewm_mean(alpha=1.0 / period, adjust=False, min_samples=period)`.
 
 2. **Heikin-Ashi Synthetic Open (`heikin_ashi`)**:
    By definition, $\text{HA\_Close}_t = \frac{O_t + H_t + L_t + C_t}{4}$ and:
-   $$\text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}$$
+
+$$
+\text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}
+$$
+
    Recognize that $\text{HA\_Open}_t$ is a first-order linear recurrence driven by the lagged input $u_t = \text{HA\_Close}_{t-1}$ with decay parameter $\alpha = 0.5$ (`span = 3`). Thus, `heikin_ashi` computes the exact synthetic open across millions of rows in a single call to `ha_close.shift(1).ewm_mean(alpha=0.5, adjust=False)` with **zero Python loops**.
 
 ---
@@ -103,11 +133,25 @@ In institutional factor research, a candidate alpha $Y$ must be orthogonalized a
 Rather than grouping by timestamp in Python and invoking `np.linalg.lstsq` in a slow loop over $T$ dates, [`orthogonalize`](indicators/alpha.md) applies the **Frisch-Waugh-Lovell (FWL) Theorem** via **Modified Gram-Schmidt projections** written entirely in native Polars `.over(over)` window expressions:
 
 1. Center the target signal and all risk factors within each cross-section $t$:
-   $$y^{(0)} = Y - \mathbb{E}_t[Y], \qquad u_j^{(0)} = X_j - \mathbb{E}_t[X_j] \quad (j = 1, \dots, K)$$
+
+$$
+y^{(0)} = Y - \mathbb{E}_t[Y], \qquad u_j^{(0)} = X_j - \mathbb{E}_t[X_j] \quad (j = 1, \dots, K)
+$$
+
 2. For each orthogonal basis step $j = 1, \dots, K$:
-   $$q_j = u_j^{(j-1)}, \qquad \beta_{y, j} = \frac{\mathbb{E}_t\left[y^{(j-1)} q_j\right]}{\mathbb{E}_t\left[q_j^2\right] + \lambda}$$
-   $$y^{(j)} = y^{(j-1)} - \beta_{y, j} q_j$$
-   $$u_m^{(j)} = u_m^{(j-1)} - \frac{\mathbb{E}_t\left[u_m^{(j-1)} q_j\right]}{\mathbb{E}_t\left[q_j^2\right] + \lambda} q_j \quad \forall m > j$$
+
+$$
+q_j = u_j^{(j-1)}, \qquad \beta_{y, j} = \frac{\mathbb{E}_t\left[y^{(j-1)} q_j\right]}{\mathbb{E}_t\left[q_j^2\right] + \lambda}
+$$
+
+$$
+y^{(j)} = y^{(j-1)} - \beta_{y, j} q_j
+$$
+
+$$
+u_m^{(j)} = u_m^{(j-1)} - \frac{\mathbb{E}_t\left[u_m^{(j-1)} q_j\right]}{\mathbb{E}_t\left[q_j^2\right] + \lambda} q_j \quad \forall m > j
+$$
+
 3. After $K$ symbolic steps, $y^{(K)} = (I - P_X)(Y - \bar{Y})$ is the exact multivariate OLS residual satisfying $\text{Corr}_t\left(y^{(K)}, X_j\right) = 0$ for all $j = 1, \dots, K$, executed in parallel across all timestamps in Rust.
 
 ---
@@ -134,18 +178,34 @@ Event-driven state machines are traditionally the hardest component to vectorize
 
 ### 4.1 Discrete Entry/Exit State Machine (`signals_to_positions`)
 To hold $+1.0$ from `entries=True` until `exits=True` (and $-1.0$ for short triggers) without a bar-by-bar loop, `polars-anta` maps triggers to a tri-state sparse series:
-$$S_t = \begin{cases} 0.0 & \text{if } \text{Exit}_t \land \neg \text{Entry}_t \\ 1.0 & \text{if } \text{Entry}_t \\ \text{null} & \text{otherwise} \end{cases}$$
+
+$$
+S_t = \begin{cases} 0.0 & \text{if } \text{Exit}_t \land \neg \text{Entry}_t \\ 1.0 & \text{if } \text{Entry}_t \\ \text{null} & \text{otherwise} \end{cases}
+$$
+
 Applying `S_t.forward_fill().over("symbol").fill_null(0.0)` propagates the active position state across time in $O(N)$ native Rust execution.
 
 ### 4.2 Information-Driven Bar Sampling (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`)
 To group ticks or 1-minute bars into buckets whenever cumulative volume, dollar value, or signed tick imbalance crosses threshold $\Theta$:
-$$B_t = \left\lfloor \frac{\left(\sum_{\tau=1}^{t} v_\tau\right) (1 - \epsilon)}{\Theta} \right\rfloor$$
+
+$$
+B_t = \left\lfloor \frac{\left(\sum_{\tau=1}^{t} v_\tau\right) (1 - \epsilon)}{\Theta} \right\rfloor
+$$
+
 Grouping by `bar_id = B_t` via Polars' `group_by(["symbol", "bar_id"], maintain_order=True).agg(...)` aggregates millions of ticks into Volume, Dollar, or Imbalance Bars in a single parallel pass.
 
 ### 4.3 Round-Trip Trade Ledger & Intra-Trade Excursion (`extract_trades`)
 To extract individual round-trip trades and compute **Maximum Adverse Excursion (MAE)** and **Maximum Favorable Excursion (MFE)** without iterating over trades:
 1. Detect state transitions where position sign changes: $\text{seg}_t = \sum_{\tau=1}^{t} \mathbb{I}\left(\text{sign}(w_\tau) \neq \text{sign}(w_{\tau-1})\right)$.
 2. Filter to active bars ($w_t \neq 0$) and compute intra-trade compounded gross return within each segment via window expression:
-   $$G_t = \left(\prod_{\tau \in \text{seg}_t, \tau \le t} (1 + r_\tau^{\text{gross}})\right) - 1$$
+
+$$
+G_t = \left(\prod_{\tau \in \text{seg}_t, \tau \le t} (1 + r_\tau^{\text{gross}})\right) - 1
+$$
+
 3. Aggregate per `seg_t` in a single `group_by` pass:
-   $$\text{MAE} = \min\left(0, \min_{t \in \text{seg}} G_t\right), \qquad \text{MFE} = \max\left(0, \max_{t \in \text{seg}} G_t\right)$$
+
+$$
+\text{MAE} = \min\left(0, \min_{t \in \text{seg}} G_t\right), \qquad \text{MFE} = \max\left(0, \max_{t \in \text{seg}} G_t\right)
+$$
+

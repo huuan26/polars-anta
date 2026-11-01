@@ -8,23 +8,23 @@ repo_name: huuan26/polars-anta
 theme:
   name: material
   logo: assets/logo.png
-  favicon: assets/logo.png
+  favicon: assets/favicon.png
   language: en
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/weather-night
-        name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
-      accent: light blue
+      primary: custom
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
   features:
     - navigation.instant
     - navigation.tracking
@@ -35,9 +35,17 @@ theme:
     - search.highlight
     - content.code.copy
     - content.code.annotate
+    - content.tabs.link
+
+extra_css:
+  - stylesheets/extra.css
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
   - pymdownx.details
   - pymdownx.superfences:
       custom_fences:
@@ -53,13 +61,11 @@ markdown_extensions:
       alternate_style: true
   - pymdownx.arithmatex:
       generic: true
-  - tables
-  - attr_list
-  - def_list
   - toc:
       permalink: true
 
 extra_javascript:
+  - javascripts/mathjax.js
   - https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js
 
 nav:

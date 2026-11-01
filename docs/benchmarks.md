@@ -24,7 +24,9 @@ Traditional packages compute rolling linear regression by taking 1,000,000 windo
 
 `polars-anta` decomposes the OLS closed-form equation into Linearly Weighted Moving Average (WMA) and Simple Moving Average (SMA):
 
-$$\beta_1 = \frac{6}{N - 1} (\text{WMA} - \text{SMA})$$
+$$
+\beta_1 = \frac{6}{N - 1} (\text{WMA} - \text{SMA})
+$$
 
 Because WMA and SMA execute in SIMD-vectorized Rust kernels, the rolling regression evaluates in **0.015 seconds** instead of 1.80 seconds—over **116x faster**!
 

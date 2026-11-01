@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.png" alt="polars-anta banner" width="100%" />
+<img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/assets/banner.png" alt="polars-anta banner" width="100%" />
 
 ### Institutional-Grade Alpha Research, Market Microstructure, Quantitative Feature Engineering & Vectorized Backtesting in Polars
 
@@ -293,7 +293,7 @@ flowchart LR
 
 <div align="center">
 
-<img src="benchmarks/benchmark_speed.png" alt="polars-anta Performance Benchmark" width="900"/>
+<img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/benchmarks/benchmark_speed.png" alt="polars-anta Performance Benchmark" width="900"/>
 
 </div>
 
@@ -472,8 +472,8 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `cs_winsorize(expr, over=None, method="quantile", lower=0.01, upper=0.99, threshold=3.0)` | Cross-Sectional | Cross-sectional outlier clipping via `"quantile"`, `"zscore"`, or robust `"mad"` |
 | `neutralize(expr, by, over=None, standardize=False)` | Cross-Sectional | Sector/industry/group demeaning & standardization |
 | `orthogonalize(expr, factors, over=None, standardize=True, ridge=0.0)` | Cross-Sectional | Multi-factor OLS Gram-Schmidt residualization & standardization |
-| `ts_scale(expr, a=1.0, over=None)` | Cross-Sectional | L1 book-size normalization ($\sum |w_i| = a$) |
-| `amihud_illiquidity(close, volume, period=20, scale=1e6)` | Microstructure | Amihud (2002) Illiquidity Ratio $\frac{1}{N}\sum \frac{|r_t|}{\text{DollarVolume}_t} \times \text{scale}$ |
+| `ts_scale(expr, a=1.0, over=None)` | Cross-Sectional | L1 book-size normalization ($\sum \vert w_i\vert  = a$) |
+| `amihud_illiquidity(close, volume, period=20, scale=1e6)` | Microstructure | Amihud (2002) Illiquidity Ratio $\frac{1}{N}\sum \frac{\vert r_t\vert }{\text{DollarVolume}_t} \times \text{scale}$ |
 | `roll_spread(close, period=20)` | Microstructure | Roll (1984) Serial Price-Change Covariance Effective Bid-Ask Spread $2\sqrt{\max(0, -\text{Cov}(\Delta P_t, \Delta P_{t-1}))}$ |
 | `corwin_schultz_spread(high, low, period=20)` | Microstructure | Corwin & Schultz (2012) Two-Bar High-Low Range Effective Bid-Ask Spread Estimator |
 | `kyle_lambda(close, volume, period=20, scale=1e6)` | Microstructure | Kyle (1985) Price-Impact Coefficient $\lambda$ via Rolling OLS on Signed Dollar Volume |
@@ -493,7 +493,7 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `decay_linear(close, period=10)` | Time-Series | Linearly decaying weighted moving average |
 | `ts_delta(expr, period=1)` | Time-Series | Difference operator $x_t - x_{t-d}$ |
 | `ts_delay(expr, period=1)` | Time-Series | Lag operator $x_{t-d}$ |
-| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power $\text{sign}(x) \cdot |x|^a$ |
+| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power $\text{sign}(x) \cdot \vert x\vert ^a$ |
 | `ts_min(expr, period=10)` | Time-Series | Rolling window minimum |
 | `ts_max(expr, period=10)` | Time-Series | Rolling window maximum |
 | `ts_sum(expr, period=10)` | Time-Series | Rolling window sum |
@@ -531,8 +531,8 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `max_drawdown(returns_or_equity, is_returns=True)` | Performance Metric | Scalar Maximum Drawdown (MDD) |
 | `sharpe_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sharpe Ratio scalar expression |
 | `sortino_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sortino Ratio using downside deviation |
-| `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by $|MDD|$ |
-| `profit_factor(returns)` | Performance Metric | Gross Profit divided by $|Gross Loss|$ |
+| `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by $\vert MDD\vert $ |
+| `profit_factor(returns)` | Performance Metric | Gross Profit divided by $\vert Gross Loss\vert $ |
 | `win_rate(returns, include_zeros=False)` | Performance Metric | Proportion of active periods with positive returns |
 | `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Skewness- & Kurtosis-adjusted Probabilistic Sharpe Ratio (PSR $\in [0, 1]$) |
 | `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | Performance Metric | Multiple-Testing Deflated Sharpe Ratio (DSR $\in [0, 1]$, Bailey & López de Prado 2014) |
@@ -555,7 +555,7 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `resample_ohlcv(df, every, ...)` / `df.anta.resample(every, ...)` | Time Bar Aggregation | Multi-timeframe calendar aggregation (`"5m"`, `"15m"`, `"1h"`, `"1d"`) via `group_by_dynamic` |
 | `resample_volume_bars(df, volume_threshold, ...)` | Information Bars | Cumulative Volume Bar sampling ($\sum V_i \ge \Theta_V$) restoring return Gaussianity |
 | `resample_dollar_bars(df, dollar_threshold, ...)` | Information Bars | Cumulative Dollar/Notional Bar sampling ($\sum P_i V_i \ge \Theta_D$) invariant to price inflation |
-| `resample_imbalance_bars(df, expected_imbalance, ...)` | Information Bars | López de Prado (2018) Tick/Volume Imbalance Bars ($\left|\sum b_i v_i\right| \ge \Theta_{\text{TIB/VIB}}$) |
+| `resample_imbalance_bars(df, expected_imbalance, ...)` | Information Bars | López de Prado (2018) Tick/Volume Imbalance Bars ($\left\vert \sum b_i v_i\right\vert  \ge \Theta_{\text{TIB/VIB}}$) |
 | `stitch_futures_roll(df, method="backward", ...)` | Continuous Futures | Non-leaky continuous futures stitching (`"backward"`, `"ratio"`, `"panama"`) across contract expiries |
 
 </details>

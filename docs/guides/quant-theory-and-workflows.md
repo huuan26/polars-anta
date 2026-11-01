@@ -18,10 +18,17 @@ Standard chronological bars (e.g., 1-minute or 5-minute candles) sample the mark
 **Information-Driven Bars** synchronize sampling with the arrival of market activity:
 
 - **Volume Bars (`resample_volume_bars`)**: Emit a new bar whenever cumulative traded contracts/shares reach threshold $\Theta_V$:
-  $$b_t^{(V)} = \left\lfloor \frac{\sum_{\tau=1}^t V_\tau}{\Theta_V} \right\rfloor$$
+
+$$
+b_t^{(V)} = \left\lfloor \frac{\sum_{\tau=1}^t V_\tau}{\Theta_V} \right\rfloor
+$$
+
 - **Dollar / Notional Bars (`resample_dollar_bars`)**: Emit a new bar whenever cumulative notional value $\sum_{\tau=1}^t P_\tau V_\tau$ crosses $\Theta_D$. Dollar bars automatically adapt to large secular price changes or inflation.
 - **Volume / Tick Imbalance Bars (`resample_imbalance_bars`)**: Let $s_t = \text{sign}(\Delta P_t) \in \{-1, +1\}$ (propagated forward via the Lee-Ready tick rule when $\Delta P_t = 0$). The signed flow is $\theta_t = s_t V_t$ (or $s_t$ for tick imbalance). A new bar is emitted whenever cumulative directional imbalance since the previous bar reset exceeds $\Theta_{\text{imb}}$:
-  $$\left| \sum_{\tau = t_0}^t \theta_\tau \right| \ge \Theta_{\text{imb}}$$
+
+$$
+\left| \sum_{\tau = t_0}^t \theta_\tau \right| \ge \Theta_{\text{imb}}
+$$
 
 !!! tip "Quantitative Property: Restoration of Return Normality"
     Empirically across equity index futures (E-mini S&P 500, VN30F1M), sampling in Volume or Dollar time subordinate to the trading clock (Ané & Geman, 2000) restores return distributions much closer to i.i.d. Gaussianity, significantly improving the stability of GARCH, Kalman filter, and gradient-boosted tree models.
@@ -43,15 +50,31 @@ Market makers and algorithmic execution desks face **adverse selection risk** wh
 
 #### Bulk Volume Classification VPIN (`vpin`)
 Following Easley, López de Prado & O'Hara (2012), when tick-by-tick trade aggressor flags are unavailable or noisy, bar volume $V_t$ is partitioned into buyer-initiated ($V_t^B$) and seller-initiated ($V_t^S$) components using the standardized price change $Z_t = \frac{\Delta P_t}{\sigma_{\Delta P}}$:
-$$V_t^B = V_t \cdot \Phi\left(\frac{\Delta P_t}{\sigma_{\Delta P}}\right), \qquad V_t^S = V_t - V_t^B$$
+
+$$
+V_t^B = V_t \cdot \Phi\left(\frac{\Delta P_t}{\sigma_{\Delta P}}\right), \qquad V_t^S = V_t - V_t^B
+$$
+
 In `polars-anta`, $\Phi(z)$ is approximated via the smooth sigmoid $\left(1 + \exp(-1.702\,z)\right)^{-1}$ (which matches the standard normal CDF within $0.0095$ uniformly across $\mathbb{R}$). The **Volume-Synchronized Probability of Informed Trading** over window $N$ is:
-$$\text{VPIN}_t = \frac{\sum_{k=0}^{N-1} \left| V_{t-k}^B - V_{t-k}^S \right|}{\sum_{k=0}^{N-1} V_{t-k}} \in [0, 1]$$
+
+$$
+\text{VPIN}_t = \frac{\sum_{k=0}^{N-1} \left| V_{t-k}^B - V_{t-k}^S \right|}{\sum_{k=0}^{N-1} V_{t-k}} \in [0, 1]
+$$
 
 #### Order Flow Imbalance (`ofi`)
 Following Cont, Kukanov & Stoikov (2014), short-horizon price changes are linearly driven by net supply/demand shifts at the best bid ($P_t^B, Q_t^B$) and best ask ($P_t^A, Q_t^A$):
-$$e_t^B = Q_t^B \mathbb{I}_{\{P_t^B \ge P_{t-1}^B\}} - Q_{t-1}^B \mathbb{I}_{\{P_t^B \le P_{t-1}^B\}}$$
-$$e_t^A = Q_t^A \mathbb{I}_{\{P_t^A \le P_{t-1}^A\}} - Q_{t-1}^A \mathbb{I}_{\{P_t^A \ge P_{t-1}^A\}}$$
-$$\text{OFI}_t(N) = \sum_{k=0}^{N-1} \left( e_{t-k}^B - e_{t-k}^A \right)$$
+
+$$
+e_t^B = Q_t^B \mathbb{I}_{\{P_t^B \ge P_{t-1}^B\}} - Q_{t-1}^B \mathbb{I}_{\{P_t^B \le P_{t-1}^B\}}
+$$
+
+$$
+e_t^A = Q_t^A \mathbb{I}_{\{P_t^A \le P_{t-1}^A\}} - Q_{t-1}^A \mathbb{I}_{\{P_t^A \ge P_{t-1}^A\}}
+$$
+
+$$
+\text{OFI}_t(N) = \sum_{k=0}^{N-1} \left( e_{t-k}^B - e_{t-k}^A \right)
+$$
 
 ---
 
@@ -59,7 +82,11 @@ $$\text{OFI}_t(N) = \sum_{k=0}^{N-1} \left( e_{t-k}^B - e_{t-k}^A \right)$$
 
 #### Futures Basis (`futures_basis`)
 By no-arbitrage pricing, an index futures contract $F_t$ maturing at $T$ is linked to the underlying spot index $S_t$ (e.g., VN30F1M vs. VN30 cash index) by the cost-of-carry relation $F_t = S_t e^{(r - q)\tau}$. `futures_basis` computes:
-$$\text{Basis}_t = F_t - S_t, \qquad \text{Basis\%}_t = \frac{F_t - S_t}{S_t}, \qquad \text{Carry}_{\text{ann}, t} = \frac{F_t - S_t}{S_t} \cdot \frac{365}{\max(\text{DTE}_t, 1)}$$
+
+$$
+\text{Basis}_t = F_t - S_t, \qquad \text{Basis\%}_t = \frac{F_t - S_t}{S_t}, \qquad \text{Carry}_{\text{ann}, t} = \frac{F_t - S_t}{S_t} \cdot \frac{365}{\max(\text{DTE}_t, 1)}
+$$
+
 along with the rolling standardized anomaly score $\text{ZScore}(\text{Basis}_t, N)$ for index arbitrage and cash-and-carry strategies.
 
 #### Open Interest 4-Phase Regime Classification (`oi_regime`)
@@ -86,11 +113,23 @@ When a front-month futures contract expires and rolls into the next maturity (`c
 Raw log-prices $p_t = \ln P_t$ are non-stationary ($I(1)$), violating the i.i.d. assumptions of supervised machine learning estimators. However, taking first differences $\Delta p_t = (1 - B) p_t$ ($d = 1$) completely wipes out long-term trend and support/resistance memory.
 
 Following López de Prado (2018, Chapter 5), the fractional differencing operator $(1 - B)^d$ for real order $d \in (0, 1)$ expands via the generalized binomial series:
-$$(1 - B)^d = \sum_{k=0}^{\infty} \binom{d}{k} (-B)^k = \sum_{k=0}^{\infty} \omega_k B^k$$
+
+$$
+(1 - B)^d = \sum_{k=0}^{\infty} \binom{d}{k} (-B)^k = \sum_{k=0}^{\infty} \omega_k B^k
+$$
+
 where the weights satisfy the exact recurrence:
-$$\omega_0 = 1, \qquad \omega_k = -\omega_{k-1} \frac{d - k + 1}{k} \quad (k \ge 1)$$
+
+$$
+\omega_0 = 1, \qquad \omega_k = -\omega_{k-1} \frac{d - k + 1}{k} \quad (k \ge 1)
+$$
+
 In **Fixed-Window Fractional Differentiation (FFD)**, the filter is truncated at a fixed lookback window $W$:
-$$\tilde{X}_t^{(d, W)} = \sum_{k=0}^{W-1} \omega_k X_{t-k}$$
+
+$$
+\tilde{X}_t^{(d, W)} = \sum_{k=0}^{W-1} \omega_k X_{t-k}
+$$
+
 Typically, $d \in [0.3, 0.5]$ achieves statistical stationarity (passing the Augmented Dickey-Fuller test) while retaining $> 90\%$ correlation with the original price level.
 
 ---
@@ -115,9 +154,17 @@ Let $\tau_{\text{PT}} = \min\{k \in \{1, \dots, H\} : r_{t, t+k}^{\text{dir}} \g
 ### 2.3 Multi-Horizon Trend-Scanning Labels (`trend_scanning_labels`)
 
 Proposed by López de Prado (2020, *Machine Learning for Asset Managers*), **Trend-Scanning** eliminates arbitrary fixed lookahead horizons by fitting forward OLS regressions across a grid of candidate horizons $L \in [L_{\min}, L_{\max}]$:
-$$P_{t+i} = \beta_0(L) + \beta_1(L) \cdot i + \epsilon_i, \qquad i = 0, 1, \dots, L - 1$$
+
+$$
+P_{t+i} = \beta_0(L) + \beta_1(L) \cdot i + \epsilon_i, \qquad i = 0, 1, \dots, L - 1
+$$
+
 For each candidate window $L$, the slope $t$-statistic is:
-$$t_{\hat{\beta}_1}(L) = \frac{\hat{\beta}_1(L)}{\text{SE}(\hat{\beta}_1(L))}, \qquad \text{SE}(\hat{\beta}_1(L)) = \sqrt{\frac{\text{SSR}(L) / (L - 2)}{S_{xx}(L)}}$$
+
+$$
+t_{\hat{\beta}_1}(L) = \frac{\hat{\beta}_1(L)}{\text{SE}(\hat{\beta}_1(L))}, \qquad \text{SE}(\hat{\beta}_1(L)) = \sqrt{\frac{\text{SSR}(L) / (L - 2)}{S_{xx}(L)}}
+$$
+
 `trend_scanning_labels` selects the optimal horizon $L^*_t = \arg\max_{L} \left|t_{\hat{\beta}_1}(L)\right|$ using closed-form Polars expressions and returns `Struct(label, t_value, optimal_window, ret)`.
 
 ---
@@ -129,8 +176,14 @@ $$t_{\hat{\beta}_1}(L) = \frac{\hat{\beta}_1(L)}{\text{SE}(\hat{\beta}_1(L))}, \
 When evaluating an alpha factor against $h$-period forward returns ($h > 1$), overlapping return windows induce Moving Average $\text{MA}(h - 1)$ serial correlation in the cross-sectional Information Coefficient series $\{\text{IC}_t\}_{t=1}^T$. Standard i.i.d. $t$-statistics $\frac{\overline{\text{IC}}}{\hat{\sigma}_{\text{IC}} / \sqrt{T}}$ severely **overstate statistical significance**.
 
 [`ic_summary`](../indicators/evaluation-and-backtest.md) computes the **Newey-West (1987) Heteroskedasticity and Autocorrelation Consistent (HAC)** long-run variance estimator using the Bartlett kernel up to lag $L$:
-$$\hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad \hat{\gamma}_j = \frac{1}{T} \sum_{t=j+1}^{T} (\text{IC}_t - \overline{\text{IC}})(\text{IC}_{t-j} - \overline{\text{IC}})$$
-$$\text{nw\_t\_stat} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}$$
+
+$$
+\hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad \hat{\gamma}_j = \frac{1}{T} \sum_{t=j+1}^{T} (\text{IC}_t - \overline{\text{IC}})(\text{IC}_{t-j} - \overline{\text{IC}})
+$$
+
+$$
+\text{nw\_t\_stat} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
+$$
 
 [`ic_decay`](../indicators/evaluation-and-backtest.md) evaluates `ic_summary` across a vector of forward horizons $h \in (1, 2, 3, 5, 10, 20)$ (automatically setting `nw_lags = max(1, h - 1)`) and estimates the **Alpha Half-Life** via log-linear regression $\ln |\overline{\text{IC}}(h)| = a - \lambda h \implies t_{1/2} = \frac{\ln 2}{\hat{\lambda}}$.
 
@@ -142,13 +195,24 @@ Standard Sharpe Ratio estimates ignore **non-normality** (negative skewness and 
 
 #### Probabilistic Sharpe Ratio (`probabilistic_sharpe_ratio` — Bailey & López de Prado, 2012)
 Given sample size $T$, non-annualized Sharpe $\widehat{SR}$, skewness $\hat{\gamma}_3$, and Pearson kurtosis $\hat{\gamma}_4$, the asymptotic standard error of $\widehat{SR}$ is:
-$$\hat{\sigma}(\widehat{SR}) = \sqrt{\frac{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4} \widehat{SR}^2}{T - 1}}$$
+
+$$
+\hat{\sigma}(\widehat{SR}) = \sqrt{\frac{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4} \widehat{SR}^2}{T - 1}}
+$$
+
 The probability that the true Sharpe ratio exceeds benchmark $SR^*$ is:
-$$\text{PSR}(SR^*) = \Phi\left(\frac{\widehat{SR} - SR^*}{\hat{\sigma}(\widehat{SR})}\right) \in [0, 1]$$
+
+$$
+\text{PSR}(SR^*) = \Phi\left(\frac{\widehat{SR} - SR^*}{\hat{\sigma}(\widehat{SR})}\right) \in [0, 1]
+$$
 
 #### Deflated Sharpe Ratio (`deflated_sharpe_ratio` — Bailey & López de Prado, 2014)
 When a researcher selects the best strategy out of $N = \text{n\_trials}$ independent trials whose annualized Sharpe ratios have standard deviation $\sigma_{\{SR\}}$, Extreme Value Theory (False Strategy Theorem) gives the expected maximum annualized Sharpe ratio under the null hypothesis of zero skill:
-$$SR^*_{\text{ann}}(N) = \sigma_{\{SR\}} \left[ (1 - \gamma) \Phi^{-1}\left(1 - \frac{1}{N}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{N \cdot e}\right) \right]$$
+
+$$
+SR^*_{\text{ann}}(N) = \sigma_{\{SR\}} \left[ (1 - \gamma) \Phi^{-1}\left(1 - \frac{1}{N}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{N \cdot e}\right) \right]
+$$
+
 where $\gamma \approx 0.5772156649$ is the Euler-Mascheroni constant. Plugging $SR^*_{\text{ann}}(N)$ into $\text{PSR}(SR^*)$ yields the **Deflated Sharpe Ratio (DSR)**. Institutional desks typically require $\text{DSR} \ge 0.95$ before allocating capital.
 
 ---

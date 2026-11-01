@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "polars-anta"
-version = "0.3.0"
+version = "0.3.1"
 description = "ANTA (Alpha & Numerical Technical Analysis): Institutional-grade alpha research, market microstructure, quantitative feature engineering, and vectorized backtesting engine for Polars."
 readme = "README.md"
 requires-python = ">=3.10"

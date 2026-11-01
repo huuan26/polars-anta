@@ -92,15 +92,36 @@ def measure_multi_asset_scaling():
 
 
 def plot_scaling_curves(sizes, pd_times, pl_times, tickers, pd_multi, pl_multi, output_path: Path):
-    plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
+    plt.style.use(
+        "seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default"
+    )
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.5, 6.0), dpi=300)
 
     # Subplot 1: Linear Regression Slope Scaling
-    size_labels_k = [f"{int(s/1000)}k" for s in sizes]
-    ax1.plot(sizes, pd_times, marker="o", linewidth=2.4, color="#d9534f", label="Pandas (Rolling Apply / GIL)")
-    ax1.plot(sizes, pl_times, marker="s", linewidth=2.4, color="#0275d8", label="polars-anta (Closed-Form WMA/SMA)")
+    size_labels_k = [f"{int(s / 1000)}k" for s in sizes]
+    ax1.plot(
+        sizes,
+        pd_times,
+        marker="o",
+        linewidth=2.4,
+        color="#d9534f",
+        label="Pandas (Rolling Apply / GIL)",
+    )
+    ax1.plot(
+        sizes,
+        pl_times,
+        marker="s",
+        linewidth=2.4,
+        color="#0275d8",
+        label="polars-anta (Closed-Form WMA/SMA)",
+    )
 
-    ax1.set_title("Single-Asset: Rolling Linear Regression Slope (N=14)", fontsize=11.5, fontweight="bold", pad=12)
+    ax1.set_title(
+        "Single-Asset: Rolling Linear Regression Slope (N=14)",
+        fontsize=11.5,
+        fontweight="bold",
+        pad=12,
+    )
     ax1.set_xlabel("Number of Historical Bars (Data Scale)", fontsize=10.5, fontweight="bold")
     ax1.set_ylabel("Execution Time (Seconds) - Lower is Better", fontsize=10.5, fontweight="bold")
     ax1.set_xticks(sizes)
@@ -123,10 +144,29 @@ def plot_scaling_curves(sizes, pd_times, pl_times, tickers, pd_multi, pl_multi, 
     )
 
     # Subplot 2: Multi-Asset Scaling (.over('ticker'))
-    ax2.plot(tickers, pd_multi, marker="o", linewidth=2.4, color="#d9534f", label="Pandas .groupby().apply()")
-    ax2.plot(tickers, pl_multi, marker="s", linewidth=2.4, color="#0275d8", label="polars-anta .over('ticker')")
+    ax2.plot(
+        tickers,
+        pd_multi,
+        marker="o",
+        linewidth=2.4,
+        color="#d9534f",
+        label="Pandas .groupby().apply()",
+    )
+    ax2.plot(
+        tickers,
+        pl_multi,
+        marker="s",
+        linewidth=2.4,
+        color="#0275d8",
+        label="polars-anta .over('ticker')",
+    )
 
-    ax2.set_title("Multi-Asset Universe: Rolling RSI (1,000 bars/ticker)", fontsize=11.5, fontweight="bold", pad=12)
+    ax2.set_title(
+        "Multi-Asset Universe: Rolling RSI (1,000 bars/ticker)",
+        fontsize=11.5,
+        fontweight="bold",
+        pad=12,
+    )
     ax2.set_xlabel("Number of Tickers in Universe", fontsize=10.5, fontweight="bold")
     ax2.set_ylabel("Execution Time (Seconds) - Lower is Better", fontsize=10.5, fontweight="bold")
     ax2.set_xticks(tickers)
@@ -144,7 +184,12 @@ def plot_scaling_curves(sizes, pd_times, pl_times, tickers, pd_multi, pl_multi, 
         bbox=dict(boxstyle="round,pad=0.3", facecolor="#e8f4fd", edgecolor="#b6dcfb"),
     )
 
-    plt.suptitle("polars-anta Scaling Dynamics: Algorithmic Efficiency vs Dataset Scale", fontsize=13.5, fontweight="bold", y=0.98)
+    plt.suptitle(
+        "polars-anta Scaling Dynamics: Algorithmic Efficiency vs Dataset Scale",
+        fontsize=13.5,
+        fontweight="bold",
+        y=0.98,
+    )
     plt.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=300)
@@ -161,11 +206,15 @@ def main():
     tickers, pd_multi, pl_multi = measure_multi_asset_scaling()
 
     print("\n--- Summary Scaling Data ---")
-    for s, pd_t, pl_t in zip(sizes, pd_times, pl_times):
-        print(f"Single-Asset {s:>9,} bars: Pandas = {pd_t:.4f}s | polars-anta = {pl_t:.4f}s | Speedup = {pd_t/pl_t:.1f}x")
+    for s, pd_t, pl_t in zip(sizes, pd_times, pl_times, strict=True):
+        print(
+            f"Single-Asset {s:>9,} bars: Pandas = {pd_t:.4f}s | polars-anta = {pl_t:.4f}s | Speedup = {pd_t / pl_t:.1f}x"
+        )
 
-    for k, pd_t, pl_t in zip(tickers, pd_multi, pl_multi):
-        print(f"Multi-Asset  {k:>4} tickers: Pandas = {pd_t:.4f}s | polars-anta = {pl_t:.4f}s | Speedup = {pd_t/pl_t:.1f}x")
+    for k, pd_t, pl_t in zip(tickers, pd_multi, pl_multi, strict=True):
+        print(
+            f"Multi-Asset  {k:>4} tickers: Pandas = {pd_t:.4f}s | polars-anta = {pl_t:.4f}s | Speedup = {pd_t / pl_t:.1f}x"
+        )
 
     chart_path = Path("C:/Users/ADMIN/Documents/polars-anta/benchmarks/benchmark_scaling.png")
     plot_scaling_curves(sizes, pd_times, pl_times, tickers, pd_multi, pl_multi, chart_path)

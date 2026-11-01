@@ -23,9 +23,7 @@ panel_alpha = (
             pa.garman_klass_volatility("open", "high", "low", "close", period=20)
             .over("symbol")
             .alias("gk_vol"),
-            pa.amihud_illiquidity("close", "volume", period=20)
-            .over("symbol")
-            .alias("amihud"),
+            pa.amihud_illiquidity("close", "volume", period=20).over("symbol").alias("amihud"),
             pl.col("close").anta.roc(10).over("symbol").alias("mom_10"),
         ]
     )

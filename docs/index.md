@@ -92,20 +92,19 @@ import polars_anta as pa  # Registers .anta and .ta namespaces
 
 df = pl.read_parquet("vn30f1m_intraday.parquet")
 
-features = (
-    df.with_columns(
-        pl.col("close").anta.frac_diff(d=0.4, window=20).alias("close_ffd"),
-        pl.col("close").anta.vpin("volume", period=20).alias("vpin_20"),
-        pl.col("close").anta.futures_basis("spot_close", "days_to_expiry", 20).alias("basis"),
-        pl.col("close").anta.triple_barrier_labels(
-            volatility=pl.col("close").pct_change().rolling_std(20),
-            horizon=12,
-            pt_mult=2.0,
-            sl_mult=1.5,
-        ).alias("tb"),
+features = df.with_columns(
+    pl.col("close").anta.frac_diff(d=0.4, window=20).alias("close_ffd"),
+    pl.col("close").anta.vpin("volume", period=20).alias("vpin_20"),
+    pl.col("close").anta.futures_basis("spot_close", "days_to_expiry", 20).alias("basis"),
+    pl.col("close")
+    .anta.triple_barrier_labels(
+        volatility=pl.col("close").pct_change().rolling_std(20),
+        horizon=12,
+        pt_mult=2.0,
+        sl_mult=1.5,
     )
-    .unnest("basis", "tb")
-)
+    .alias("tb"),
+).unnest("basis", "tb")
 ```
 
 ### 3. Execution-Realistic Vectorized Backtest & Excursion Ledger (MAE / MFE)
@@ -117,10 +116,10 @@ bt = (
     .anta.backtest(
         entries=pl.col("ema_12").anta.crosses_above("ema_26"),
         exits=pl.col("ema_12").anta.crosses_below("ema_26"),
-        execution_price="open",       # Fill at next-bar open price
-        flat_mask=pl.col("is_eod"),   # Force flat before ATC / overnight
-        vol_target=0.15,              # 15% annualized volatility target
-        no_trade_buffer=0.05,         # Suppress micro-rebalancing turnover
+        execution_price="open",  # Fill at next-bar open price
+        flat_mask=pl.col("is_eod"),  # Force flat before ATC / overnight
+        vol_target=0.15,  # 15% annualized volatility target
+        no_trade_buffer=0.05,  # Suppress micro-rebalancing turnover
         fee_rate=0.0005,
         slippage_rate=0.0002,
     )

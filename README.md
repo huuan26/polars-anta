@@ -124,58 +124,57 @@ cont_df = raw_contracts.anta.stitch_futures_roll(method="backward")
 vol_bars = cont_df.anta.resample_volume_bars(volume_threshold=5_000)
 
 # 2. Extract Session-Anchored VWAP, Order Flow Toxicity (VPIN, OFI), Carry & OI Regimes:
-deriv_features = (
-    vol_bars.with_columns(
-        pl.col("close").anta.session_vwap("high", "low", "volume", session_by="trading_date").alias("svwap"),
-        pl.col("close").anta.vpin("volume", period=20).alias("vpin_20"),
-        pl.col("bid_price").anta.ofi("bid_size", "ask_price", "ask_size", period=5).alias("ofi_5"),
-        pl.col("close").anta.futures_basis("spot_close", "days_to_expiry", period=20).alias("basis"),
-        pl.col("close").anta.oi_regime("open_interest", period=1).alias("oi_state"),
-    )
-    .unnest("svwap", "basis", "oi_state")
-)
+deriv_features = vol_bars.with_columns(
+    pl.col("close")
+    .anta.session_vwap("high", "low", "volume", session_by="trading_date")
+    .alias("svwap"),
+    pl.col("close").anta.vpin("volume", period=20).alias("vpin_20"),
+    pl.col("bid_price").anta.ofi("bid_size", "ask_price", "ask_size", period=5).alias("ofi_5"),
+    pl.col("close").anta.futures_basis("spot_close", "days_to_expiry", period=20).alias("basis"),
+    pl.col("close").anta.oi_regime("open_interest", period=1).alias("oi_state"),
+).unnest("svwap", "basis", "oi_state")
 ```
 
 #### B. Quant Machine Learning (AFML) — Fractional Differentiation & Dynamic Labeling
 
 ```python
 # Memory-preserving stationary features (FFD) + Triple-Barrier & Trend-Scanning labels:
-ml_dataset = (
-    df.with_columns(
-        pl.col("close").anta.frac_diff(d=0.4, window=20).over("symbol").alias("close_ffd"),
-        pl.col("close").anta.triple_barrier_labels(
-            volatility=pl.col("close").pct_change().rolling_std(20),
-            horizon=12,
-            pt_mult=2.0,
-            sl_mult=1.5,
-            side=pl.col("primary_signal"),  # Enables binary meta_label {0.0, 1.0}
-        ).over("symbol").alias("tb"),
-        pl.col("close").anta.trend_scanning_labels(min_window=5, max_window=20).over("symbol").alias("ts"),
+ml_dataset = df.with_columns(
+    pl.col("close").anta.frac_diff(d=0.4, window=20).over("symbol").alias("close_ffd"),
+    pl.col("close")
+    .anta.triple_barrier_labels(
+        volatility=pl.col("close").pct_change().rolling_std(20),
+        horizon=12,
+        pt_mult=2.0,
+        sl_mult=1.5,
+        side=pl.col("primary_signal"),  # Enables binary meta_label {0.0, 1.0}
     )
-    .unnest("tb", "ts")
-)
+    .over("symbol")
+    .alias("tb"),
+    pl.col("close")
+    .anta.trend_scanning_labels(min_window=5, max_window=20)
+    .over("symbol")
+    .alias("ts"),
+).unnest("tb", "ts")
 ```
 
 #### C. Cross-Sectional Standardization, Neutralization & Multi-Factor Orthogonalization
 
 ```python
-alpha_df = (
-    panel_df.with_columns(
-        (
-            -pl.col("close").anta.ts_delta(5).over("symbol")
-            * pl.col("volume").anta.ts_rank(20).over("symbol")
-        ).alias("raw_alpha")
-    )
-    .with_columns(
-        pl.col("raw_alpha")
-        .anta.cs_winsorize(over="date", method="mad", threshold=3.0)
-        .anta.cs_zscore(over="date", clip_bound=3.0)
-        .anta.neutralize(by="sector", over="date", standardize=True)
-        # Gram-Schmidt OLS projection orthogonal to Beta, Size & Volatility:
-        .anta.orthogonalize(factors=["mkt_beta", "log_mcap", "vol_20"], over="date", standardize=True)
-        .anta.ts_scale(a=1.0, over="date")
-        .alias("pure_alpha_weight")
-    )
+alpha_df = panel_df.with_columns(
+    (
+        -pl.col("close").anta.ts_delta(5).over("symbol")
+        * pl.col("volume").anta.ts_rank(20).over("symbol")
+    ).alias("raw_alpha")
+).with_columns(
+    pl.col("raw_alpha")
+    .anta.cs_winsorize(over="date", method="mad", threshold=3.0)
+    .anta.cs_zscore(over="date", clip_bound=3.0)
+    .anta.neutralize(by="sector", over="date", standardize=True)
+    # Gram-Schmidt OLS projection orthogonal to Beta, Size & Volatility:
+    .anta.orthogonalize(factors=["mkt_beta", "log_mcap", "vol_20"], over="date", standardize=True)
+    .anta.ts_scale(a=1.0, over="date")
+    .alias("pure_alpha_weight")
 )
 ```
 
@@ -204,10 +203,10 @@ bt = (
     .anta.backtest(
         entries=pl.col("ema_12").anta.crosses_above("ema_26"),
         exits=pl.col("ema_12").anta.crosses_below("ema_26"),
-        execution_price="open",          # Fill at next-bar open (or "twap", "vwap", "close")
+        execution_price="open",  # Fill at next-bar open (or "twap", "vwap", "close")
         flat_mask=pl.col("is_atc_bar"),  # Mandatory intraday EOD / roll flatten mask
-        vol_target=0.15,                 # 15% annualized target volatility scaling
-        no_trade_buffer=0.05,            # Hysteresis buffer suppressing micro-turnover
+        vol_target=0.15,  # 15% annualized target volatility scaling
+        no_trade_buffer=0.05,  # Hysteresis buffer suppressing micro-turnover
         fee_rate=0.0005,
         slippage_rate=0.0002,
         initial_capital=100_000.0,

@@ -160,12 +160,12 @@ where $\gamma \approx 0.5772156649$ is the Euler-Mascheroni constant. Plugging $
 ```python
 bt = df.anta.backtest(
     signal="alpha_signal",
-    execution_price="open",                        # Execute at next bar's Open (or 'twap' / 'vwap')
-    flat_mask=pl.col("time") >= "14:25:00",        # Force 0 position at intraday EOD session close
-    vol_target=0.15,                               # 15% annualized dynamic volatility targeting
+    execution_price="open",  # Execute at next bar's Open (or 'twap' / 'vwap')
+    flat_mask=pl.col("time") >= "14:25:00",  # Force 0 position at intraday EOD session close
+    vol_target=0.15,  # 15% annualized dynamic volatility targeting
     vol_lookback=20,
     max_leverage=2.0,
-    no_trade_buffer=0.05,                          # Suppress tiny rebalances < 5% weight change
+    no_trade_buffer=0.05,  # Suppress tiny rebalances < 5% weight change
     fee_rate=0.0003,
     slippage_rate=0.0002,
 )

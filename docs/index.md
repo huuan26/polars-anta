@@ -195,7 +195,9 @@ Explore how `polars-anta` unifies derivatives microstructure, AFML feature engin
     # 1. Autocorrelation-robust Newey-West HAC IC & Multi-Horizon Alpha Half-Life:
     eval_df = alpha_df.anta.forward_returns(periods=(1, 5, 10), group_by="symbol")
     ic_stats = eval_df.anta.ic_summary("pure_alpha_weight", "fwd_ret_5", group_by="date", nw_lags=5)
-    decay_table = eval_df.anta.ic_decay("pure_alpha_weight", horizons=(1, 2, 3, 5, 10, 20), group_by="date")
+    decay_table = eval_df.anta.ic_decay(
+        "pure_alpha_weight", horizons=(1, 2, 3, 5, 10, 20), group_by="date"
+    )
 
     # 2. Execution-realistic vectorized backtest with MAE/MFE excursion ledger:
     bt = (
@@ -204,10 +206,10 @@ Explore how `polars-anta` unifies derivatives microstructure, AFML feature engin
         .anta.backtest(
             entries=pl.col("ema_12").anta.crosses_above("ema_26"),
             exits=pl.col("ema_12").anta.crosses_below("ema_26"),
-            execution_price="open",      # Fill at next-bar open price
+            execution_price="open",  # Fill at next-bar open price
             flat_mask=pl.col("is_eod"),  # Force flat before ATC / overnight
-            vol_target=0.15,             # 15% annualized volatility target
-            no_trade_buffer=0.05,        # Suppress micro-rebalancing turnover
+            vol_target=0.15,  # 15% annualized volatility target
+            no_trade_buffer=0.05,  # Suppress micro-rebalancing turnover
             fee_rate=0.0005,
             slippage_rate=0.0002,
         )

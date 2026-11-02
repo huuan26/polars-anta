@@ -578,7 +578,11 @@ $$
   Both $\text{WMA}_n$ and $\text{SMA}_n$ execute natively inside Polars' multi-threaded Rust engine with $O(1)$ amortized cost per bar.
 
 - **Wilder's RMA & Heikin-Ashi via Exact `ewm_mean` Mapping**:
-  Wilder's recursive smoothing ($\text{RMA}_t = \frac{1}{n}x_t + \frac{n-1}{n}\text{RMA}_{t-1}$ in `rsi`, `atr`, `adx`) and Heikin-Ashi open prices ($\text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}$) are mapped directly to `pl.Expr.ewm_mean(alpha=1/n, adjust=False)` and `ewm_mean(alpha=0.5, adjust=False)`—eliminating sequential Python loops completely.
+  Wilder's recursive smoothing and Heikin-Ashi candles are mapped directly to `pl.Expr.ewm_mean(alpha=1/n, adjust=False)` and `ewm_mean(alpha=0.5, adjust=False)`—eliminating sequential Python loops completely:
+
+$$
+\text{RMA}_t = \frac{1}{n}x_t + \frac{n-1}{n}\text{RMA}_{t-1}, \qquad \text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}
+$$
 
 - **Fixed-Window Fractional Differentiation (`frac_diff`, López de Prado 2018)**:
   Expands the backshift operator $(1 - B)^{d} = \sum_{k=0}^{\infty} \omega_k B^k$ via recursive binomial weights $\omega_0 = 1, \; \omega_k = -\omega_{k-1} \frac{d - k + 1}{k}$ over a fixed window $W$, achieving statistical stationarity ($d \approx 0.3 \text{--} 0.5$) while preserving long-memory trend/cointegration information lost by first-differencing ($d=1$).
@@ -589,17 +593,27 @@ $$
   Applies the Frisch-Waugh-Lovell theorem per timestamp cross-section (`over="date"`) to strip linear exposures to $K$ arbitrary risk factors $F = [f_1, \dots, f_K]$ (e.g., Market Beta, Log Size, Volatility, Liquidity) with optional Ridge regularization $\lambda \ge 0$:
 
 $$
-u_k = \tilde{f}_k - \sum_{j=1}^{k-1} \frac{\langle \tilde{f}_k, u_j \rangle}{\lVert u_j \rVert_{2}^{2} + \lambda} u_j, \qquad \epsilon_\alpha = \tilde{\alpha} - \sum_{k=1}^{K} \frac{\langle \tilde{\alpha}, u_k \rangle}{\lVert u_k \rVert_{2}^{2} + \lambda} u_k
+u_k = \tilde{f}_k - \sum_{j=1}^{k-1} \frac{\langle \tilde{f}_k, u_j \rangle}{\lVert u_j \rVert_2^2 + \lambda} u_j, \qquad \alpha_{\perp} = \tilde{\alpha} - \sum_{k=1}^{K} \frac{\langle \tilde{\alpha}, u_k \rangle}{\lVert u_k \rVert_2^2 + \lambda} u_k
 $$
 
 - **Newey-West HAC *t*-Statistics & Exponential Alpha Half-Life (`ic_summary`, `ic_decay`)**:
-  Multi-period forward returns ($h > 1$) induce $MA(h-1)$ serial correlation in Information Coefficient series. `polars-anta` applies the Newey & West (1987) Bartlett kernel variance estimator $\hat{\Omega}_{NW} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L+1}\right) \hat{\gamma}_j$ so $t_{NW} = \frac{\overline{IC}}{\sqrt{\hat{\Omega}_{NW} / T}}$ remains unbiased, and fits $\ln |IC(h)| = a - \lambda h$ to estimate the exact signal **Half-Life** $t_{1/2} = \frac{\ln 2}{\lambda}$.
+  Multi-period forward returns ($h > 1$) induce $\text{MA}(h-1)$ serial correlation in Information Coefficient series. `polars-anta` applies the Newey & West (1987) Bartlett kernel variance estimator:
+
+$$
+\hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad t_{\text{NW}} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
+$$
+
+  and fits $\ln |\text{IC}(h)| = a - \lambda h$ to estimate the exact signal **Half-Life** $t_{1/2} = \frac{\ln 2}{\lambda}$.
 
 - **Probabilistic & Deflated Sharpe Ratios (`probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`)**:
   Adjusts Sharpe Ratio inference for non-normal skewness ($\hat{\gamma}_3$), fat tails ($\hat{\gamma}_4$), and selection bias across $K$ tested parameter configurations (Bailey & López de Prado, 2014):
 
 $$
-\text{PSR}(SR^{*}) = \Phi\!\left(\frac{(\widehat{SR} - SR^{*})\sqrt{T - 1}}{\sqrt{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{SR}^{2}}}\right), \qquad SR^{*}_{\text{DSR}} = \sqrt{V[\{\widehat{SR}_k\}]}\left((1 - \gamma)\Phi^{-1}\!\left(1 - \frac{1}{K}\right) + \gamma \Phi^{-1}\!\left(1 - \frac{1}{K e}\right)\right)
+\text{PSR}(\text{SR}^{\ast}) = \Phi\left(\frac{(\widehat{\text{SR}} - \text{SR}^{\ast})\sqrt{T - 1}}{\sqrt{1 - \hat{\gamma}_3 \widehat{\text{SR}} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{\text{SR}}^2}}\right)
+$$
+
+$$
+\text{SR}^{\ast}_{\text{DSR}} = \sigma_{\widehat{\text{SR}}} \left[ (1 - \gamma)\Phi^{-1}\left(1 - \frac{1}{K}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{K \cdot e}\right) \right]
 $$
 
 ### 3. Zero-Copy Stride Windows & Loop-Free State Machines

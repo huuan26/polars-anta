@@ -456,7 +456,7 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `linear_regression_intercept(close, period=14)` | `Float64` | Closed-Form Vectorized OLS Linear Regression Intercept (β₀) |
 | `linear_regression_angle(close, period=14)` | `Float64` | Rolling OLS Regression Trend Angle in Degrees arctan(β₁) × 180 / π |
 | `linear_regression_forecast(close, period=14)` | `Float64` | Rolling OLS End-of-Window Fitted Value ŷ_t = β₀ + β₁(n - 1) |
-| `frac_diff(close, d=0.4, window=20)` | `Float64` | Fixed-Window Fractional Differentiation (FFD — López de Prado, 2018) (1 - B)^d |
+| `frac_diff(close, d=0.4, window=20)` | `Float64` | Fixed-Window Fractional Differentiation (FFD — López de Prado, 2018) (1 - B)<sup>d</sup> |
 
 </details>
 
@@ -493,7 +493,7 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `decay_linear(close, period=10)` | Time-Series | Linearly decaying weighted moving average |
 | `ts_delta(expr, period=1)` | Time-Series | Difference operator x_t - x_{t-d} |
 | `ts_delay(expr, period=1)` | Time-Series | Lag operator x_{t-d} |
-| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power sign(x) × |x|^a |
+| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power sign(x) × |x|<sup>a</sup> |
 | `ts_min(expr, period=10)` | Time-Series | Rolling window minimum |
 | `ts_max(expr, period=10)` | Time-Series | Rolling window maximum |
 | `ts_sum(expr, period=10)` | Time-Series | Rolling window sum |
@@ -569,7 +569,7 @@ For complete derivations, step-by-step proofs, and institutional research workfl
 ### 1. Closed-Form Algebraic Reductions ($O(N)$ Rust Native Kernels)
 
 - **112.4x Faster Rolling OLS Linear Regression (`linear_regression_slope`)**:
-  Instead of solving $(X^\top X)^{-1} X^\top Y_t$ inside a Python loop over $N$ bars, `polars-anta` exploits the exact linear relationship between the Linearly Weighted Moving Average ($\text{WMA}_n$, weights $w_i \propto i+1$) and Simple Moving Average ($\text{SMA}_n$):
+  Instead of solving $(X^{\top} X)^{-1} X^{\top} Y_t$ inside a Python loop over $N$ bars, `polars-anta` exploits the exact linear relationship between the Linearly Weighted Moving Average ($\text{WMA}_n$, weights $w_i \propto i+1$) and Simple Moving Average ($\text{SMA}_n$):
 
 $$
 \beta_{1,t} = \frac{6}{n - 1}\left(\text{WMA}_n(y)_t - \text{SMA}_n(y)_t\right), \qquad \beta_{0,t} = \text{SMA}_n(y)_t - \beta_{1,t}\frac{n - 1}{2}
@@ -581,7 +581,7 @@ $$
   Wilder's recursive smoothing ($\text{RMA}_t = \frac{1}{n}x_t + \frac{n-1}{n}\text{RMA}_{t-1}$ in `rsi`, `atr`, `adx`) and Heikin-Ashi open prices ($\text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}$) are mapped directly to `pl.Expr.ewm_mean(alpha=1/n, adjust=False)` and `ewm_mean(alpha=0.5, adjust=False)`—eliminating sequential Python loops completely.
 
 - **Fixed-Window Fractional Differentiation (`frac_diff`, López de Prado 2018)**:
-  Expands the backshift operator $(1 - B)^d = \sum_{k=0}^{\infty} \omega_k B^k$ via recursive binomial weights $\omega_0 = 1, \; \omega_k = -\omega_{k-1} \frac{d - k + 1}{k}$ over a fixed window $W$, achieving statistical stationarity ($d \approx 0.3 \text{--} 0.5$) while preserving long-memory trend/cointegration information lost by first-differencing ($d=1$).
+  Expands the backshift operator $(1 - B)^{d} = \sum_{k=0}^{\infty} \omega_k B^k$ via recursive binomial weights $\omega_0 = 1, \; \omega_k = -\omega_{k-1} \frac{d - k + 1}{k}$ over a fixed window $W$, achieving statistical stationarity ($d \approx 0.3 \text{--} 0.5$) while preserving long-memory trend/cointegration information lost by first-differencing ($d=1$).
 
 ### 2. Cross-Sectional Factor Orthogonalization & Statistical Inference
 
@@ -589,7 +589,7 @@ $$
   Applies the Frisch-Waugh-Lovell theorem per timestamp cross-section (`over="date"`) to strip linear exposures to $K$ arbitrary risk factors $F = [f_1, \dots, f_K]$ (e.g., Market Beta, Log Size, Volatility, Liquidity) with optional Ridge regularization $\lambda \ge 0$:
 
 $$
-u_k = \tilde{f}_k - \sum_{j=1}^{k-1} \frac{\langle \tilde{f}_k, u_j \rangle}{\|u_j\|_2^2 + \lambda} u_j, \qquad \epsilon_\alpha = \tilde{\alpha} - \sum_{k=1}^{K} \frac{\langle \tilde{\alpha}, u_k \rangle}{\|u_k\|_2^2 + \lambda} u_k
+u_k = \tilde{f}_k - \sum_{j=1}^{k-1} \frac{\langle \tilde{f}_k, u_j \rangle}{\lVert u_j \rVert_{2}^{2} + \lambda} u_j, \qquad \epsilon_\alpha = \tilde{\alpha} - \sum_{k=1}^{K} \frac{\langle \tilde{\alpha}, u_k \rangle}{\lVert u_k \rVert_{2}^{2} + \lambda} u_k
 $$
 
 - **Newey-West HAC *t*-Statistics & Exponential Alpha Half-Life (`ic_summary`, `ic_decay`)**:
@@ -599,7 +599,7 @@ $$
   Adjusts Sharpe Ratio inference for non-normal skewness ($\hat{\gamma}_3$), fat tails ($\hat{\gamma}_4$), and selection bias across $K$ tested parameter configurations (Bailey & López de Prado, 2014):
 
 $$
-\text{PSR}(SR^*) = \Phi\!\left(\frac{(\widehat{SR} - SR^*)\sqrt{T - 1}}{\sqrt{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{SR}^2}}\right), \qquad SR^*_{DSR} = \sqrt{V[\{\widehat{SR}_k\}]}\left((1 - \gamma)\Phi^{-1}\!\left(1 - \frac{1}{K}\right) + \gamma \Phi^{-1}\!\left(1 - \frac{1}{K e}\right)\right)
+\text{PSR}(SR^{*}) = \Phi\!\left(\frac{(\widehat{SR} - SR^{*})\sqrt{T - 1}}{\sqrt{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{SR}^{2}}}\right), \qquad SR^{*}_{\text{DSR}} = \sqrt{V[\{\widehat{SR}_k\}]}\left((1 - \gamma)\Phi^{-1}\!\left(1 - \frac{1}{K}\right) + \gamma \Phi^{-1}\!\left(1 - \frac{1}{K e}\right)\right)
 $$
 
 ### 3. Zero-Copy Stride Windows & Loop-Free State Machines

@@ -145,8 +145,8 @@ Fixed-horizon return labels $y_t = \text{sign}(P_{t+H} / P_t - 1)$ are flawed be
 
 Let $\tau_{\text{PT}} = \min\{k \in \{1, \dots, H\} : r_{t, t+k}^{\text{dir}} \ge U_t\}$ and $\tau_{\text{SL}} = \min\{k \in \{1, \dots, H\} : r_{t, t+k}^{\text{dir}} \le L_t\}$. The first touched barrier determines:
 - `label`: $+1.0$ (upper barrier hit first), $-1.0$ (lower barrier hit first), or $0.0$ (vertical horizon expired first).
-- `touch_bars`: $\min(\tau_{\text{PT}}, \tau_{\text{SL}}, H) \in \{1, \dots, H\}$.
-- `realized_return`: Raw return $(P_{t + \text{touch\_bars}} - P_t) / P_t$ at the barrier touch.
+- `touch_bars`: First-passage time $\tau = \min(\tau_{\text{PT}}, \tau_{\text{SL}}, H) \in \{1, \dots, H\}$.
+- `realized_return`: Raw return $(P_{t + \tau} - P_t) / P_t$ at the barrier touch.
 - `meta_label`: Binary $\{0.0, 1.0\}$ indicating whether the primary directional signal `side` ($\in \{-1, +1\}$) achieved its profit-taking target.
 
 ---
@@ -182,7 +182,7 @@ $$
 $$
 
 $$
-\text{nw\_t\_stat} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
+t_{\text{NW}} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
 $$
 
 [`ic_decay`](../indicators/evaluation-and-backtest.md) evaluates `ic_summary` across a vector of forward horizons $h \in (1, 2, 3, 5, 10, 20)$ (automatically setting `nw_lags = max(1, h - 1)`) and estimates the **Alpha Half-Life** via log-linear regression $\ln |\overline{\text{IC}}(h)| = a - \lambda h \implies t_{1/2} = \frac{\ln 2}{\hat{\lambda}}$.
@@ -207,7 +207,7 @@ $$
 $$
 
 #### Deflated Sharpe Ratio (`deflated_sharpe_ratio` — Bailey & López de Prado, 2014)
-When a researcher selects the best strategy out of $N = \text{n\_trials}$ independent trials whose annualized Sharpe ratios have standard deviation $\sigma_{\{SR\}}$, Extreme Value Theory (False Strategy Theorem) gives the expected maximum annualized Sharpe ratio under the null hypothesis of zero skill:
+When a researcher selects the best strategy out of $N$ independent trials (`n_trials`) whose annualized Sharpe ratios have standard deviation $\sigma_{\{SR\}}$, Extreme Value Theory (False Strategy Theorem) gives the expected maximum annualized Sharpe ratio under the null hypothesis of zero skill:
 
 $$
 \text{SR}^{\ast}_{\text{ann}}(N) = \sigma_{\{SR\}} \left[ (1 - \gamma) \Phi^{-1}\left(1 - \frac{1}{N}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{N \cdot e}\right) \right]

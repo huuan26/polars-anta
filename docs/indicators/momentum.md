@@ -29,7 +29,7 @@ $$
 \%K_t^{\text{raw}} = 100 \frac{C_t - L_t^{(n)}}{H_t^{(n)} - L_t^{(n)}} \in [0, 100], \qquad \%R_t = -100 \frac{H_t^{(n)} - C_t}{H_t^{(n)} - L_t^{(n)}} = \%K_t^{\text{raw}} - 100 \in [-100, 0]
 $$
 
-- `stochastic` returns `Struct(k, d)` where $k = \text{SMA}_{\text{smooth\_k}}(\%K^{\text{raw}})$ and $d = \text{SMA}_{\text{d\_period}}(k)$.
+- `stochastic` returns `Struct(k, d)` where $k = \text{SMA}_{n_k}(\%K^{\text{raw}})$ and $d = \text{SMA}_{n_d}(k)$ (using smoothing parameters `smooth_k` and `d_period`).
 - `stoch_rsi` applies the Stochastic normalization directly to the $\text{RSI}_t$ series, returning `Struct(k, d)`.
 
 ---
@@ -80,7 +80,7 @@ This maps bounded price position into an approximately **Gaussian normal distrib
 ### `squeeze_momentum(high, low, close, bb_period=20, bb_mult=2.0, kc_period=20, kc_mult=1.5)`
 **John Carter's Volatility Squeeze & Linear Regression Momentum (`Struct(momentum, squeeze_on, squeeze_off, no_squeeze)`)**:
 1. **Volatility Compression Detection**:
-   - `squeeze_on` (`Boolean`): $\text{BB\_Upper}_t < \text{KC\_Upper}_t \;\land\; \text{BB\_Lower}_t > \text{KC\_Lower}_t$ (Bollinger Bands contract completely inside Keltner Channels during low-volatility consolidation).
+   - `squeeze_on` (`Boolean`): $\text{BB}_{\text{upper}, t} < \text{KC}_{\text{upper}, t} \;\land\; \text{BB}_{\text{lower}, t} > \text{KC}_{\text{lower}, t}$ (Bollinger Bands contract completely inside Keltner Channels during low-volatility consolidation).
    - `squeeze_off` (`Boolean`): Bollinger Bands expand outside Keltner Channels, signaling an explosive volatility breakout.
 2. **Directional Momentum Histogram**:
    Computes the deviation of $C_t$ from the average of the Donchian midline and SMA, smoothed via **closed-form OLS linear regression forecast** (`linear_regression_forecast`).

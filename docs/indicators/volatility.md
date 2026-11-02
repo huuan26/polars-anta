@@ -62,7 +62,7 @@ $$
 Measures the rate of expansion or contraction of the smoothed High-Low trading range:
 
 $$
-\text{HL\_EMA}_t = \text{EMA}_{n_1}(H_t - L_t), \qquad \text{ChaikinVol}_t = \frac{\text{HL\_EMA}_t - \text{HL\_EMA}_{t - n_2}}{\text{HL\_EMA}_{t - n_2}} \times 100
+\text{EMA}_{\text{HL}, t} = \text{EMA}_{n_1}(H_t - L_t), \qquad \text{ChaikinVol}_t = \frac{\text{EMA}_{\text{HL}, t} - \text{EMA}_{\text{HL}, t - n_2}}{\text{EMA}_{\text{HL}, t - n_2}} \times 100
 $$
 
 ---

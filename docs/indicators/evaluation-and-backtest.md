@@ -17,7 +17,7 @@ $$
 The horizontal Profit-Taking ($U_t$) and Stop-Loss ($L_t$) thresholds are:
 
 $$
-U_t = \max\left(\text{pt\_mult} \cdot \sigma_t,\, \text{min\_ret}\right), \qquad L_t = \max\left(\text{sl\_mult} \cdot \sigma_t,\, \text{min\_ret}\right)
+U_t = \max\left(m_{\text{PT}} \cdot \sigma_t,\, r_{\min}\right), \qquad L_t = \max\left(m_{\text{SL}} \cdot \sigma_t,\, r_{\min}\right)
 $$
 
 Let $\tau_{\text{PT}} = \min\{k \le H : r_{t, t+k}^{\text{dir}} \ge U_t\}$ and $\tau_{\text{SL}} = \min\{k \le H : r_{t, t+k}^{\text{dir}} \le -L_t\}$ (with $\min \emptyset = H + 1$).
@@ -44,7 +44,7 @@ df = df.anta.triple_barrier_labels(
 
 ### `trend_scanning_labels(close, min_window=5, max_window=20, step=1)`
 **Mathematical Formulation (López de Prado, 2020):**
-Fits forward OLS regressions $P_{t+i} = \hat{\beta}_0(L) + \hat{\beta}_1(L)\,i + \epsilon_i$ across all candidate horizons $L \in \{\text{min\_window}, \dots, \text{max\_window}\}$:
+Fits forward OLS regressions $P_{t+i} = \hat{\beta}_0(L) + \hat{\beta}_1(L)\,i + \epsilon_i$ across all candidate horizons $L \in \{W_{\min}, \dots, W_{\max}\}$:
 
 $$
 t_{\hat{\beta}_1}(L) = \frac{\hat{\beta}_1(L)}{\sqrt{\frac{\text{SSR}(L) / (L - 2)}{\sum_{i=0}^{L-1}(i - \bar{i})^2}}}, \qquad L^*_t = \arg\max_{L} \left|t_{\hat{\beta}_1}(L)\right|
@@ -78,7 +78,7 @@ $$
 Computes institutional IC summary metrics including **Newey-West (1987) HAC autocorrelation-consistent $t$-statistics**:
 
 $$
-\hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad \text{nw\_t\_stat} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
+\hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad t_{\text{NW}} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
 $$
 
 When `nw_lags=None`, automatically selects the Newey-West (1994) plug-in bandwidth $L = \max\left(1, \lfloor 4(T/100)^{2/9}\rfloor\right)$.
@@ -89,7 +89,7 @@ When `nw_lags=None`, automatically selects the Newey-West (1994) plug-in bandwid
 | `ic_std` | Sample standard deviation $\hat{\sigma}_{\text{IC}}$ | Lower indicates regime stability |
 | `icir` | Information Ratio of IC ($\overline{\text{IC}} / \hat{\sigma}_{\text{IC}}$) | $\vert \text{ICIR}\vert  \ge 0.50$ |
 | `t_stat` | i.i.d. Student $t$-statistic $\overline{\text{IC}} / (\hat{\sigma}_{\text{IC}} / \sqrt{T})$ | $\vert t\vert  \ge 2.0$ ($h = 1$ only) |
-| `nw_t_stat` | **Newey-West HAC $t$-statistic** $\overline{\text{IC}} / \sqrt{\hat{\Omega}_{\text{NW}} / T}$ | $\vert \text{nw\_t\_stat}\vert  \ge 2.0$ (robust to overlapping $h > 1$) |
+| `nw_t_stat` | **Newey-West HAC $t$-statistic** $\overline{\text{IC}} / \sqrt{\hat{\Omega}_{\text{NW}} / T}$ | $\vert t_{\text{NW}}\vert  \ge 2.0$ (robust to overlapping $h > 1$) |
 | `hit_rate` | Fraction of periods with $\text{IC}_t > 0$ | $\ge 55\%$ |
 | `n_periods` | Total valid cross-sectional timestamps $T$ | — |
 
@@ -135,8 +135,8 @@ Executes a single-asset or multi-asset vectorized backtest with full execution r
   - `"twap"`: OHLC average $(O_t + H_t + L_t + C_t)/4$ execution returns.
   - `"vwap"`: Typical price $(H_t + L_t + C_t)/3$ execution returns.
 - **Intraday Session Flattening (`flat_mask`)**: Boolean expression forcing `position = 0.0` on matching bars (e.g., closing intraday VN30F1M positions prior to the 14:30 ATC auction).
-- **Dynamic Volatility Targeting (`vol_target`, `vol_lookback=20`, `max_leverage=2.0`)**: Scales position size by $\min\left(\text{max\_leverage},\, \frac{\text{vol\_target}}{\hat{\sigma}_{t-1}\sqrt{N_{\text{ann}}}}\right)$.
-- **No-Trade Turnover Buffer (`no_trade_buffer=0.0`)**: Suppresses minor position adjustments where $|w_t^{\text{target}} - w_{t-1}| \le \text{no\_trade\_buffer}$ unless exiting to `0.0`.
+- **Dynamic Volatility Targeting (`vol_target`, `vol_lookback=20`, `max_leverage=2.0`)**: Scales position size by $\min\left(L_{\max},\, \frac{\sigma_{\text{target}}}{\hat{\sigma}_{t-1}\sqrt{N_{\text{ann}}}}\right)$.
+- **No-Trade Turnover Buffer (`no_trade_buffer=0.0`)**: Suppresses minor position adjustments where $|w_t^{\text{target}} - w_{t-1}| \le \delta_{\text{buf}}$ unless exiting to `0.0`.
 
 ---
 

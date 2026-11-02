@@ -30,23 +30,23 @@
 <div class="anta-metrics-grid">
   <div class="anta-metric-card">
     <div class="anta-metric-value">112.4x</div>
-    <div class="anta-metric-label">Peak Speedup vs. Pandas</div>
-    <div class="anta-metric-desc">1,000,000-row closed-form Rolling OLS</div>
+    <div class="anta-metric-label">Peak Speedup</div>
+    <div class="anta-metric-desc">1M-row Rolling OLS</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">155+</div>
-    <div class="anta-metric-label">Auditable Primitives</div>
-    <div class="anta-metric-desc">Dual <code>.anta</code> &amp; <code>.ta</code> Polars namespaces</div>
+    <div class="anta-metric-label">Native Primitives</div>
+    <div class="anta-metric-desc">Dual <code>.anta</code> &amp; <code>.ta</code> API</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">Zero-C</div>
-    <div class="anta-metric-label">Pure Polars &amp; Arrow</div>
-    <div class="anta-metric-desc">No GCC, MSVC, or Cython compilation</div>
+    <div class="anta-metric-label">Pure Polars Engine</div>
+    <div class="anta-metric-desc">No C/Cython compiler</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">O(1)</div>
-    <div class="anta-metric-label">Per-Bar Reductions</div>
-    <div class="anta-metric-desc">Multi-threaded Rust SIMD query engine</div>
+    <div class="anta-metric-label">Per-Bar Complexity</div>
+    <div class="anta-metric-desc">Rust SIMD execution</div>
   </div>
 </div>
 

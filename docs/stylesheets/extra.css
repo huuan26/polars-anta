@@ -17,7 +17,7 @@
   --md-primary-fg-color: #0D1117;
   --md-primary-fg-color--light: #161B22;
   --md-primary-fg-color--dark: #090C10;
-  --md-accent-fg-color: #1D7AFC;
+  --md-accent-fg-color: #388BFD;
   --md-typeset-a-color: #388BFD;
 }
 
@@ -29,14 +29,22 @@
   --md-typeset-a-color: #1D7AFC;
 }
 
+/* Ensure all generic Material buttons remain visible in dark mode despite dark primary header */
+[data-md-color-scheme="slate"] .md-typeset .md-button {
+  color: #E6EDF3;
+  border-color: rgba(56, 139, 253, 0.52);
+}
+
 /* Header & Navigation Tabs unified to GitHub Dark #0D1117 so Polars Blue logo pops */
 .md-header {
   background-color: #0D1117 !important;
+  color: #FFFFFF !important;
   border-bottom: 1px solid rgba(48, 54, 61, 0.85);
 }
 
 .md-tabs {
   background-color: #0D1117 !important;
+  color: #FFFFFF !important;
   border-bottom: 1px solid rgba(48, 54, 61, 0.7);
 }
 
@@ -107,68 +115,121 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
   gap: 0.75rem;
-  margin-top: 1.1rem;
+  margin-top: 1.2rem;
 }
 
-.anta-btn-primary {
-  background-color: #1D7AFC !important;
-  border-color: #1D7AFC !important;
+.md-typeset .md-button.anta-btn-primary {
+  background: linear-gradient(180deg, #2F81F7 0%, #1D7AFC 100%) !important;
+  border: 1px solid #388BFD !important;
   color: #FFFFFF !important;
   border-radius: 8px !important;
-  padding: 0.55rem 1.35rem !important;
+  padding: 0.55rem 1.3rem !important;
+  font-size: 0.84rem !important;
   font-weight: 600 !important;
-  box-shadow: 0 4px 14px rgba(29, 122, 252, 0.35);
+  box-shadow: 0 4px 14px rgba(29, 122, 252, 0.32);
   transition: all 0.2s ease !important;
 }
 
-.anta-btn-primary:hover {
-  background-color: #388BFD !important;
+.md-typeset .md-button.anta-btn-primary:hover {
+  background: linear-gradient(180deg, #388BFD 0%, #2F81F7 100%) !important;
+  border-color: #58A6FF !important;
+  color: #FFFFFF !important;
   transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(29, 122, 252, 0.42);
 }
 
-.anta-btn-secondary {
+.md-typeset .md-button.anta-btn-secondary {
   border-radius: 8px !important;
-  padding: 0.55rem 1.25rem !important;
+  padding: 0.55rem 1.2rem !important;
+  font-size: 0.84rem !important;
   font-weight: 600 !important;
-  border: 1px solid rgba(29, 122, 252, 0.55) !important;
+  color: #0F172A !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(29, 122, 252, 0.45) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   transition: all 0.2s ease !important;
 }
 
-.anta-btn-secondary:hover {
-  background-color: rgba(29, 122, 252, 0.1) !important;
+.md-typeset .md-button.anta-btn-secondary:hover {
+  color: #1D7AFC !important;
+  background-color: rgba(29, 122, 252, 0.08) !important;
+  border-color: #1D7AFC !important;
   transform: translateY(-1px);
 }
 
-/* 4 Key Metric Cards Strip */
+[data-md-color-scheme="slate"] .md-typeset .md-button.anta-btn-secondary {
+  color: #E6EDF3 !important;
+  background-color: #161B22 !important;
+  border: 1px solid rgba(56, 139, 253, 0.52) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button.anta-btn-secondary:hover {
+  color: #FFFFFF !important;
+  background-color: rgba(56, 139, 253, 0.16) !important;
+  border-color: #58A6FF !important;
+  box-shadow: 0 4px 14px rgba(56, 139, 253, 0.22);
+}
+
+/* 4 Key Metric Cards Strip — Always 4-across on desktop, 2x2 on tablet/mobile */
 .anta-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
-  gap: 0.9rem;
-  margin: 1.75rem 0 2.25rem 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.6rem 0 2.1rem 0;
+}
+
+@media screen and (max-width: 768px) {
+  .anta-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (max-width: 420px) {
+  .anta-metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .anta-metric-card {
-  padding: 1.1rem 1rem;
-  border-radius: 12px;
-  border: 1px solid rgba(29, 122, 252, 0.25);
-  background: linear-gradient(145deg, rgba(29, 122, 252, 0.08) 0%, rgba(13, 17, 23, 0.02) 100%);
+  padding: 0.95rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid rgba(29, 122, 252, 0.22);
+  background: linear-gradient(180deg, rgba(29, 122, 252, 0.06) 0%, rgba(29, 122, 252, 0.015) 100%);
   text-align: center;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-md-color-scheme="slate"] .anta-metric-card {
+  background: linear-gradient(180deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.95) 100%);
+  border-color: rgba(56, 139, 253, 0.28);
 }
 
 .anta-metric-card:hover {
   transform: translateY(-2px);
   border-color: #1D7AFC;
+  box-shadow: 0 6px 16px -4px rgba(29, 122, 252, 0.18);
+}
+
+[data-md-color-scheme="slate"] .anta-metric-card:hover {
+  border-color: #58A6FF;
+  box-shadow: 0 6px 18px -4px rgba(56, 139, 253, 0.25);
 }
 
 .anta-metric-value {
-  font-size: 1.75rem;
+  font-size: 1.55rem;
   font-weight: 800;
   color: #1D7AFC;
   line-height: 1.15;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 [data-md-color-scheme="slate"] .anta-metric-value {
@@ -176,17 +237,29 @@
 }
 
 .anta-metric-label {
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.85;
+  letter-spacing: 0.035em;
+  color: #1E293B;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+[data-md-color-scheme="slate"] .anta-metric-label {
+  color: #E6EDF3;
 }
 
 .anta-metric-desc {
-  font-size: 0.74rem;
-  opacity: 0.68;
-  margin-top: 0.2rem;
+  font-size: 0.71rem;
+  color: #64748B;
+  margin-top: 0.18rem;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+[data-md-color-scheme="slate"] .anta-metric-desc {
+  color: #8B949E;
 }
 
 /* 2x2 Quantitative Pillar Grid */

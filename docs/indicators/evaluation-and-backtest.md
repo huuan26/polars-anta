@@ -119,8 +119,8 @@ All scalar risk metrics operate natively inside `df.select(...)`, `df.group_by("
 | `calmar_ratio(returns, annualization=252.0)` | $\text{Calmar} = \frac{\mathbb{E}[r] \cdot N_{\text{ann}}}{\vert \text{MDD}\vert }$ |
 | `profit_factor(returns)` | $\text{PF} = \frac{\sum_{r_t > 0} r_t}{\sum_{r_t < 0} \vert r_t\vert }$ |
 | `win_rate(returns, include_zeros=False)` | $\text{WR} = \frac{\sum \mathbb{I}_{\{r_t > 0\}}}{\sum \mathbb{I}_{\{r_t \neq 0\}}}$ |
-| `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, ...)` | $\text{PSR}(SR^{*}) = \Phi\left(\frac{\widehat{SR} - SR^{*}}{\sqrt{\frac{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{SR}^{2}}{T - 1}}}\right) \in [0, 1]$ |
-| `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | $\text{PSR}(SR^{*}_N)$ where $SR^{*}_N = \sigma_{\{SR\}}\left[(1-\gamma)\Phi^{-1}(1-\frac{1}{N}) + \gamma\Phi^{-1}(1-\frac{1}{Ne})\right]$ |
+| `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, ...)` | $\text{PSR}(\text{SR}^{\ast}) = \Phi\left(\frac{\widehat{\text{SR}} - \text{SR}^{\ast}}{\sqrt{\frac{1 - \hat{\gamma}_3 \widehat{\text{SR}} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{\text{SR}}^2}{T - 1}}}\right) \in [0, 1]$ |
+| `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | $\text{PSR}(\text{SR}^{\ast}_N)$ where $\text{SR}^{\ast}_N = \sigma_{\{SR\}}\left[(1-\gamma)\Phi^{-1}(1-\frac{1}{N}) + \gamma\Phi^{-1}(1-\frac{1}{Ne})\right]$ |
 
 ---
 

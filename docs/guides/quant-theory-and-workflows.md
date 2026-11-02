@@ -200,20 +200,20 @@ $$
 \hat{\sigma}(\widehat{SR}) = \sqrt{\frac{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4} \widehat{SR}^2}{T - 1}}
 $$
 
-The probability that the true Sharpe ratio exceeds benchmark $SR^{*}$ is:
+The probability that the true Sharpe ratio exceeds benchmark $\text{SR}^{\ast}$ is:
 
 $$
-\text{PSR}(SR^{*}) = \Phi\left(\frac{\widehat{SR} - SR^{*}}{\hat{\sigma}(\widehat{SR})}\right) \in [0, 1]
+\text{PSR}(\text{SR}^{\ast}) = \Phi\left(\frac{\widehat{\text{SR}} - \text{SR}^{\ast}}{\hat{\sigma}(\widehat{\text{SR}})}\right) \in [0, 1]
 $$
 
 #### Deflated Sharpe Ratio (`deflated_sharpe_ratio` — Bailey & López de Prado, 2014)
 When a researcher selects the best strategy out of $N = \text{n\_trials}$ independent trials whose annualized Sharpe ratios have standard deviation $\sigma_{\{SR\}}$, Extreme Value Theory (False Strategy Theorem) gives the expected maximum annualized Sharpe ratio under the null hypothesis of zero skill:
 
 $$
-SR^{*}_{\text{ann}}(N) = \sigma_{\{SR\}} \left[ (1 - \gamma) \Phi^{-1}\left(1 - \frac{1}{N}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{N \cdot e}\right) \right]
+\text{SR}^{\ast}_{\text{ann}}(N) = \sigma_{\{SR\}} \left[ (1 - \gamma) \Phi^{-1}\left(1 - \frac{1}{N}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{N \cdot e}\right) \right]
 $$
 
-where $\gamma \approx 0.5772156649$ is the Euler-Mascheroni constant. Plugging $SR^{*}_{\text{ann}}(N)$ into $\text{PSR}(SR^{*})$ yields the **Deflated Sharpe Ratio (DSR)**. Institutional desks typically require $\text{DSR} \ge 0.95$ before allocating capital.
+where $\gamma \approx 0.5772156649$ is the Euler-Mascheroni constant. Plugging $\text{SR}^{\ast}_{\text{ann}}(N)$ into $\text{PSR}(\text{SR}^{\ast})$ yields the **Deflated Sharpe Ratio (DSR)**. Institutional desks typically require $\text{DSR} \ge 0.95$ before allocating capital.
 
 ---
 

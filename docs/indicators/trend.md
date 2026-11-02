@@ -93,7 +93,7 @@ $$
 | Function Signature | Output Type / Struct Fields | Mathematical Mechanism |
 | :--- | :--- | :--- |
 | `vortex(high, low, close, period=14)` | `Struct(vi_plus, vi_minus)` | $\text{VI}^\pm_t = \frac{\sum_{i=0}^{n-1} \vert H_{t-i} - L_{t-i-1}\vert }{\sum_{i=0}^{n-1} \text{TR}_{t-i}}$ (Botes & Siepman, 2010) |
-| `aroon(high, low, period=14)` | `Struct(aroon_up, aroon_down, oscillator)` | $\text{AroonUp}_t = \frac{n - \text{bars\_since\_high}_n}{n} \times 100$ (Tushar Chande, 1995) |
+| `aroon(high, low, period=14)` | `Struct(aroon_up, aroon_down, oscillator)` | $\text{AroonUp}_t = \frac{n - \tau_{\text{high}, n}}{n} \times 100$ (Tushar Chande, 1995) |
 | `mass_index(high, low, ema_period=9, sum_period=25)` | `Float64` | $\sum_{i=0}^{24} \frac{\text{EMA}_9(H - L)_{t-i}}{\text{EMA}_9(\text{EMA}_9(H - L))_{t-i}}$ (Donald Dorsey reversal bulge $> 27$) |
 | `ssl_channel(high, low, close, period=10)` | `Struct(ssl_down, ssl_up)` | State-flipped SMA(High) and SMA(Low) channel lines |
 | `trend_intensity_index(close, sma_period=60, period=30)` | `Float64` | M.H. Pee's percentage of positive deviations above $\text{SMA}_{60}$ $[0, 100]$ |

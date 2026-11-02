@@ -581,7 +581,7 @@ $$
   Wilder's recursive smoothing and Heikin-Ashi candles are mapped directly to `pl.Expr.ewm_mean(alpha=1/n, adjust=False)` and `ewm_mean(alpha=0.5, adjust=False)`—eliminating sequential Python loops completely:
 
 $$
-\text{RMA}_t = \frac{1}{n}x_t + \frac{n-1}{n}\text{RMA}_{t-1}, \qquad \text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}
+\text{RMA}_t = \frac{1}{n}x_t + \frac{n-1}{n}\text{RMA}_{t-1}, \qquad \text{Open}_t^{\text{HA}} = \frac{1}{2}\text{Open}_{t-1}^{\text{HA}} + \frac{1}{2}\text{Close}_{t-1}^{\text{HA}}
 $$
 
 - **Fixed-Window Fractional Differentiation (`frac_diff`, López de Prado 2018)**:
@@ -619,7 +619,12 @@ $$
 ### 3. Zero-Copy Stride Windows & Loop-Free State Machines
 
 - **Zero-Copy 2D Stride Views**: Path-dependent rolling operators (`triple_barrier_labels`, `trend_scanning_labels`, `hurst_exponent`, `entropy`, `ts_rank`, `ts_argmax`) construct virtual 2D rolling views `(N - P + 1, P)` via `numpy.lib.stride_tricks.sliding_window_view` with $O(1)$ pointer/stride metadata overhead and zero memory duplication.
-- **State-Machine Backtesting & Excursion Analytics (`vectorized_backtest`, `extract_trades`)**: Entry/exit signals compile into positions via `.forward_fill()`, apply ex-ante volatility targeting ($w_t^{\text{vol}} = \text{clip}(\sigma_{\text{target}} / \hat{\sigma}_{t-1}, 0, L_{\max})$), enforce intraday flatten masks (`flat_mask`), execute at next-bar Open/TWAP/VWAP prices (`execution_price`), and group active position runs via `.rle_id()` to compute exact per-trade **Maximum Adverse Excursion (MAE)** and **Maximum Favorable Excursion (MFE)**.
+- **State-Machine Backtesting & Excursion Analytics (`vectorized_backtest`, `extract_trades`)**:
+  Compiles entry/exit signals into positions via `.forward_fill()`, applies dynamic volatility targeting, enforces intraday session flatten masks (`flat_mask`), executes at next-bar Open/TWAP/VWAP prices (`execution_price`), and groups active position runs via `.rle_id()` to compute exact per-trade **Maximum Adverse Excursion (MAE)** and **Maximum Favorable Excursion (MFE)**:
+
+$$
+w_t^{\text{vol}} = \text{clip}\left(\frac{\sigma_{\text{target}}}{\hat{\sigma}_{t-1}},\, 0,\, L_{\max}\right)
+$$
 
 ---
 

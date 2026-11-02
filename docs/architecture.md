@@ -116,13 +116,13 @@ $$
    This is mathematically identical to an Exponential Moving Average with smoothing factor $\alpha = \frac{1}{n}$ (or equivalent span $S = 2n - 1$), which maps directly to Polars' native C/Rust kernel `expr.ewm_mean(alpha=1.0 / period, adjust=False, min_samples=period)`.
 
 2. **Heikin-Ashi Synthetic Open (`heikin_ashi`)**:
-   By definition, $\text{HA\_Close}_t = \frac{O_t + H_t + L_t + C_t}{4}$ and:
+   By definition, $\text{Close}_t^{\text{HA}} = \frac{O_t + H_t + L_t + C_t}{4}$ and:
 
 $$
-\text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}
+\text{Open}_t^{\text{HA}} = \frac{1}{2}\text{Open}_{t-1}^{\text{HA}} + \frac{1}{2}\text{Close}_{t-1}^{\text{HA}}
 $$
 
-   Recognize that $\text{HA\_Open}_t$ is a first-order linear recurrence driven by the lagged input $u_t = \text{HA\_Close}_{t-1}$ with decay parameter $\alpha = 0.5$ (`span = 3`). Thus, `heikin_ashi` computes the exact synthetic open across millions of rows in a single call to `ha_close.shift(1).ewm_mean(alpha=0.5, adjust=False)` with **zero Python loops**.
+   Recognize that $\text{Open}_t^{\text{HA}}$ is a first-order linear recurrence driven by the lagged input $u_t = \text{Close}_{t-1}^{\text{HA}}$ with decay parameter $\alpha = 0.5$ (`span = 3`). Thus, `heikin_ashi` computes the exact synthetic open across millions of rows in a single call to `ha_close.shift(1).ewm_mean(alpha=0.5, adjust=False)` with **zero Python loops**.
 
 ---
 

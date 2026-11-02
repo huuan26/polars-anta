@@ -35,7 +35,7 @@ $$
 Z_{i, t} = \frac{x_{i, t} - \mu_t}{\sigma_t}, \qquad \mu_t = \frac{1}{N_t}\sum_{j=1}^{N_t} x_{j, t}
 $$
 
-When `clip_bound` is specified (e.g., `clip_bound=3.0`), clips $Z_{i, t}$ into $[-\text{clip\_bound}, +\text{clip\_bound}]$.
+When `clip_bound` is specified (e.g., `clip_bound=3.0`), clips $Z_{i, t}$ into $[-c, +c]$ where $c$ is `clip_bound`.
 
 ---
 

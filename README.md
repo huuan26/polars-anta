@@ -58,7 +58,7 @@ Unlike traditional technical analysis packages designed around single-asset reta
 1. **Index Futures & Intraday Derivatives Desks (VN30F1M, CME E-Mini, Perpetual Futures)**
    Aggregate tick/minute feeds into information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`), stitch continuous roll series (`stitch_futures_roll`), track intraday `session_vwap` z-scores, measure order flow toxicity (`vpin`, `ofi`) and carry (`futures_basis`, `oi_regime`), and backtest with next-bar open/VWAP execution (`execution_price="open"`), session flatten masks (`flat_mask`), and round-trip MAE/MFE excursion ledgers (`bt.trades()`).
 2. **Cross-Sectional Statistical Arbitrage & Equity Factor Research**
-   Construct, winsorize (`cs_winsorize` via Quantile/Z-Score/MAD), standardize (`cs_zscore`), sector-neutralize (`neutralize`), and Gram-Schmidt OLS residualize (`orthogonalize`) WorldQuant 101 Formulaic Alphas across thousands of tickers, then validate with Newey-West HAC $t$-statistics (`ic_summary`), multi-horizon Alpha Half-Life (`ic_decay`), and Deflated Sharpe Ratios (`deflated_sharpe_ratio`).
+   Construct, winsorize (`cs_winsorize` via Quantile/Z-Score/MAD), standardize (`cs_zscore`), sector-neutralize (`neutralize`), and Gram-Schmidt OLS residualize (`orthogonalize`) WorldQuant 101 Formulaic Alphas across thousands of tickers, then validate with Newey-West HAC *t*-statistics (`ic_summary`), multi-horizon Alpha Half-Life (`ic_decay`), and Deflated Sharpe Ratios (`deflated_sharpe_ratio`).
 3. **Quantitative Machine Learning (AFML) Feature Stores**
    Transform non-stationary prices via Fixed-Window Fractional Differentiation (`frac_diff`), generate dynamic path-dependent labels (`triple_barrier_labels` with Meta-Labeling and `trend_scanning_labels`), and feed zero-copy Apache Arrow tensors directly into **LightGBM, XGBoost, CatBoost, or PyTorch**.
 
@@ -394,7 +394,7 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `atr(high, low, close, period=14)` | `Float64` | Average True Range (Wilder's RMA smoothing) |
 | `natr(high, low, close, period=14)` | `Float64` | Normalized Average True Range (`100 * ATR / Close`) |
 | `bollinger_bands(close, period=20, num_std=2.0)` | `Struct(upper, middle, lower, bandwidth, percent_b)` | John Bollinger's Volatility Envelope, Bandwidth & `%B` |
-| `bollinger_delta(close, period=20, num_std=2.0)` | `Float64` | Absolute Bollinger Band Spread ($2 \cdot k \cdot \sigma$) |
+| `bollinger_delta(close, period=20, num_std=2.0)` | `Float64` | Absolute Bollinger Band Spread (2 × k × σ) |
 | `keltner_channels(high, low, close, ema_period=20, atr_period=10, multiplier=2.0)` | `Struct(upper, middle, lower)` | Chester Keltner / Linda Raschke EMA-ATR Volatility Channels |
 | `keltner_width(high, low, close, ema_period=20, atr_period=10, multiplier=2.0)` | `Float64` | Normalized Keltner Channel Width (%) |
 | `donchian_channels(high, low, period=20)` | `Struct(upper, middle, lower)` | Richard Donchian's Breakout High/Low Channels |
@@ -444,19 +444,19 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 
 | Function Signature | Output Type | Description |
 | :--- | :--- | :--- |
-| `zscore(close, period=20)` | `Float64` | Rolling Standardized Z-Score Anomaly Metric $(x_t - \mu_t) / \sigma_t$ |
-| `percentile_rank(close, period=20)` | `Float64` | Vectorized Rolling Empirical Percentile Rank $[0.0, 1.0]$ |
+| `zscore(close, period=20)` | `Float64` | Rolling Standardized Z-Score Anomaly Metric (x_t - μ_t) / σ_t |
+| `percentile_rank(close, period=20)` | `Float64` | Vectorized Rolling Empirical Percentile Rank [0.0, 1.0] |
 | `skewness(close, period=20)` | `Float64` | Rolling Third Standardized Moment (Return Asymmetry) |
 | `kurtosis(close, period=20)` | `Float64` | Rolling Fourth Standardized Moment (Excess Tail Risk) |
-| `rolling_cov(x, y, period=20)` | `Float64` | Rolling Sample Covariance $\text{Cov}(X, Y)$ |
-| `rolling_corr(x, y, period=20)` | `Float64` | Rolling Pearson Linear Correlation Coefficient $[-1.0, 1.0]$ |
-| `rolling_beta(asset_ret, bench_ret, period=60)` | `Float64` | Rolling CAPM Systematic Market Beta $\text{Cov}(R_a, R_m) / \text{Var}(R_m)$ |
+| `rolling_cov(x, y, period=20)` | `Float64` | Rolling Sample Covariance Cov(X, Y) |
+| `rolling_corr(x, y, period=20)` | `Float64` | Rolling Pearson Linear Correlation Coefficient [-1.0, 1.0] |
+| `rolling_beta(asset_ret, bench_ret, period=60)` | `Float64` | Rolling CAPM Systematic Market Beta Cov(R_a, R_m) / Var(R_m) |
 | `rolling_alpha(asset_ret, bench_ret, rf=0.0, period=60)` | `Float64` | Rolling Jensen's Risk-Adjusted Excess Alpha |
-| `linear_regression_slope(close, period=14)` | `Float64` | Closed-Form Vectorized OLS Linear Regression Slope ($\beta_1$) |
-| `linear_regression_intercept(close, period=14)` | `Float64` | Closed-Form Vectorized OLS Linear Regression Intercept ($\beta_0$) |
-| `linear_regression_angle(close, period=14)` | `Float64` | Rolling OLS Regression Trend Angle in Degrees $\arctan(\beta_1) \cdot \frac{180}{\pi}$ |
-| `linear_regression_forecast(close, period=14)` | `Float64` | Rolling OLS End-of-Window Fitted Value $\hat{y}_t = \beta_0 + \beta_1 (n - 1)$ |
-| `frac_diff(close, d=0.4, window=20)` | `Float64` | Fixed-Window Fractional Differentiation (FFD — López de Prado, 2018) $(1 - B)^d$ |
+| `linear_regression_slope(close, period=14)` | `Float64` | Closed-Form Vectorized OLS Linear Regression Slope (β₁) |
+| `linear_regression_intercept(close, period=14)` | `Float64` | Closed-Form Vectorized OLS Linear Regression Intercept (β₀) |
+| `linear_regression_angle(close, period=14)` | `Float64` | Rolling OLS Regression Trend Angle in Degrees arctan(β₁) × 180 / π |
+| `linear_regression_forecast(close, period=14)` | `Float64` | Rolling OLS End-of-Window Fitted Value ŷ_t = β₀ + β₁(n - 1) |
+| `frac_diff(close, d=0.4, window=20)` | `Float64` | Fixed-Window Fractional Differentiation (FFD — López de Prado, 2018) (1 - B)^d |
 
 </details>
 
@@ -467,33 +467,33 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 
 | Function Signature | Domain | Description |
 | :--- | :--- | :--- |
-| `cs_rank(expr, over=None, method="average", percentile=True)` | Cross-Sectional | Cross-sectional percentile rank $[0.0, 1.0]$ |
-| `cs_zscore(expr, over=None, clip_bound=None)` | Cross-Sectional | Cross-sectional zero-mean unit-variance standardization with optional $z$-clipping |
+| `cs_rank(expr, over=None, method="average", percentile=True)` | Cross-Sectional | Cross-sectional percentile rank [0.0, 1.0] |
+| `cs_zscore(expr, over=None, clip_bound=None)` | Cross-Sectional | Cross-sectional zero-mean unit-variance standardization with optional z-clipping |
 | `cs_winsorize(expr, over=None, method="quantile", lower=0.01, upper=0.99, threshold=3.0)` | Cross-Sectional | Cross-sectional outlier clipping via `"quantile"`, `"zscore"`, or robust `"mad"` |
 | `neutralize(expr, by, over=None, standardize=False)` | Cross-Sectional | Sector/industry/group demeaning & standardization |
 | `orthogonalize(expr, factors, over=None, standardize=True, ridge=0.0)` | Cross-Sectional | Multi-factor OLS Gram-Schmidt residualization & standardization |
-| `ts_scale(expr, a=1.0, over=None)` | Cross-Sectional | L1 book-size normalization ($\sum \vert w_i\vert  = a$) |
-| `amihud_illiquidity(close, volume, period=20, scale=1e6)` | Microstructure | Amihud (2002) Illiquidity Ratio $\frac{1}{N}\sum \frac{\vert r_t\vert }{\text{DollarVolume}_t} \times \text{scale}$ |
-| `roll_spread(close, period=20)` | Microstructure | Roll (1984) Serial Price-Change Covariance Effective Bid-Ask Spread $2\sqrt{\max(0, -\text{Cov}(\Delta P_t, \Delta P_{t-1}))}$ |
+| `ts_scale(expr, a=1.0, over=None)` | Cross-Sectional | L1 book-size normalization (∑ |w_i| = a) |
+| `amihud_illiquidity(close, volume, period=20, scale=1e6)` | Microstructure | Amihud (2002) Illiquidity Ratio: (1/N) ∑ (|r_t| / DollarVolume_t) × scale |
+| `roll_spread(close, period=20)` | Microstructure | Roll (1984) Serial Price-Change Covariance Effective Bid-Ask Spread: 2 × sqrt(max(0, -Cov(ΔP_t, ΔP_{t-1}))) |
 | `corwin_schultz_spread(high, low, period=20)` | Microstructure | Corwin & Schultz (2012) Two-Bar High-Low Range Effective Bid-Ask Spread Estimator |
-| `kyle_lambda(close, volume, period=20, scale=1e6)` | Microstructure | Kyle (1985) Price-Impact Coefficient $\lambda$ via Rolling OLS on Signed Dollar Volume |
-| `vpin(close, volume, period=20)` | Microstructure | Bulk Volume Classification (BVC) Volume-Synchronized Probability of Informed Trading $[0, 1]$ |
+| `kyle_lambda(close, volume, period=20, scale=1e6)` | Microstructure | Kyle (1985) Price-Impact Coefficient λ via Rolling OLS on Signed Dollar Volume |
+| `vpin(close, volume, period=20)` | Microstructure | Bulk Volume Classification (BVC) Volume-Synchronized Probability of Informed Trading [0, 1] |
 | `ofi(bid_price, bid_size, ask_price, ask_size, period=1)` | Microstructure | Cont, Kukanov & Stoikov (2014) Level-1 Order Flow Imbalance |
 | `futures_basis(futures_close, spot_close, days_to_expiry=None, period=20)` | Index Futures | Futures-Spot Spread, Proportional Basis, Annualized Carry & Basis Z-Score (`Struct`) |
 | `oi_regime(close, open_interest, period=1)` | Index Futures | 4-State Open Interest & Price Action Regime Classifier (`Struct`: Long/Short Buildup & Covering/Liquidation) |
 | `twap(high, low, close, period=20)` | Microstructure | Rolling Time-Weighted Average Price |
-| `relative_spread(high, low, close)` | Microstructure | Intraday High-Low Relative Range Proxy $(H_t - L_t) / C_t$ |
-| `hl_ratio(high, low)` | Microstructure | Log Intraday Volatility Expansion $\ln(H_t / L_t)$ |
-| `co_ratio(close, open)` | Microstructure | Log Intraday Sentiment Drift $\ln(C_t / O_t)$ |
+| `relative_spread(high, low, close)` | Microstructure | Intraday High-Low Relative Range Proxy (H_t - L_t) / C_t |
+| `hl_ratio(high, low)` | Microstructure | Log Intraday Volatility Expansion ln(H_t / L_t) |
+| `co_ratio(close, open)` | Microstructure | Log Intraday Sentiment Drift ln(C_t / O_t) |
 | `returns_divergence(close, volume, period=14)` | Microstructure | Rolling Price Return vs. Volume Change Divergence |
 | `volume_weighted_momentum(close, volume, period=10)` | Microstructure | Price Rate of Change Amplified by Relative Volume Ratio |
-| `ts_rank(close, period=10)` | Time-Series | Vectorized rolling percentile rank $[0.0, 1.0]$ |
+| `ts_rank(close, period=10)` | Time-Series | Vectorized rolling percentile rank [0.0, 1.0] |
 | `ts_argmax(close, period=10)` | Time-Series | Vectorized bars elapsed since rolling window peak |
 | `ts_argmin(close, period=10)` | Time-Series | Vectorized bars elapsed since rolling window trough |
 | `decay_linear(close, period=10)` | Time-Series | Linearly decaying weighted moving average |
-| `ts_delta(expr, period=1)` | Time-Series | Difference operator $x_t - x_{t-d}$ |
-| `ts_delay(expr, period=1)` | Time-Series | Lag operator $x_{t-d}$ |
-| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power $\text{sign}(x) \cdot \vert x\vert ^a$ |
+| `ts_delta(expr, period=1)` | Time-Series | Difference operator x_t - x_{t-d} |
+| `ts_delay(expr, period=1)` | Time-Series | Lag operator x_{t-d} |
+| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power sign(x) × |x|^a |
 | `ts_min(expr, period=10)` | Time-Series | Rolling window minimum |
 | `ts_max(expr, period=10)` | Time-Series | Rolling window maximum |
 | `ts_sum(expr, period=10)` | Time-Series | Rolling window sum |
@@ -501,10 +501,10 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `ts_product(expr, period=10)` | Time-Series | Vectorized rolling window product |
 | `ts_correlation(x, y, period=10)` | Time-Series | Rolling Pearson correlation |
 | `ts_covariance(x, y, period=10)` | Time-Series | Rolling sample covariance |
-| `ts_zscore(close, period=20)` | Time-Series | Time-series rolling standardization $(x_t - \mu_t) / \sigma_t$ |
-| `hurst_exponent(close, period=50)` | Regime / Complexity | Vectorized Rolling R/S Hurst Exponent $H \in [0, 1]$ (mean-reversion vs. trend persistence) |
-| `fractal_dimension(high, low, period=20)` | Regime / Complexity | John Ehlers' Fractal Dimension Index $D \in [1, 2]$ (market noise vs. trend efficiency) |
-| `entropy(close, period=20, bins=5)` | Regime / Complexity | Rolling Normalized Shannon Information Entropy $[0, 1]$ |
+| `ts_zscore(close, period=20)` | Time-Series | Time-series rolling standardization (x_t - μ_t) / σ_t |
+| `hurst_exponent(close, period=50)` | Regime / Complexity | Vectorized Rolling R/S Hurst Exponent H ∈ [0, 1] (mean-reversion vs. trend persistence) |
+| `fractal_dimension(high, low, period=20)` | Regime / Complexity | John Ehlers' Fractal Dimension Index D ∈ [1, 2] (market noise vs. trend efficiency) |
+| `entropy(close, period=20, bins=5)` | Regime / Complexity | Rolling Normalized Shannon Information Entropy [0, 1] |
 | `alpha_001` – `alpha_030` | Formulaic Alpha | Canonical formulaic alphas (#1 through #30, Kakushadze 2016) |
 | `alpha_041(high, low, close, volume)` | Formulaic Alpha | Geometric High-Low Midpoint vs. VWAP |
 | `alpha_054(open, high, low, close)` | Formulaic Alpha | Intraday Candlestick Power Ratio |
@@ -519,23 +519,23 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 
 | Function Signature | Domain | Description |
 | :--- | :--- | :--- |
-| `forward_returns(df, close_col="close", periods=(1, 5, 10), group_by=None)` | Factor Evaluation | Multi-horizon forward returns $(P_{t+k} / P_t) - 1$ for factor testing |
+| `forward_returns(df, close_col="close", periods=(1, 5, 10), group_by=None)` | Factor Evaluation | Multi-horizon forward returns (P_{t+k} / P_t) - 1 for factor testing |
 | `information_coefficient(df, factor_col, return_col, group_by=None, method="spearman")` | Factor Evaluation | Cross-sectional Rank IC (`"spearman"`) or Normal IC (`"pearson"`) series |
 | `ic_summary(df, factor_col, return_col, group_by=None, method="spearman", nw_lags=None)` | Factor Evaluation | Summary dictionary (`ic_mean`, `ic_std`, `icir`, `t_stat`, `nw_t_stat`, `hit_rate`, `n_periods`) |
-| `ic_decay(df, factor_col, close_col="close", horizons=(1, 2, 3, 5, 10, 20), ...)` | Factor Evaluation | Multi-horizon IC decay schedule with Newey-West HAC $t$-stat and exponential Alpha Half-Life |
-| `quantile_analysis(df, factor_col, return_col, quantiles=5, group_by=None)` | Factor Evaluation | Quantile bucket returns, Sharpe, win rate, and cumulative performance ($Q_1 \dots Q_N$) |
+| `ic_decay(df, factor_col, close_col="close", horizons=(1, 2, 3, 5, 10, 20), ...)` | Factor Evaluation | Multi-horizon IC decay schedule with Newey-West HAC t-stat and exponential Alpha Half-Life |
+| `quantile_analysis(df, factor_col, return_col, quantiles=5, group_by=None)` | Factor Evaluation | Quantile bucket returns, Sharpe, win rate, and cumulative performance (Q₁ ... Q_N) |
 | `factor_turnover(df, factor_col, asset_col="ticker", time_col="timestamp", lag=1)` | Factor Evaluation | Rank autocorrelation and L1 signal turnover across periods |
 | `triple_barrier_labels(close, volatility=None, horizon=10, pt_mult=2.0, sl_mult=2.0, ...)` | AFML Labeling | Dynamic Triple-Barrier & Meta-Labeling (`Struct(label, touch_bars, realized_return, meta_label)`) |
 | `trend_scanning_labels(close, min_window=5, max_window=20, step=1)` | AFML Labeling | Multi-Horizon OLS Trend-Scanning Labels (`Struct(label, t_value, optimal_window, ret)`) |
-| `drawdown_series(returns_or_equity, is_returns=True)` | Performance Metric | Underwater percentage drawdown curve $\le 0.0$ |
+| `drawdown_series(returns_or_equity, is_returns=True)` | Performance Metric | Underwater percentage drawdown curve ≤ 0.0 |
 | `max_drawdown(returns_or_equity, is_returns=True)` | Performance Metric | Scalar Maximum Drawdown (MDD) |
 | `sharpe_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sharpe Ratio scalar expression |
 | `sortino_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sortino Ratio using downside deviation |
-| `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by $\vert MDD\vert $ |
-| `profit_factor(returns)` | Performance Metric | Gross Profit divided by $\vert Gross Loss\vert $ |
+| `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by |MDD| |
+| `profit_factor(returns)` | Performance Metric | Gross Profit divided by |Gross Loss| |
 | `win_rate(returns, include_zeros=False)` | Performance Metric | Proportion of active periods with positive returns |
-| `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Skewness- & Kurtosis-adjusted Probabilistic Sharpe Ratio (PSR $\in [0, 1]$) |
-| `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | Performance Metric | Multiple-Testing Deflated Sharpe Ratio (DSR $\in [0, 1]$, Bailey & López de Prado 2014) |
+| `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Skewness- & Kurtosis-adjusted Probabilistic Sharpe Ratio (PSR ∈ [0, 1]) |
+| `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | Performance Metric | Multiple-Testing Deflated Sharpe Ratio (DSR ∈ [0, 1], Bailey & López de Prado 2014) |
 | `crosses_above(a, b, over=None)` / `crosses_below(a, b, over=None)` | Backtesting | Boolean crossover/crossunder detection against another series or scalar threshold |
 | `signals_to_positions(entries, exits, ...)` | Backtesting | Loop-free `.forward_fill()` state machine converting entry/exit triggers to positions |
 | `vectorized_backtest(df, signal="signal", ...)` / `df.anta.backtest(...)` | Backtesting | Vectorized backtester with `execution_price` (`open`/`twap`/`vwap`), `flat_mask`, `vol_target`, `no_trade_buffer`, fees & slippage |
@@ -551,11 +551,11 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 
 | Function Signature | Domain | Description |
 | :--- | :--- | :--- |
-| `validate_ohlcv(df, ...)` / `df.anta.validate_ohlcv(...)` | Data Integrity | Structural validation of OHLCV invariants ($H_t \ge \max(O_t, C_t, L_t)$, $L_t \le \min(O_t, C_t, H_t)$, $V_t \ge 0$, chronological monotonicity) |
+| `validate_ohlcv(df, ...)` / `df.anta.validate_ohlcv(...)` | Data Integrity | Structural validation of OHLCV invariants (H_t ≥ max(O_t, C_t, L_t), L_t ≤ min(O_t, C_t, H_t), V_t ≥ 0, chronological monotonicity) |
 | `resample_ohlcv(df, every, ...)` / `df.anta.resample(every, ...)` | Time Bar Aggregation | Multi-timeframe calendar aggregation (`"5m"`, `"15m"`, `"1h"`, `"1d"`) via `group_by_dynamic` |
-| `resample_volume_bars(df, volume_threshold, ...)` | Information Bars | Cumulative Volume Bar sampling ($\sum V_i \ge \Theta_V$) restoring return Gaussianity |
-| `resample_dollar_bars(df, dollar_threshold, ...)` | Information Bars | Cumulative Dollar/Notional Bar sampling ($\sum P_i V_i \ge \Theta_D$) invariant to price inflation |
-| `resample_imbalance_bars(df, expected_imbalance, ...)` | Information Bars | López de Prado (2018) Tick/Volume Imbalance Bars ($\left\vert \sum b_i v_i\right\vert  \ge \Theta_{\text{TIB/VIB}}$) |
+| `resample_volume_bars(df, volume_threshold, ...)` | Information Bars | Cumulative Volume Bar sampling (∑ V_i ≥ Θ_V) restoring return Gaussianity |
+| `resample_dollar_bars(df, dollar_threshold, ...)` | Information Bars | Cumulative Dollar/Notional Bar sampling (∑ P_i V_i ≥ Θ_D) invariant to price inflation |
+| `resample_imbalance_bars(df, expected_imbalance, ...)` | Information Bars | López de Prado (2018) Tick/Volume Imbalance Bars (|∑ b_i v_i| ≥ Θ_imbalance) |
 | `stitch_futures_roll(df, method="backward", ...)` | Continuous Futures | Non-leaky continuous futures stitching (`"backward"`, `"ratio"`, `"panama"`) across contract expiries |
 
 </details>
@@ -569,32 +569,38 @@ For complete derivations, step-by-step proofs, and institutional research workfl
 ### 1. Closed-Form Algebraic Reductions ($O(N)$ Rust Native Kernels)
 
 - **112.4x Faster Rolling OLS Linear Regression (`linear_regression_slope`)**:
-  Instead of solving $\left(X^\top X\right)^{-1} X^\top Y_t$ inside a Python loop over $N$ bars, `polars-anta` exploits the exact linear relationship between the Linearly Weighted Moving Average ($\text{WMA}_n$, weights $w_i \propto i+1$) and Simple Moving Average ($\text{SMA}_n$):
+  Instead of solving $(X^\top X)^{-1} X^\top Y_t$ inside a Python loop over $N$ bars, `polars-anta` exploits the exact linear relationship between the Linearly Weighted Moving Average ($\text{WMA}_n$, weights $w_i \propto i+1$) and Simple Moving Average ($\text{SMA}_n$):
 
-  $$\beta_{1,t} = \frac{6}{n + 1}\left(\text{WMA}_n(y)_t - \text{SMA}_n(y)_t\right), \qquad \beta_{0,t} = \text{SMA}_n(y)_t - \beta_{1,t}\frac{n - 1}{2}$$
+$$
+\beta_{1,t} = \frac{6}{n - 1}\left(\text{WMA}_n(y)_t - \text{SMA}_n(y)_t\right), \qquad \beta_{0,t} = \text{SMA}_n(y)_t - \beta_{1,t}\frac{n - 1}{2}
+$$
 
   Both $\text{WMA}_n$ and $\text{SMA}_n$ execute natively inside Polars' multi-threaded Rust engine with $O(1)$ amortized cost per bar.
 
 - **Wilder's RMA & Heikin-Ashi via Exact `ewm_mean` Mapping**:
-  Wilder's recursive smoothing ($RMA_t = \frac{1}{n}x_t + \frac{n-1}{n}RMA_{t-1}$ in `rsi`, `atr`, `adx`) and Heikin-Ashi open prices ($HA\_Open_t = \frac{1}{2}HA\_Open_{t-1} + \frac{1}{2}HA\_Close_{t-1}$) are mapped directly to `pl.Expr.ewm_mean(alpha=1/n, adjust=False)` and `ewm_mean(alpha=0.5, adjust=False)`—eliminating sequential Python loops completely.
+  Wilder's recursive smoothing ($\text{RMA}_t = \frac{1}{n}x_t + \frac{n-1}{n}\text{RMA}_{t-1}$ in `rsi`, `atr`, `adx`) and Heikin-Ashi open prices ($\text{HA\_Open}_t = \frac{1}{2}\text{HA\_Open}_{t-1} + \frac{1}{2}\text{HA\_Close}_{t-1}$) are mapped directly to `pl.Expr.ewm_mean(alpha=1/n, adjust=False)` and `ewm_mean(alpha=0.5, adjust=False)`—eliminating sequential Python loops completely.
 
 - **Fixed-Window Fractional Differentiation (`frac_diff`, López de Prado 2018)**:
-  Expands the backshift operator $(1 - B)^d = \sum_{k=0}^{\infty} \omega_k B^k$ via recursive binomial weights $\omega_0 = 1, \; \omega_k = -\omega_{k-1} \frac{d - k + 1}{k}$ over a fixed window $W$, achieving statistical stationarity ($d \approx 0.3\text{–}0.5$) while preserving long-memory trend/cointegration information lost by first-differencing ($d=1$).
+  Expands the backshift operator $(1 - B)^d = \sum_{k=0}^{\infty} \omega_k B^k$ via recursive binomial weights $\omega_0 = 1, \; \omega_k = -\omega_{k-1} \frac{d - k + 1}{k}$ over a fixed window $W$, achieving statistical stationarity ($d \approx 0.3 \text{--} 0.5$) while preserving long-memory trend/cointegration information lost by first-differencing ($d=1$).
 
 ### 2. Cross-Sectional Factor Orthogonalization & Statistical Inference
 
 - **Modified Gram-Schmidt Multi-Factor Projection (`orthogonalize`)**:
   Applies the Frisch-Waugh-Lovell theorem per timestamp cross-section (`over="date"`) to strip linear exposures to $K$ arbitrary risk factors $F = [f_1, \dots, f_K]$ (e.g., Market Beta, Log Size, Volatility, Liquidity) with optional Ridge regularization $\lambda \ge 0$:
 
-  $$u_k = \tilde{f}_k - \sum_{j=1}^{k-1} \frac{\langle \tilde{f}_k, u_j \rangle}{\|u_j\|_2^2 + \lambda} u_j, \qquad \epsilon_\alpha = \tilde{\alpha} - \sum_{k=1}^{K} \frac{\langle \tilde{\alpha}, u_k \rangle}{\|u_k\|_2^2 + \lambda} u_k$$
+$$
+u_k = \tilde{f}_k - \sum_{j=1}^{k-1} \frac{\langle \tilde{f}_k, u_j \rangle}{\|u_j\|_2^2 + \lambda} u_j, \qquad \epsilon_\alpha = \tilde{\alpha} - \sum_{k=1}^{K} \frac{\langle \tilde{\alpha}, u_k \rangle}{\|u_k\|_2^2 + \lambda} u_k
+$$
 
-- **Newey-West HAC $t$-Statistics & Exponential Alpha Half-Life (`ic_summary`, `ic_decay`)**:
+- **Newey-West HAC *t*-Statistics & Exponential Alpha Half-Life (`ic_summary`, `ic_decay`)**:
   Multi-period forward returns ($h > 1$) induce $MA(h-1)$ serial correlation in Information Coefficient series. `polars-anta` applies the Newey & West (1987) Bartlett kernel variance estimator $\hat{\Omega}_{NW} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L+1}\right) \hat{\gamma}_j$ so $t_{NW} = \frac{\overline{IC}}{\sqrt{\hat{\Omega}_{NW} / T}}$ remains unbiased, and fits $\ln |IC(h)| = a - \lambda h$ to estimate the exact signal **Half-Life** $t_{1/2} = \frac{\ln 2}{\lambda}$.
 
 - **Probabilistic & Deflated Sharpe Ratios (`probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`)**:
   Adjusts Sharpe Ratio inference for non-normal skewness ($\hat{\gamma}_3$), fat tails ($\hat{\gamma}_4$), and selection bias across $K$ tested parameter configurations (Bailey & López de Prado, 2014):
 
-  $$\text{PSR}(SR^*) = \Phi\!\left(\frac{(\widehat{SR} - SR^*)\sqrt{T - 1}}{\sqrt{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{SR}^2}}\right), \qquad SR^*_{DSR} = \sqrt{V[\{\widehat{SR}_k\}]}\left((1 - \gamma)\Phi^{-1}\!\left(1 - \frac{1}{K}\right) + \gamma \Phi^{-1}\!\left(1 - \frac{1}{K e}\right)\right)$$
+$$
+\text{PSR}(SR^*) = \Phi\!\left(\frac{(\widehat{SR} - SR^*)\sqrt{T - 1}}{\sqrt{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{SR}^2}}\right), \qquad SR^*_{DSR} = \sqrt{V[\{\widehat{SR}_k\}]}\left((1 - \gamma)\Phi^{-1}\!\left(1 - \frac{1}{K}\right) + \gamma \Phi^{-1}\!\left(1 - \frac{1}{K e}\right)\right)
+$$
 
 ### 3. Zero-Copy Stride Windows & Loop-Free State Machines
 

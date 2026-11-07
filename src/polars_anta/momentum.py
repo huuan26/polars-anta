@@ -368,6 +368,48 @@ def ppo(
     )
 
 
+def trix(
+    close: IntoExpr,
+    period: int = 15,
+    signal_period: int = 9,
+) -> pl.Expr:
+    """Triple Exponential Average (TRIX) Oscillator.
+
+    Returns a Polars Struct with fields:
+        - 'trix': 1-bar percentage ROC of triple EMA
+        - 'signal': EMA of trix over signal_period
+
+    :param close: price column name or expression
+    :param period: EMA lookback applied three times (default 15)
+    :param signal_period: signal line EMA period (default 9)
+    :return: Polars Struct expression
+    """
+    if period <= 0 or signal_period <= 0:
+        raise ValueError("periods must be positive integers greater than zero")
+
+    c = parse_expr(close)
+    ema_1 = ema(c, period=period)
+    ema_2 = ema(ema_1, period=period)
+    ema_3 = ema(ema_2, period=period)
+    prev = ema_3.shift(1)
+    # A missing prior triple EMA (leading bar, or a null smooth) stays null.
+    # A zero prior smooth has an undefined percentage change and is reported as 0.
+    trix_line = (
+        pl.when(prev.is_not_null() & (prev != 0.0))
+        .then(100.0 * (ema_3 - prev) / prev)
+        .when(prev.is_not_null())
+        .then(0.0)
+    )
+    signal_line = ema(trix_line, period=signal_period)
+
+    return pl.struct(
+        [
+            trix_line.alias("trix"),
+            signal_line.alias("signal"),
+        ]
+    )
+
+
 def coppock(
     close: IntoExpr,
     wma_period: int = 10,

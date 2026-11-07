@@ -380,6 +380,14 @@ class TechnicalAnalysisExpr:
             signal_period=signal_period,
         )
 
+    def trix(
+        self,
+        period: int = 15,
+        signal_period: int = 9,
+    ) -> pl.Expr:
+        """Triple Exponential Average (TRIX) Oscillator."""
+        return momentum.trix(self._expr, period=period, signal_period=signal_period)
+
     def coppock(
         self,
         wma_period: int = 10,
@@ -2313,6 +2321,20 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         """Rate of Change (ROC)."""
         alias_name = alias or f"roc_{period}"
         return self._apply_expr(momentum.roc(col, period=period), alias_name, group_by=group_by)
+
+    def trix(
+        self,
+        period: int = 15,
+        signal_period: int = 9,
+        col: IntoExpr = "close",
+        alias: str = "trix",
+        unnest: bool = False,
+        prefix: str | None = None,
+        group_by: str | Sequence[str] | None = None,
+    ) -> FrameType:
+        """Triple Exponential Average (TRIX) Oscillator."""
+        expr = momentum.trix(col, period=period, signal_period=signal_period)
+        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
 
     # =========================================================================
     # Volatility Indicators

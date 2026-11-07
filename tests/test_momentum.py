@@ -24,6 +24,7 @@ from polars_anta.momentum import (
     stc,
     stoch_rsi,
     stochastic,
+    trix,
     tsi,
     ultimate_oscillator,
     williams_r,
@@ -317,3 +318,162 @@ def test_stc_namespace(sample_ohlcv_df: pl.DataFrame):
     assert "stc" in df_res.columns
     # Values should match
     assert expr_res["stc"].equals(df_res["stc"])
+
+
+def _ema(values: list[float | None], period: int) -> list[float | None]:
+    """adjust=False EMA, matching ``Expr.ewm_mean(span=period, adjust=False)``."""
+    alpha = 2.0 / (period + 1.0)
+    out: list[float | None] = []
+    prev: float | None = None
+    for value in values:
+        if value is None:
+            out.append(None)
+            continue
+        prev = value if prev is None else (alpha * value + (1.0 - alpha) * prev)
+        out.append(prev)
+    return out
+
+
+def _reference_trix(
+    closes: list[float | None],
+    period: int = 15,
+    signal_period: int = 9,
+) -> tuple[list[float | None], list[float | None]]:
+    ema_3 = _ema(_ema(_ema(closes, period), period), period)
+    trix_line: list[float | None] = [None]
+    for current, previous in zip(ema_3[1:], ema_3[:-1], strict=True):
+        if current is None or previous is None:
+            trix_line.append(None)
+        elif previous == 0.0:
+            trix_line.append(0.0)
+        else:
+            trix_line.append(100.0 * (current - previous) / previous)
+    return trix_line, _ema(trix_line, signal_period)
+
+
+def test_trix_matches_triple_ema_roc(sample_ohlcv_df: pl.DataFrame):
+    period, signal_period = 5, 3
+    result = sample_ohlcv_df.select(
+        trix("close", period=period, signal_period=signal_period).alias("trix_struct")
+    ).unnest("trix_struct")
+
+    expected_trix, expected_signal = _reference_trix(
+        sample_ohlcv_df["close"].to_list(),
+        period=period,
+        signal_period=signal_period,
+    )
+    for got, exp in zip(result["trix"].to_list(), expected_trix, strict=True):
+        if exp is None:
+            assert got is None
+        else:
+            assert got == pytest.approx(exp, rel=1e-9, abs=1e-9)
+    for got, exp in zip(result["signal"].to_list(), expected_signal, strict=True):
+        if exp is None:
+            assert got is None
+        else:
+            assert got == pytest.approx(exp, rel=1e-9, abs=1e-9)
+
+    # Rising sample closes produce a positive oscillator after the triple smooth.
+    assert result["trix"][-1] > 0.0
+
+
+def test_trix_flat_and_zero_series():
+    flat = pl.DataFrame({"close": [50.0] * 40})
+    flat_res = flat.select(trix("close", period=5, signal_period=3).alias("t")).unnest("t")
+    flat_trix = [v for v in flat_res["trix"].to_list() if v is not None]
+    flat_signal = [v for v in flat_res["signal"].to_list() if v is not None]
+    assert flat_trix
+    assert all(v == pytest.approx(0.0, abs=1e-12) for v in flat_trix)
+    assert all(v == pytest.approx(0.0, abs=1e-12) for v in flat_signal)
+
+    zeros = pl.DataFrame({"close": [0.0] * 20})
+    zero_res = zeros.select(trix("close", period=4, signal_period=2).alias("t")).unnest("t")
+    zero_trix = [v for v in zero_res["trix"].to_list() if v is not None]
+    assert zero_trix
+    assert all(v == pytest.approx(0.0, abs=1e-12) for v in zero_trix)
+
+
+def _assert_close(actual: list[float | None], expected: list[float | None]) -> None:
+    assert len(actual) == len(expected)
+    for got, exp in zip(actual, expected, strict=True):
+        if exp is None:
+            assert got is None
+        else:
+            assert got == pytest.approx(exp, rel=1e-9, abs=1e-9)
+
+
+def test_trix_null_and_nan_prices():
+    closes = [10.0, 11.0, None, 12.0, 13.0, 14.0, 13.5, 15.0, 16.0, 15.5, 17.0, 18.0]
+    result = (
+        pl.DataFrame({"close": closes})
+        .select(trix("close", period=3, signal_period=2).alias("t"))
+        .unnest("t")
+    )
+    trix_vals = result["trix"].to_list()
+    signal_vals = result["signal"].to_list()
+
+    # No previous triple EMA on the first bar, and a null close stays null.
+    assert trix_vals[0] is None and signal_vals[0] is None
+    assert trix_vals[2] is None and signal_vals[2] is None
+    recovered = [v for v in trix_vals if v is not None]
+    assert recovered
+    assert all(abs(v) < 1e6 for v in recovered)
+
+    nan_close = [10.0, 11.0, float("nan"), 13.0, 14.0, 15.0, 16.0]
+    nan_res = (
+        pl.DataFrame({"close": nan_close})
+        .select(trix("close", period=3, signal_period=2).alias("t"))
+        .unnest("t")
+    )
+    # NaN follows the underlying EMA and does not raise.
+    assert nan_res["trix"][2] != nan_res["trix"][2]
+
+
+def test_trix_multi_asset_over():
+    aapl = [100.0 + i * 0.8 for i in range(30)]
+    msft = [50.0 - i * 0.3 for i in range(30)]
+    df = pl.DataFrame(
+        {
+            "symbol": ["AAPL"] * 30 + ["MSFT"] * 30,
+            "close": aapl + msft,
+        }
+    )
+    grouped = (
+        df.select(trix("close", period=5, signal_period=3).over("symbol").alias("t"))
+        .unnest("t")
+        .with_columns(df["symbol"])
+    )
+    for symbol, closes in (("AAPL", aapl), ("MSFT", msft)):
+        solo = (
+            pl.DataFrame({"close": closes})
+            .select(trix("close", period=5, signal_period=3).alias("t"))
+            .unnest("t")
+        )
+        part = grouped.filter(pl.col("symbol") == symbol)
+        _assert_close(part["trix"].to_list(), solo["trix"].to_list())
+        _assert_close(part["signal"].to_list(), solo["signal"].to_list())
+
+
+def test_trix_invalid_periods():
+    with pytest.raises(ValueError, match="periods must be positive integers"):
+        trix("close", period=0)
+    with pytest.raises(ValueError, match="periods must be positive integers"):
+        trix("close", signal_period=-1)
+
+
+def test_trix_namespace(sample_ohlcv_df: pl.DataFrame):
+    expr_anta = sample_ohlcv_df.select(
+        pl.col("close").anta.trix(period=5, signal_period=3).alias("t")
+    ).unnest("t")
+    expr_ta = sample_ohlcv_df.select(
+        pl.col("close").ta.trix(period=5, signal_period=3).alias("t")
+    ).unnest("t")
+    frame_anta = sample_ohlcv_df.anta.trix(period=5, signal_period=3, unnest=True)
+    frame_ta = sample_ohlcv_df.lazy().ta.trix(period=5, signal_period=3, unnest=True).collect()
+
+    assert expr_anta.columns == ["trix", "signal"]
+    assert expr_anta["trix"].equals(expr_ta["trix"])
+    assert expr_anta["signal"].equals(expr_ta["signal"])
+    assert expr_anta["trix"].equals(frame_anta["trix"])
+    assert expr_anta["signal"].equals(frame_ta["signal"])
+    assert "close" in frame_ta.columns

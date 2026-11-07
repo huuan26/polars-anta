@@ -1,6 +1,6 @@
 # Momentum Oscillators & Cycle Transforms (`polars_anta.momentum`)
 
-The `polars_anta.momentum` module provides **21 velocity oscillators, double-smoothed momentum filters, Gaussian Fisher transforms, and volatility-squeeze cycle detectors**.
+The `polars_anta.momentum` module provides **22 velocity oscillators, double-smoothed momentum filters, Gaussian Fisher transforms, and volatility-squeeze cycle detectors**.
 
 ---
 
@@ -60,6 +60,20 @@ $$
 $$
 
 Because the denominator normalizes by double-smoothed volatility, `tsi` acts as a high-signal-to-noise continuous Sharpe-like momentum oscillator.
+
+---
+
+### `trix(close, period=15, signal_period=9)`
+**Jack Hutson's Triple Exponential Average (`Struct(trix, signal)`):**
+Triple-smooths close with the same EMA span, then takes the one-bar percentage rate of change. The signal line is an EMA of that oscillator:
+
+$$
+\text{EMA}_{1} = \text{EMA}_n(C), \quad \text{EMA}_{2} = \text{EMA}_n(\text{EMA}_{1}), \quad \text{EMA}_{3} = \text{EMA}_n(\text{EMA}_{2})
+$$
+
+$$
+\text{TRIX}_t = 100 \times \frac{\text{EMA}_{3,t} - \text{EMA}_{3,t-1}}{\text{EMA}_{3,t-1}}, \qquad \text{Signal}_t = \text{EMA}_m(\text{TRIX}_t)
+$$
 
 ---
 

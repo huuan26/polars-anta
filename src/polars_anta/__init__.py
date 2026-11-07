@@ -124,6 +124,7 @@ from .momentum import (
     stc,
     stoch_rsi,
     stochastic,
+    trix,
     tsi,
     ultimate_oscillator,
     williams_r,
@@ -252,7 +253,7 @@ __all__ = [
     "fibonacci_pivots",
     "camarilla_pivots",
     "woodie_pivots",
-    # Momentum (21)
+    # Momentum (22)
     "rsi",
     "macd",
     "stochastic",
@@ -264,6 +265,7 @@ __all__ = [
     "stoch_rsi",
     "awesome_oscillator",
     "tsi",
+    "trix",
     "cmo",
     "ppo",
     "coppock",

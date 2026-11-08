@@ -230,3 +230,89 @@ def test_linear_regression_stderr_rejects_invalid_period():
     for bad in (2, 1, 0):
         with pytest.raises(ValueError):
             linear_regression_stderr("close", period=bad)
+
+
+def _numpy_skew(values, bias: bool) -> float:
+    import math
+
+    import numpy as np
+
+    x = np.asarray(values, dtype=np.float64)
+    n = x.size
+    dev = x - x.mean()
+    m2 = float(np.mean(dev**2))
+    m3 = float(np.mean(dev**3))
+    g1 = m3 / m2**1.5
+    if bias:
+        return g1
+    return math.sqrt(n * (n - 1.0)) / (n - 2.0) * g1
+
+
+def _numpy_excess_kurtosis(values, bias: bool) -> float:
+    import numpy as np
+
+    x = np.asarray(values, dtype=np.float64)
+    n = x.size
+    dev = x - x.mean()
+    m2 = float(np.mean(dev**2))
+    m4 = float(np.mean(dev**4))
+    g2 = m4 / m2**2 - 3.0
+    if bias:
+        return g2
+    return (n - 1.0) / ((n - 2.0) * (n - 3.0)) * ((n + 1.0) * g2 + 6.0)
+
+
+BIAS_WINDOW = [1.0, 2.0, 3.0, 4.0, 100.0]
+
+
+@pytest.mark.parametrize("bias", [True, False])
+def test_skewness_matches_numpy(bias: bool):
+    df = pl.DataFrame({"x": BIAS_WINDOW})
+    got = df.select(skewness("x", period=5, bias=bias).alias("s"))["s"][-1]
+    expected = _numpy_skew(BIAS_WINDOW, bias)
+    assert got == pytest.approx(expected, rel=1e-10, abs=1e-10)
+
+
+@pytest.mark.parametrize("bias", [True, False])
+def test_kurtosis_matches_numpy(bias: bool):
+    df = pl.DataFrame({"x": BIAS_WINDOW})
+    got = df.select(kurtosis("x", period=5, bias=bias).alias("k"))["k"][-1]
+    expected = _numpy_excess_kurtosis(BIAS_WINDOW, bias)
+    assert got == pytest.approx(expected, rel=1e-10, abs=1e-10)
+
+
+def test_skewness_default_is_adjusted_sample():
+    df = pl.DataFrame({"x": BIAS_WINDOW})
+    default = df.select(skewness("x", period=5).alias("s"))["s"][-1]
+    sample = df.select(skewness("x", period=5, bias=False).alias("s"))["s"][-1]
+    population = df.select(skewness("x", period=5, bias=True).alias("s"))["s"][-1]
+    assert default == pytest.approx(sample)
+    assert default != pytest.approx(population)
+
+
+def test_kurtosis_default_is_adjusted_sample():
+    df = pl.DataFrame({"x": BIAS_WINDOW})
+    default = df.select(kurtosis("x", period=5).alias("k"))["k"][-1]
+    sample = df.select(kurtosis("x", period=5, bias=False).alias("k"))["k"][-1]
+    population = df.select(kurtosis("x", period=5, bias=True).alias("k"))["k"][-1]
+    assert default == pytest.approx(sample)
+    assert default != pytest.approx(population)
+
+
+def test_bias_validation_period_too_small():
+    df = pl.DataFrame({"x": BIAS_WINDOW})
+    with pytest.raises(ValueError, match="period >= 3"):
+        skewness("x", period=2)
+    with pytest.raises(ValueError, match="period >= 4"):
+        kurtosis("x", period=3)
+    # The biased population estimators are still defined for two observations.
+    df.select(skewness("x", period=2, bias=True).alias("s"))
+    df.select(kurtosis("x", period=2, bias=True).alias("k"))
+
+
+def test_namespace_forwards_bias():
+    df = pl.DataFrame({"x": BIAS_WINDOW})
+    expr = pl.col("x").anta.skewness(period=5, bias=True)
+    got = df.select(expr.alias("s"))["s"][-1]
+    expected = _numpy_skew(BIAS_WINDOW, True)
+    assert got == pytest.approx(expected, rel=1e-10, abs=1e-10)

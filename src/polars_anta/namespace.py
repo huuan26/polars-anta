@@ -633,6 +633,42 @@ class TechnicalAnalysisExpr:
             trading_periods=trading_periods,
         )
 
+    def rogers_satchell_volatility(
+        self,
+        open: IntoExpr,
+        high: IntoExpr,
+        low: IntoExpr,
+        period: int = 20,
+        trading_periods: int = 252,
+    ) -> pl.Expr:
+        """Rogers-Satchell Volatility."""
+        return volatility.rogers_satchell_volatility(
+            open=open,
+            high=high,
+            low=low,
+            close=self._expr,
+            period=period,
+            trading_periods=trading_periods,
+        )
+
+    def yang_zhang_volatility(
+        self,
+        open: IntoExpr,
+        high: IntoExpr,
+        low: IntoExpr,
+        period: int = 20,
+        trading_periods: int = 252,
+    ) -> pl.Expr:
+        """Yang-Zhang Volatility."""
+        return volatility.yang_zhang_volatility(
+            open=open,
+            high=high,
+            low=low,
+            close=self._expr,
+            period=period,
+            trading_periods=trading_periods,
+        )
+
     def chaikin_volatility(
         self,
         high: IntoExpr,
@@ -905,13 +941,13 @@ class TechnicalAnalysisExpr:
         """Rolling Percentile Rank."""
         return stats.percentile_rank(self._expr, period=period)
 
-    def skewness(self, period: int = 20) -> pl.Expr:
-        """Rolling Sample Skewness."""
-        return stats.skewness(self._expr, period=period)
+    def skewness(self, period: int = 20, bias: bool = False) -> pl.Expr:
+        """Rolling Skewness (adjusted sample by default, bias=True for population)."""
+        return stats.skewness(self._expr, period=period, bias=bias)
 
-    def kurtosis(self, period: int = 20) -> pl.Expr:
-        """Rolling Excess Kurtosis."""
-        return stats.kurtosis(self._expr, period=period)
+    def kurtosis(self, period: int = 20, bias: bool = False) -> pl.Expr:
+        """Rolling Excess Kurtosis (adjusted sample by default, bias=True for population)."""
+        return stats.kurtosis(self._expr, period=period, bias=bias)
 
     def rolling_cov(self, other: IntoExpr, period: int = 20) -> pl.Expr:
         """Rolling Covariance with another series."""

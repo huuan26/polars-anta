@@ -197,10 +197,12 @@ from .volatility import (
     keltner_width,
     natr,
     parkinson_volatility,
+    rogers_satchell_volatility,
     starc_bands,
     stddev,
     true_range,
     ulcer_index,
+    yang_zhang_volatility,
 )
 from .volume import (
     adl,
@@ -289,6 +291,8 @@ __all__ = [
     "historical_volatility",
     "parkinson_volatility",
     "garman_klass_volatility",
+    "rogers_satchell_volatility",
+    "yang_zhang_volatility",
     "chaikin_volatility",
     "donchian_width",
     "envelopes",

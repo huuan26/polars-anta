@@ -22,6 +22,8 @@ __all__ = [
     "historical_volatility",
     "parkinson_volatility",
     "garman_klass_volatility",
+    "rogers_satchell_volatility",
+    "yang_zhang_volatility",
     "chaikin_volatility",
     "donchian_width",
 ]
@@ -364,6 +366,100 @@ def garman_klass_volatility(
     ann_factor = math.sqrt(float(trading_periods)) * 100.0
 
     return pl.when(mean_val > 0.0).then(mean_val.sqrt() * ann_factor).otherwise(0.0)
+
+
+def rogers_satchell_volatility(
+    open: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    period: int = 20,
+    trading_periods: int = 252,
+) -> pl.Expr:
+    """Rogers-Satchell Volatility (drift-independent OHLC estimator).
+
+    Rogers & Satchell (1991). Unlike close-to-close volatility this estimator
+    stays unbiased when the underlying has a non-zero trend, and unlike
+    Parkinson it uses the full OHLC information rather than High-Low only.
+
+    :param open: open price column or expression
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param period: rolling window size (default 20)
+    :param trading_periods: trading periods per year (default 252)
+    :return: Polars expression in percentage
+    """
+    if period <= 0:
+        raise ValueError("period must be a positive integer greater than zero")
+    o = parse_expr(open)
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+
+    valid = (hi > 0.0) & (lo > 0.0) & (o > 0.0) & (c > 0.0)
+    term = (
+        pl.when(valid)
+        .then((hi / c).log() * (hi / o).log() + (lo / c).log() * (lo / o).log())
+        .otherwise(0.0)
+    )
+
+    mean_term = term.rolling_mean(window_size=period)
+    ann_factor = math.sqrt(float(trading_periods)) * 100.0
+
+    return pl.when(mean_term > 0.0).then(mean_term.sqrt() * ann_factor).otherwise(0.0)
+
+
+def yang_zhang_volatility(
+    open: IntoExpr,
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    period: int = 20,
+    trading_periods: int = 252,
+) -> pl.Expr:
+    """Yang-Zhang Volatility (overnight-jump and drift adjusted OHLC estimator).
+
+    Yang & Zhang (2000). Combines the overnight variance, the open-to-close
+    variance and the Rogers-Satchell variance with the minimum-variance weight
+    ``k = 0.34 / (1.34 + (n + 1) / (n - 1))``. This is the only one of the
+    canonical OHLC estimators that stays unbiased under both an opening jump
+    and an intraday drift.
+
+    :param open: open price column or expression
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param period: rolling window size, must be greater than 1 (default 20)
+    :param trading_periods: trading periods per year (default 252)
+    :return: Polars expression in percentage
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+    o = parse_expr(open)
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+    prev_c = c.shift(1)
+
+    valid = (hi > 0.0) & (lo > 0.0) & (o > 0.0) & (c > 0.0)
+    rs_term = (
+        pl.when(valid)
+        .then((hi / c).log() * (hi / o).log() + (lo / c).log() * (lo / o).log())
+        .otherwise(0.0)
+    )
+    overnight = pl.when(valid & (prev_c > 0.0)).then((o / prev_c).log()).otherwise(0.0)
+    intraday = pl.when(valid).then((c / o).log()).otherwise(0.0)
+
+    var_overnight = overnight.rolling_var(window_size=period)
+    var_intraday = intraday.rolling_var(window_size=period)
+    var_rs = rs_term.rolling_mean(window_size=period)
+
+    k = 0.34 / (1.34 + float(period + 1) / float(period - 1))
+    combined = var_overnight + k * var_intraday + (1.0 - k) * var_rs
+    ann = float(trading_periods)
+
+    return pl.when(combined > 0.0).then((combined * ann).sqrt() * 100.0).otherwise(0.0)
 
 
 def chaikin_volatility(

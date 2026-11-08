@@ -88,7 +88,7 @@ def skewness(
     :raises ValueError: if ``bias`` is False and ``period < 3``
     """
     if not bias and period < 3:
-        raise ValueError('skewness requires period >= 3 when bias=False')
+        raise ValueError("skewness requires period >= 3 when bias=False")
     c = parse_expr(close)
     mu = c.rolling_mean(window_size=period)
     mean_sq = (c**2).rolling_mean(window_size=period)
@@ -133,7 +133,7 @@ def kurtosis(
     :raises ValueError: if ``bias`` is False and ``period < 4``
     """
     if not bias and period < 4:
-        raise ValueError('kurtosis requires period >= 4 when bias=False')
+        raise ValueError("kurtosis requires period >= 4 when bias=False")
     c = parse_expr(close)
     mu = c.rolling_mean(window_size=period)
     mean_sq = (c**2).rolling_mean(window_size=period)

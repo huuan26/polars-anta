@@ -905,13 +905,13 @@ class TechnicalAnalysisExpr:
         """Rolling Percentile Rank."""
         return stats.percentile_rank(self._expr, period=period)
 
-    def skewness(self, period: int = 20) -> pl.Expr:
-        """Rolling Sample Skewness."""
-        return stats.skewness(self._expr, period=period)
+    def skewness(self, period: int = 20, bias: bool = False) -> pl.Expr:
+        """Rolling Skewness (adjusted sample by default, bias=True for population)."""
+        return stats.skewness(self._expr, period=period, bias=bias)
 
-    def kurtosis(self, period: int = 20) -> pl.Expr:
-        """Rolling Excess Kurtosis."""
-        return stats.kurtosis(self._expr, period=period)
+    def kurtosis(self, period: int = 20, bias: bool = False) -> pl.Expr:
+        """Rolling Excess Kurtosis (adjusted sample by default, bias=True for population)."""
+        return stats.kurtosis(self._expr, period=period, bias=bias)
 
     def rolling_cov(self, other: IntoExpr, period: int = 20) -> pl.Expr:
         """Rolling Covariance with another series."""

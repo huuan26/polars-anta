@@ -64,16 +64,31 @@ def percentile_rank(
 def skewness(
     close: IntoExpr,
     period: int = 20,
+    bias: bool = False,
 ) -> pl.Expr:
-    """Rolling Sample Skewness.
+    """Rolling Skewness.
 
     Measures the asymmetry of the rolling return or price distribution.
     Computed via pure vectorized Polars polynomial expansion.
 
+    Two estimators are available:
+
+    * ``bias=False`` (default): the adjusted Fisher-Pearson sample skewness
+      G1 = sqrt(n * (n - 1)) / (n - 2) * g1, which matches
+      ``pandas.Series.skew()`` and ``scipy.stats.skew(..., bias=False)``.
+    * ``bias=True``: the biased (population) moment ratio
+      g1 = m3 / m2**1.5, which matches ``polars.Series.skew(bias=True)``
+      and ``scipy.stats.skew(..., bias=True)``.
+
     :param close: price column or expression
     :param period: rolling lookback window (default 20)
+    :param bias: return the biased population estimator instead of the
+        adjusted sample estimator (default False)
     :return: Polars expression
+    :raises ValueError: if ``bias`` is False and ``period < 3``
     """
+    if not bias and period < 3:
+        raise ValueError("skewness requires period >= 3 when bias=False")
     c = parse_expr(close)
     mu = c.rolling_mean(window_size=period)
     mean_sq = (c**2).rolling_mean(window_size=period)
@@ -82,22 +97,43 @@ def skewness(
     variance = (mean_sq - mu**2).clip(lower_bound=1e-12)
     std = variance.sqrt()
     m3 = mean_cube - 3.0 * mu * mean_sq + 2.0 * (mu**3)
-    return m3 / (variance * std)
+    g1 = m3 / (variance * std)
+    if bias:
+        return g1
+    n = float(period)
+    return g1 * (math.sqrt(n * (n - 1.0)) / (n - 2.0))
 
 
 def kurtosis(
     close: IntoExpr,
     period: int = 20,
+    bias: bool = False,
 ) -> pl.Expr:
     """Rolling Excess Kurtosis.
 
-    Measures the tail heaviness of the rolling distribution relative to normal.
-    Computed via pure vectorized Polars polynomial expansion.
+    Measures the tail heaviness of the rolling distribution relative to
+    normal. Computed via pure vectorized Polars polynomial expansion.
+
+    Two estimators are available:
+
+    * ``bias=False`` (default): the adjusted Fisher-Pearson sample excess
+      kurtosis G2 = (n - 1) / ((n - 2) * (n - 3)) * ((n + 1) * g2 + 6),
+      which matches ``pandas.Series.kurt()`` and
+      ``scipy.stats.kurtosis(..., bias=False)``.
+    * ``bias=True``: the biased (population) excess moment ratio
+      g2 = m4 / m2**2 - 3, which matches
+      ``polars.Series.kurtosis(bias=True)`` and
+      ``scipy.stats.kurtosis(..., bias=True)``.
 
     :param close: price column or expression
     :param period: rolling lookback window (default 20)
+    :param bias: return the biased population estimator instead of the
+        adjusted sample estimator (default False)
     :return: Polars expression
+    :raises ValueError: if ``bias`` is False and ``period < 4``
     """
+    if not bias and period < 4:
+        raise ValueError("kurtosis requires period >= 4 when bias=False")
     c = parse_expr(close)
     mu = c.rolling_mean(window_size=period)
     mean_sq = (c**2).rolling_mean(window_size=period)
@@ -106,7 +142,11 @@ def kurtosis(
 
     variance = (mean_sq - mu**2).clip(lower_bound=1e-12)
     m4 = mean_quad - 4.0 * mu * mean_cube + 6.0 * (mu**2) * mean_sq - 3.0 * (mu**4)
-    return (m4 / (variance**2)) - 3.0
+    g2 = (m4 / (variance**2)) - 3.0
+    if bias:
+        return g2
+    n = float(period)
+    return ((n - 1.0) / ((n - 2.0) * (n - 3.0))) * ((n + 1.0) * g2 + 6.0)
 
 
 def rolling_cov(

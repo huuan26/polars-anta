@@ -9,7 +9,9 @@ from polars_anta.stats import (
     linear_regression_angle,
     linear_regression_forecast,
     linear_regression_intercept,
+    linear_regression_r2,
     linear_regression_slope,
+    linear_regression_stderr,
     percentile_rank,
     rolling_alpha,
     rolling_beta,
@@ -145,6 +147,89 @@ def test_frac_diff(sample_data: pl.DataFrame) -> None:
         frac_diff("close", d=-0.1, window=5)
     with pytest.raises(ValueError, match="window must be an integer greater than or equal to 2"):
         frac_diff("close", d=0.4, window=1)
+
+
+def _linear_series(n: int = 30, slope: float = 2.0, intercept: float = 100.0) -> pl.DataFrame:
+    return pl.DataFrame({"close": [intercept + slope * i for i in range(n)]})
+
+
+def _noisy_series(n: int = 40) -> pl.DataFrame:
+    values = [100.0 + (i % 7) * 1.5 - (i % 3) * 2.0 + 0.1 * i for i in range(n)]
+    return pl.DataFrame({"close": values})
+
+
+def test_linear_regression_r2_perfect_linear_is_one():
+    period = 10
+    values = (
+        _linear_series()
+        .select(linear_regression_r2("close", period=period).alias("r2"))["r2"]
+        .to_list()
+    )
+
+    assert values[: period - 1] == [0.0] * (period - 1)
+    tail = values[period - 1 :]
+    assert tail
+    assert all(v == pytest.approx(1.0, abs=1e-9) for v in tail)
+
+
+def test_linear_regression_r2_flat_series_is_zero():
+    df = pl.DataFrame({"close": [50.0] * 20})
+    vals = df.select(linear_regression_r2("close", period=5).alias("r2"))["r2"].to_list()
+
+    assert all(v == 0.0 for v in vals)
+
+
+def test_linear_regression_r2_stays_in_unit_interval():
+    period = 10
+    vals = _noisy_series().select(linear_regression_r2("close", period=period).alias("r2"))["r2"]
+    tail = [v for v in vals.to_list() if v is not None]
+
+    assert tail
+    assert all(0.0 <= v <= 1.0 for v in tail)
+
+
+def test_linear_regression_r2_rejects_invalid_period():
+    for bad in (1, 0, -5):
+        with pytest.raises(ValueError):
+            linear_regression_r2("close", period=bad)
+
+
+def test_linear_regression_stderr_perfect_linear_is_zero():
+    period = 10
+    vals = (
+        _linear_series()
+        .select(linear_regression_stderr("close", period=period).alias("se"))["se"]
+        .to_list()
+    )
+
+    assert all(v == pytest.approx(0.0, abs=1e-9) for v in vals)
+
+
+def test_linear_regression_stderr_flat_series_is_zero():
+    df = pl.DataFrame({"close": [7.0] * 20})
+    vals = df.select(linear_regression_stderr("close", period=6).alias("se"))["se"].to_list()
+
+    assert all(v == 0.0 for v in vals)
+
+
+def test_linear_regression_stderr_positive_for_noisy_series():
+    period = 10
+    vals = (
+        _noisy_series()
+        .select(linear_regression_stderr("close", period=period).alias("se"))["se"]
+        .to_list()
+    )
+    tail = [v for v in vals if v is not None]
+
+    assert tail
+    assert all(v >= 0.0 for v in tail)
+    assert max(tail) > 0.0
+
+
+def test_linear_regression_stderr_rejects_invalid_period():
+    for bad in (2, 1, 0):
+        with pytest.raises(ValueError):
+            linear_regression_stderr("close", period=bad)
 
 
 def _numpy_skew(values, bias: bool) -> float:

@@ -143,7 +143,9 @@ from .stats import (
     linear_regression_angle,
     linear_regression_forecast,
     linear_regression_intercept,
+    linear_regression_r2,
     linear_regression_slope,
+    linear_regression_stderr,
     percentile_rank,
     rolling_alpha,
     rolling_beta,
@@ -329,6 +331,8 @@ __all__ = [
     "linear_regression_intercept",
     "linear_regression_angle",
     "linear_regression_forecast",
+    "linear_regression_r2",
+    "linear_regression_stderr",
     "frac_diff",
     # Alpha Factor & Microstructure Primitives (66)
     "ts_rank",

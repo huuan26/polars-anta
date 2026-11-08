@@ -266,6 +266,61 @@ def linear_regression_forecast(
     return 3.0 * wma - 2.0 * sma
 
 
+def linear_regression_r2(
+    close: IntoExpr,
+    period: int = 14,
+) -> pl.Expr:
+    """Closed-form Rolling OLS Coefficient of Determination (R-Squared).
+
+    R-Squared = clip(Slope^2 * N(N+1) / (12 * Var_sample(y)), 0, 1)
+
+    The slope comes from `linear_regression_slope`, which uses the closed-form
+    WMA/SMA identity, so no Python loop is involved. The constant N(N+1)/12 is
+    the sample variance of the regressor x = 1..N, which keeps R-Squared equal
+    to 1.0 on a perfectly linear series.
+
+    A window with zero variance (flat prices) returns 0.0: there is no trend to
+    explain, and returning 1.0 there would report a perfect trend on a flat market.
+
+    :param close: price column or expression
+    :param period: lookback window, must be greater than 1 (default 14)
+    :return: Polars expression in [0.0, 1.0]
+    """
+    if period <= 1:
+        raise ValueError("period must be an integer greater than 1")
+    c = parse_expr(close)
+    slope = linear_regression_slope(c, period=period)
+    var_y = c.rolling_var(window_size=period)
+    n = float(period)
+    const = n * (n + 1.0) / 12.0
+    r2 = slope.pow(2) * (const / var_y)
+
+    return pl.when(var_y > 0.0).then(r2.clip(0.0, 1.0)).otherwise(0.0)
+
+
+def linear_regression_stderr(
+    close: IntoExpr,
+    period: int = 14,
+) -> pl.Expr:
+    """Closed-form Rolling OLS Standard Error of the Estimate.
+
+    SE = sqrt((N-1)/(N-2) * Var_sample(y) * (1 - R-Squared))
+
+    :param close: price column or expression
+    :param period: lookback window, must be greater than 2 (default 14)
+    :return: Polars expression, non-negative
+    """
+    if period <= 2:
+        raise ValueError("period must be an integer greater than 2")
+    c = parse_expr(close)
+    var_y = c.rolling_var(window_size=period)
+    r2 = linear_regression_r2(c, period=period)
+    n = float(period)
+    residual = ((n - 1.0) / (n - 2.0)) * var_y * (1.0 - r2)
+
+    return pl.when(residual > 0.0).then(residual.sqrt()).otherwise(0.0)
+
+
 def frac_diff(
     close: IntoExpr,
     d: float = 0.4,

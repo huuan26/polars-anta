@@ -950,6 +950,14 @@ class TechnicalAnalysisExpr:
         """Rolling Linear Regression Forecast value."""
         return stats.linear_regression_forecast(self._expr, period=period)
 
+    def linear_regression_r2(self, period: int = 14) -> pl.Expr:
+        """Rolling OLS R-Squared in [0.0, 1.0]."""
+        return stats.linear_regression_r2(self._expr, period=period)
+
+    def linear_regression_stderr(self, period: int = 14) -> pl.Expr:
+        """Rolling OLS standard error of the estimate."""
+        return stats.linear_regression_stderr(self._expr, period=period)
+
     def frac_diff(self, d: float = 0.4, window: int = 20) -> pl.Expr:
         """Fixed-Window Fractional Differentiation (FFD)."""
         return stats.frac_diff(self._expr, d=d, window=window)

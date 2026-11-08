@@ -202,6 +202,7 @@ from .volatility import (
     stddev,
     true_range,
     ulcer_index,
+    yang_zhang_volatility,
 )
 from .volume import (
     adl,
@@ -291,6 +292,7 @@ __all__ = [
     "parkinson_volatility",
     "garman_klass_volatility",
     "rogers_satchell_volatility",
+    "yang_zhang_volatility",
     "chaikin_volatility",
     "donchian_width",
     "envelopes",

@@ -651,6 +651,24 @@ class TechnicalAnalysisExpr:
             trading_periods=trading_periods,
         )
 
+    def yang_zhang_volatility(
+        self,
+        open: IntoExpr,
+        high: IntoExpr,
+        low: IntoExpr,
+        period: int = 20,
+        trading_periods: int = 252,
+    ) -> pl.Expr:
+        """Yang-Zhang Volatility."""
+        return volatility.yang_zhang_volatility(
+            open=open,
+            high=high,
+            low=low,
+            close=self._expr,
+            period=period,
+            trading_periods=trading_periods,
+        )
+
     def chaikin_volatility(
         self,
         high: IntoExpr,

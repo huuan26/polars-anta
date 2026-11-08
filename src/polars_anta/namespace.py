@@ -1523,6 +1523,28 @@ class TechnicalAnalysisExpr:
         """Maximum Drawdown (MDD) scalar expression."""
         return evaluation.max_drawdown(self._expr, is_returns=is_returns)
 
+    def value_at_risk(self, cutoff: float = 0.05) -> pl.Expr:
+        """Historical Value at Risk (left-tail quantile)."""
+        return evaluation.value_at_risk(self._expr, cutoff=cutoff)
+
+    def conditional_var(self, cutoff: float = 0.05) -> pl.Expr:
+        """Conditional Value at Risk / Expected Shortfall."""
+        return evaluation.conditional_var(self._expr, cutoff=cutoff)
+
+    def omega_ratio(
+        self,
+        risk_free_rate: float = 0.0,
+        annualization: float = 252.0,
+    ) -> pl.Expr:
+        """Omega Ratio around the de-annualized threshold."""
+        return evaluation.omega_ratio(
+            self._expr, risk_free_rate=risk_free_rate, annualization=annualization
+        )
+
+    def tail_ratio(self, cutoff: float = 0.05) -> pl.Expr:
+        """Right-tail / left-tail magnitude ratio."""
+        return evaluation.tail_ratio(self._expr, cutoff=cutoff)
+
     def sharpe_ratio(
         self,
         risk_free_rate: float = 0.0,

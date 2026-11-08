@@ -88,6 +88,7 @@ from .backtest import (
 )
 from .evaluation import (
     calmar_ratio,
+    conditional_var,
     deflated_sharpe_ratio,
     drawdown_series,
     factor_turnover,
@@ -96,13 +97,16 @@ from .evaluation import (
     ic_summary,
     information_coefficient,
     max_drawdown,
+    omega_ratio,
     probabilistic_sharpe_ratio,
     profit_factor,
     quantile_analysis,
     sharpe_ratio,
     sortino_ratio,
+    tail_ratio,
     trend_scanning_labels,
     triple_barrier_labels,
+    value_at_risk,
     win_rate,
 )
 from .momentum import (
@@ -398,7 +402,7 @@ __all__ = [
     "alpha_041",
     "alpha_054",
     "alpha_101",
-    # Factor Evaluation, AFML Labeling & Strategy Performance Metrics (17)
+    # Factor Evaluation, AFML Labeling & Strategy Performance Metrics (21)
     "drawdown_series",
     "max_drawdown",
     "sharpe_ratio",
@@ -406,6 +410,10 @@ __all__ = [
     "calmar_ratio",
     "profit_factor",
     "win_rate",
+    "value_at_risk",
+    "conditional_var",
+    "omega_ratio",
+    "tail_ratio",
     "probabilistic_sharpe_ratio",
     "deflated_sharpe_ratio",
     "forward_returns",

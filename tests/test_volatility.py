@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import math
+
 import polars as pl
+import pytest
 
 from polars_anta.volatility import (
     atr,
@@ -19,6 +22,7 @@ from polars_anta.volatility import (
     keltner_width,
     natr,
     parkinson_volatility,
+    rogers_satchell_volatility,
     starc_bands,
     stddev,
     true_range,
@@ -202,3 +206,116 @@ def test_starc_bands(sample_ohlcv_df: pl.DataFrame):
     assert "middle" in result.columns
     assert "lower" in result.columns
     assert result["upper"][-1] > result["middle"][-1] > result["lower"][-1]
+
+
+RS_ROWS = [
+    (100.0, 102.0, 99.0, 101.0),
+    (101.0, 103.5, 100.5, 102.5),
+    (102.5, 104.0, 101.0, 103.0),
+    (103.0, 105.5, 102.0, 104.5),
+    (104.5, 106.0, 103.5, 105.0),
+    (105.0, 107.5, 104.0, 106.0),
+]
+
+
+def _rs_term(op: float, hi: float, lo: float, cl: float) -> float:
+    return math.log(hi / cl) * math.log(hi / op) + math.log(lo / cl) * math.log(lo / op)
+
+
+def _rs_expected(period: int) -> float:
+    terms = [_rs_term(*row) for row in RS_ROWS[-period:]]
+    return math.sqrt(252.0 * sum(terms) / period) * 100.0
+
+
+def _ohlc_frame() -> pl.DataFrame:
+    op, hi, lo, cl = zip(*RS_ROWS, strict=True)
+    return pl.DataFrame({"open": op, "high": hi, "low": lo, "close": cl})
+
+
+def test_rogers_satchell_hand_computed():
+    period = 5
+    got = _ohlc_frame().select(
+        rogers_satchell_volatility("open", "high", "low", "close", period=period).alias("rs")
+    )["rs"][-1]
+
+    assert got == pytest.approx(_rs_expected(period), rel=1e-9)
+
+
+def test_rogers_satchell_constant_prices_is_zero():
+    df = pl.DataFrame(
+        {
+            "open": [100.0] * 8,
+            "high": [100.0] * 8,
+            "low": [100.0] * 8,
+            "close": [100.0] * 8,
+        }
+    )
+    vals = df.select(
+        rogers_satchell_volatility("open", "high", "low", "close", period=5).alias("rs")
+    )["rs"].to_list()
+
+    assert len(vals) == 8
+    assert all(v == 0.0 for v in vals)
+
+
+def test_rogers_satchell_non_positive_prices_produce_no_nan():
+    df = pl.DataFrame(
+        {
+            "open": [100.0, 0.0, 101.0, -5.0, 102.0, 103.0, 104.0],
+            "high": [102.0, 0.0, 103.0, -5.0, 104.0, 105.0, 106.0],
+            "low": [99.0, 0.0, 100.0, -5.0, 101.0, 102.0, 103.0],
+            "close": [101.0, 0.0, 102.0, -5.0, 103.0, 104.0, 105.0],
+        }
+    )
+    vals = df.select(
+        rogers_satchell_volatility("open", "high", "low", "close", period=3).alias("rs")
+    )["rs"].to_list()
+
+    for v in vals:
+        assert v is None or math.isfinite(v)
+
+
+def test_rogers_satchell_warmup_rows_are_zero():
+    """Warm-up rows emit 0.0, matching parkinson_volatility and garman_klass_volatility."""
+    period = 3
+    vals = (
+        _ohlc_frame()
+        .select(
+            rogers_satchell_volatility("open", "high", "low", "close", period=period).alias("rs")
+        )["rs"]
+        .to_list()
+    )
+
+    assert vals[: period - 1] == [0.0] * (period - 1)
+    assert all(v is not None and v > 0.0 for v in vals[period - 1 :])
+
+
+def test_rogers_satchell_grouped_by_ticker():
+    period = 5
+    half = len(RS_ROWS)
+    df = pl.DataFrame(
+        {
+            "ticker": ["A"] * half + ["B"] * half,
+            "open": [r[0] for r in RS_ROWS] * 2,
+            "high": [r[1] for r in RS_ROWS] * 2,
+            "low": [r[2] for r in RS_ROWS] * 2,
+            "close": [r[3] for r in RS_ROWS] * 2,
+        }
+    )
+    out = df.with_columns(
+        rogers_satchell_volatility("open", "high", "low", "close", period=period)
+        .over("ticker")
+        .alias("rs")
+    )
+    a = out.filter(pl.col("ticker") == "A")["rs"][-1]
+    b = out.filter(pl.col("ticker") == "B")["rs"][-1]
+
+    expected = _rs_expected(period)
+    assert a == pytest.approx(expected, rel=1e-9)
+    assert b == pytest.approx(expected, rel=1e-9)
+
+
+def test_rogers_satchell_rejects_invalid_period():
+    for bad in (0, -1):
+        with pytest.raises(ValueError):
+            rogers_satchell_volatility("open", "high", "low", "close", period=bad)

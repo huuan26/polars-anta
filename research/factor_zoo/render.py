@@ -396,6 +396,7 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     top_hold = (
         hold_table.with_columns(pl.col("nw_t_discovery").abs().alias("_abs_t"))
         .sort("_abs_t", descending=True)
+        .drop("_abs_t")
         .head(10)
     )
     extra_cost = hold_table.filter(pl.col("factor").is_in(["trix_15", "tsi"]))

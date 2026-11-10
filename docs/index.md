@@ -56,7 +56,7 @@
 
 **`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is an institutional-grade quantitative finance engine for **market microstructure estimation, derivatives analytics, machine learning labeling & stationarity (AFML), cross-sectional factor engineering, statistical alpha evaluation, and execution-realistic vectorized backtesting** in Python and [Polars](https://pola.rs/).
 
-Purpose-built for **quantitative researchers, proprietary trading desks, index futures strategists (e.g., VN30F1M, CME E-mini, Crypto Perpetuals), and systematic portfolio managers**, `polars-anta` implements technical indicators, closed-form OLS regressions, WorldQuant 101 formulaic alphas, and portfolio evaluation tools directly as native Polars Expressions (`pl.Expr`).
+Purpose-built for **quantitative researchers, proprietary trading desks, index futures strategists (e.g., VN30F1M, CME E-mini, Crypto Perpetuals), and systematic portfolio managers**, `polars-anta` implements technical indicators, closed-form OLS regressions, 33 formulaic alphas from Kakushadze's *101 Formulaic Alphas*, and portfolio evaluation tools directly as native Polars Expressions (`pl.Expr`).
 
 ```mermaid
 flowchart LR

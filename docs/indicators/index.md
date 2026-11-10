@@ -24,7 +24,7 @@ polars_anta/
 ├── volatility.py   # Parkinson/Garman-Klass variance, Wilder ATR stops & price channels
 ├── volume.py       # Session-anchored VWAP, VWAP bands & institutional money flow
 ├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & FFD (frac_diff)
-├── alpha.py        # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 101 Alphas
+├── alpha.py        # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 33 formulaic alphas
 ├── evaluation.py   # Triple-Barrier, Trend-Scanning, Rank IC/ICIR, Newey-West HAC, IC decay & PSR/DSR
 ├── backtest.py     # Execution-realistic vectorized backtester, MAE/MFE trade ledger & parameter_sweep
 ├── resample.py     # Time bars, Volume/Dollar/Imbalance bars, continuous futures roll & validation

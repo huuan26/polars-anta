@@ -41,6 +41,19 @@ This document outlines the development roadmap and strategic milestones for **po
   - Next-open / TWAP / VWAP execution, intraday EOD session flattening, volatility targeting, and no-trade buffer zones
   - Round-trip trade-level ledger (`BacktestResult.trades`, `extract_trades`) with MAE/MFE excursion analytics and multi-parameter sweeps (`parameter_sweep`)
 
+### Phase 4: Statistical Falsification & Empirical Evidence (v0.4.0)
+- [x] **Statistical Inference & Falsification Engine (`polars_anta.inference`)**:
+  - Politis–Romano (1994) Stationary Bootstrap (`stationary_bootstrap_indices`, `bootstrap_test`)
+  - Multiple-testing FWER & FDR control (`adjust_pvalues`, Romano–Wolf stepdown `romano_wolf`, Hansen's SPA & White's Reality Check `spa_test`)
+  - Combinatorially Symmetric Cross-Validation Probability of Backtest Overfitting (`pbo_cscv`)
+  - Efron–Morris / Jensen–Kelly–Pedersen Empirical-Bayes shrinkage (`empirical_bayes_shrinkage`)
+  - Out-of-sample forecast & stability tests (`oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`)
+  - Panel falsification pipeline (`ic_matrix`, `long_short_returns`, `falsify_factors`, `sweep_robustness`)
+- [x] **Pre-Registered Empirical Factor Zoo Study (`research/factor_zoo`)**:
+  - Point-in-time top-150 liquid Vietnamese equities (`HOSE`, 2014–2026) falsification of 150 scale-free daily OHLCV signals (`PREREGISTRATION.md`, `REPORT.md`)
+- [ ] **Upcoming Research Study (Phase 5)**:
+  - *VN30F1M Intraday Lead–Lag via Path Signatures (Lévy Area) & Adaptive Conformal Position Sizing*
+
 ---
 
 ## Community Feedback & Contributions

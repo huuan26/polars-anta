@@ -76,7 +76,7 @@ Fitting $y_{t-n+1+i} = \beta_0 + \beta_1 \cdot i + \epsilon_i$ for $i \in \{0, 1
 
 | Function Signature | Closed-Form Identity | Quantitative Use Case |
 | :--- | :--- | :--- |
-| `linear_regression_slope(close, period=14)` | $\hat{\beta}_1 = \frac{6}{n - 1}\left(\text{WMA}_n - \text{SMA}_n\right)$ | Velocity of price change per bar ($112.4\times$ faster than rolling `scipy.stats.linregress`). |
+| `linear_regression_slope(close, period=14)` | $\hat{\beta}_1 = \frac{6}{n - 1}\left(\text{WMA}_n - \text{SMA}_n\right)$ | Velocity of price change per bar ($112.4\times$ faster than a pandas `rolling().apply()` baseline). |
 | `linear_regression_intercept(close, period=14)` | $\hat{\beta}_0 = 4\,\text{SMA}_n - 3\,\text{WMA}_n$ | Fitted value at the start of the rolling window ($i = 0$). |
 | `linear_regression_forecast(close, period=14)` | $\hat{y}_t = \hat{\beta}_0 + \hat{\beta}_1(n - 1) = 3\,\text{WMA}_n - 2\,\text{SMA}_n$ | Zero-lag OLS end-of-window fair value estimate. |
 | `linear_regression_angle(close, period=14)` | $\theta_t = \arctan(\hat{\beta}_1) \cdot \frac{180}{\pi}$ | Trend trajectory angle in degrees $(-90^\circ, +90^\circ)$. |

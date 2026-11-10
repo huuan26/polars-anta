@@ -34,7 +34,7 @@ Unlike traditional technical analysis packages designed around single-asset reta
 
 - **End-to-end alpha research lifecycle** — move seamlessly from raw OHLCV integrity auditing and multi-timeframe resampling to microstructure extraction, cross-sectional factor neutralization, IC/quantile decay analysis, and vectorized backtesting in one unified Arrow/Polars pipeline.
 - **100% Auditable white-box mathematics** — every formula is a readable, closed-form Polars expression (`pl.Expr`) you can inspect in Python rather than an opaque C/Cython binary.
-- **Rust-accelerated panel execution** — computations compile directly into Polars' multi-threaded Rust query planner and SIMD kernels, achieving up to **112.4x speedups** over Pandas without GIL contention.
+- **Rust-accelerated panel execution** — expressions compile into Polars' multi-threaded query engine. In our benchmark, rolling OLS slope is 112.4x faster than a pandas `rolling().apply()` baseline (see [Benchmarks](docs/benchmarks.md) for methodology).
 - **No C compiler required** — a pure-Python wheel depending only on `polars` and `numpy`; installs with `pip` on Linux, macOS and Windows.
 - **Built for Index Futures & Multi-Asset Universes** — evaluate intraday signals on single-instrument futures (e.g., **VN30F1M**, CME E-mini, Crypto Perpetuals) or scale cross-sectional alphas across thousands of equities simultaneously via `.over("symbol")` and `.over("timestamp")`.
 
@@ -309,6 +309,8 @@ Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a *
 | **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
 | **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
 
+> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS). A fully vectorized pandas/NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
+
 ---
 
 ## API Reference & Indicator Catalog
@@ -574,7 +576,7 @@ For complete derivations, step-by-step proofs, and research workflows, see [**Ar
 
 ### 1. Closed-Form Algebraic Reductions ($O(N)$ Rust Native Kernels)
 
-- **112.4x Faster Rolling OLS Linear Regression (`linear_regression_slope`)**:
+- **112.4x Faster Rolling OLS Linear Regression (`linear_regression_slope` vs. pandas `rolling().apply()` baseline)**:
   Instead of solving $(X^{\top} X)^{-1} X^{\top} Y_t$ inside a Python loop over $N$ bars, `polars-anta` exploits the exact linear relationship between the Linearly Weighted Moving Average ($\text{WMA}_n$, weights $w_i \propto i+1$) and Simple Moving Average ($\text{SMA}_n$):
 
 $$

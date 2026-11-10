@@ -31,7 +31,7 @@
   <div class="anta-metric-card">
     <div class="anta-metric-value">112.4x</div>
     <div class="anta-metric-label">Peak Speedup</div>
-    <div class="anta-metric-desc">1M-row Rolling OLS</div>
+    <div class="anta-metric-desc">Rolling OLS vs. pandas <code>rolling().apply()</code></div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">202</div>
@@ -226,7 +226,7 @@ Rather than iterating row-by-row in Python or opaque Cython loops, `polars-anta`
 
 ### 1. Rolling OLS Slope via Exact WMA–SMA Algebraic Identity
 
-By exploiting the exact linear identity between the Linearly Weighted Moving Average ($\text{WMA}_n$) and Simple Moving Average ($\text{SMA}_n$), rolling Ordinary Least Squares slope ($\beta_{1,t}$) and intercept ($\beta_{0,t}$) are evaluated in $O(1)$ complexity per bar (**112.4x faster** than Pandas):
+By exploiting the exact linear identity between the Linearly Weighted Moving Average ($\text{WMA}_n$) and Simple Moving Average ($\text{SMA}_n$), rolling Ordinary Least Squares slope ($\beta_{1,t}$) and intercept ($\beta_{0,t}$) are evaluated in $O(1)$ complexity per bar (**112.4x faster** than a pandas `rolling().apply()` baseline):
 
 $$
 \beta_{1,t} = \frac{6}{n - 1}\left(\text{WMA}_n(y)_t - \text{SMA}_n(y)_t\right), \qquad \beta_{0,t} = \text{SMA}_n(y)_t - \beta_{1,t}\frac{n - 1}{2}
@@ -272,6 +272,8 @@ Measured across **1,000,000 bars** (single-asset random walk) and a **500 ticker
 | **Z-Score Normalization** | 1,000,000 bars | 0.0450 s | **0.0267 s** | **1.7x Faster** |
 | **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
 | **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
+
+> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS). A fully vectorized pandas/NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
 
 ---
 

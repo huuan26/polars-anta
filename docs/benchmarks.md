@@ -15,6 +15,8 @@ To evaluate real-world performance, `polars-anta` provides an automated benchmar
 | **Exponential Moving Average** | 1,000,000 bars | 0.0093 s | **0.0058 s** | **1.6x Faster** |
 | **Simple Moving Average** | 1,000,000 bars | 0.0187 s | **0.0097 s** | **1.9x Faster** |
 
+> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS). A fully vectorized pandas/NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
+
 ---
 
 ## Why is `polars-anta` so much faster?

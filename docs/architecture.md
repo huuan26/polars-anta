@@ -99,7 +99,7 @@ $$
 \hat{y}_t = \hat{\beta}_0(t) + \hat{\beta}_1(t)(n - 1) = 3\,\text{WMA}_t - 2\,\text{SMA}_t
 $$
 
-Because both $\text{SMA}_t$ and $\text{WMA}_t$ execute natively in Rust, `linear_regression_slope`, `linear_regression_intercept`, and `linear_regression_forecast` evaluate **1,000,000 rows in 20.9 ms** (**112.4x faster** than Pandas).
+Because both $\text{SMA}_t$ and $\text{WMA}_t$ execute natively in Rust, `linear_regression_slope`, `linear_regression_intercept`, and `linear_regression_forecast` evaluate **1,000,000 rows in 20.9 ms** (**112.4x faster** than a pandas `rolling().apply()` baseline).
 
 ---
 

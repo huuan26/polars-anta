@@ -6,6 +6,7 @@ import math
 
 import numpy as np
 import polars as pl
+import pytest
 
 import polars_anta as pa
 from polars_anta.evaluation import _newey_west_lrv, _nw_auto_lag
@@ -15,9 +16,10 @@ from polars_anta.inference import (
     _to_matrix,
     adjust_pvalues,
     bootstrap_test,
+    romano_wolf,
+    spa_test,
     stationary_bootstrap_indices,
 )
-import pytest
 
 
 def test_ic_summary_nw_refactor_parity() -> None:
@@ -164,3 +166,68 @@ def test_inference_input_validation_part1() -> None:
         _to_matrix(pl.DataFrame({"a": range(15)}), exclude=["a"])
     with pytest.raises(ValueError, match="null values"):
         _to_matrix(pl.DataFrame({"a": [1.0] * 14 + [None]}))
+
+
+def test_romano_wolf_stepdown_properties() -> None:
+    """Test Romano-Wolf stepdown power, monotonicity, p_rw >= p_raw, constant column, and K=1."""
+    rng = np.random.default_rng(77)
+    t_obs = 1000
+    strong_col = rng.normal(0.15, 1.0, size=(t_obs, 1))
+    null_cols = rng.normal(0.0, 1.0, size=(t_obs, 49))
+    mat = np.hstack([strong_col, null_cols])
+    df = pl.DataFrame({f"s_{i}": mat[:, i] for i in range(50)})
+
+    rw = romano_wolf(df, n_boot=499, seed=77)
+    assert rw.columns == ["name", "mean", "t_stat", "p_raw", "p_rw"]
+    assert rw["name"].to_list() == [f"s_{i}" for i in range(50)]
+    assert float(rw.row(0, named=True)["p_rw"]) < 0.01
+
+    p_raw = rw["p_raw"].to_numpy()
+    p_rw = rw["p_rw"].to_numpy()
+    assert np.all(p_rw + 1e-12 >= p_raw)
+
+    # Monotonicity along |t_stat| descending order
+    t_abs = np.abs(rw["t_stat"].to_numpy())
+    order = np.argsort(-t_abs)
+    p_rw_sorted = p_rw[order]
+    assert np.all(np.diff(p_rw_sorted) >= -1e-12)
+
+    # Constant column => t_stat = 0, p_raw = 1, p_rw = 1; K=1 works
+    df_const = pl.DataFrame({"const": np.zeros(100), "sig": rng.normal(0.2, 1.0, size=100)})
+    rw_const = romano_wolf(df_const, n_boot=199, alternative="greater", seed=77)
+    const_row = rw_const.filter(pl.col("name") == "const").row(0, named=True)
+    assert const_row["t_stat"] == 0.0
+    assert const_row["p_raw"] == 1.0
+    assert const_row["p_rw"] == 1.0
+
+    rw_k1 = romano_wolf(strong_col[:, 0], n_boot=199, seed=77)
+    assert len(rw_k1) == 1
+    assert math.isclose(float(rw_k1["p_raw"][0]), float(rw_k1["p_rw"][0]), rel_tol=1e-12)
+
+
+def test_spa_test_properties() -> None:
+    """Test Hansen SPA / White Reality Check size, power, ordering, and column benchmark."""
+    rng = np.random.default_rng(42)
+    null_mat = rng.normal(0.0, 1.0, size=(1000, 50))
+    res_null = spa_test(null_mat, n_boot=499, seed=42)
+    assert res_null["p_consistent"] > 0.10
+    assert res_null["p_lower"] <= res_null["p_consistent"] <= res_null["p_upper"]
+
+    alt_mat = np.hstack([null_mat, rng.normal(0.15, 1.0, size=(1000, 1))])
+    res_alt = spa_test(alt_mat, n_boot=499, seed=42)
+    assert res_alt["p_consistent"] < 0.05
+    assert res_alt["p_lower"] <= res_alt["p_consistent"] <= res_alt["p_upper"]
+    assert res_alt["best_name"] == "col_50"
+
+    # Benchmark as column name in DataFrame
+    df = pl.DataFrame(
+        {
+            "bench": null_mat[:, 0],
+            "m1": null_mat[:, 1],
+            "m2": null_mat[:, 0] + 0.15 + rng.normal(0.0, 0.5, size=1000),
+        }
+    )
+    res_df = spa_test(df.lazy(), benchmark="bench", n_boot=199, seed=42)
+    assert res_df["n_models"] == 2.0
+    assert res_df["best_name"] == "m2"
+    assert res_df["p_consistent"] < 0.05

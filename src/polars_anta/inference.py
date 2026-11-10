@@ -346,3 +346,228 @@ def adjust_pvalues(
 
     out[valid_mask] = adj
     return out
+
+
+def romano_wolf(
+    data: np.ndarray | pl.DataFrame | pl.LazyFrame,
+    exclude: Sequence[str] = (),
+    n_boot: int = 2000,
+    mean_block: float | None = None,
+    alternative: Literal["two-sided", "greater"] = "two-sided",
+    seed: int | None = None,
+) -> pl.DataFrame:
+    """Romano–Wolf (2005, 2016) stepdown max-$t$ multiple hypothesis test via stationary bootstrap.
+
+    Controls the Family-Wise Error Rate (FWER) across $K$ jointly tested factors or strategies
+    while accounting for cross-sectional correlation and serial dependence:
+
+    $$
+    t_k = \\frac{\\sqrt{T}\\,\\bar{X}_k}{\\hat{\\omega}_k}, \\qquad
+    t^{\\ast}_{b,k} = \\frac{\\sqrt{T}\\left(\\bar{X}^{\\ast}_{b,k} - \\bar{X}_k\\right)}{\\hat{\\omega}_k}
+    $$
+
+    Ordering hypotheses as $t_{(1)} \\ge t_{(2)} \\ge \\dots \\ge t_{(K)}$, stepdown adjusted
+    p-values are computed in a single bootstrap pass via backward cumulative maxima
+    $M^{\\ast}_{b,j} = \\max_{l \\ge j} t^{\\ast}_{b,(l)}$ with monotonicity enforcement:
+
+    $$
+    \\hat{p}^{\\text{step}}_{(j)} = \\frac{1 + \\sum_{b=1}^{B} \\mathbb{I}\\left(M^{\\ast}_{b,j} \\ge t_{(j)}\\right)}{B + 1},
+    \\qquad \\hat{p}^{\\text{RW}}_{(j)} = \\max_{i \\le j} \\hat{p}^{\\text{step}}_{(i)}
+    $$
+
+    References
+    ----------
+    - Romano, J. P., & Wolf, M. (2005). Stepwise Multiple Testing as Formalized Data Snooping.
+      *Econometrica*, 73(4), 1237–1282.
+    - Romano, J. P., & Wolf, M. (2016). Efficient Computation of Adjusted p-Values for
+      Resampling-Based Stepdown Multiple Testing. *Statistics & Probability Letters*, 113, 38–40.
+
+    :param data: ``(T, K)`` NumPy array, Polars DataFrame, or LazyFrame of returns/IC series.
+    :param exclude: Column names to exclude when ``data`` is a DataFrame/LazyFrame (e.g., ``("date",)``).
+    :param n_boot: Number of stationary bootstrap replicates $B \\ge 1$.
+    :param mean_block: Expected geometric block length. Defaults to $\\max(1, T^{1/3})$.
+    :param alternative: ``'two-sided'`` (uses $|t_k|$ and $|t^{\\ast}_{b,k}|$) or ``'greater'``.
+    :param seed: Optional integer seed for deterministic reproducibility.
+    :return: Polars DataFrame with columns ``["name", "mean", "t_stat", "p_raw", "p_rw"]`` in
+        the original column order.
+    """
+    if alternative not in ("two-sided", "greater"):
+        raise ValueError("alternative must be 'two-sided' or 'greater'")
+    if int(n_boot) < 1:
+        raise ValueError("n_boot must be at least 1")
+
+    x_mat, names = _to_matrix(data, exclude=exclude, min_rows=10)
+    t_obs, k_cols = x_mat.shape
+    b_reps = int(n_boot)
+    sqrt_t = math.sqrt(float(t_obs))
+
+    means = x_mat.mean(axis=0)
+    idx = stationary_bootstrap_indices(t_obs, n_boot=b_reps, mean_block=mean_block, seed=seed)
+    m_star = _bootstrap_means(x_mat, idx)
+
+    if b_reps > 1:
+        omega = sqrt_t * np.std(m_star, axis=0, ddof=1)
+    else:
+        omega = np.std(x_mat, axis=0, ddof=1)
+
+    valid = omega > 1e-15
+    omega_safe = np.where(valid, omega, 1.0)
+    t_signed = np.where(valid, sqrt_t * means / omega_safe, 0.0)
+    t_star_signed = np.where(
+        valid[None, :],
+        sqrt_t * (m_star - means[None, :]) / omega_safe[None, :],
+        0.0,
+    )
+
+    if alternative == "two-sided":
+        t_eval = np.abs(t_signed)
+        t_star_eval = np.abs(t_star_signed)
+    else:
+        t_eval = t_signed.copy()
+        t_star_eval = t_star_signed.copy()
+
+    # Raw bootstrap p-values per column
+    raw_exceed = np.sum(t_star_eval >= t_eval[None, :], axis=0)
+    p_raw = (1.0 + raw_exceed.astype(np.float64)) / float(b_reps + 1)
+    p_raw = np.where(valid, p_raw, 1.0)
+
+    # Sort hypotheses strongest-first; place zero-variance columns last
+    sort_key = np.where(valid, t_eval, -np.inf)
+    order = np.argsort(-sort_key, kind="mergesort")
+    s_star = t_star_eval[:, order]
+    max_rest = np.maximum.accumulate(s_star[:, ::-1], axis=1)[:, ::-1]
+    t_sorted = t_eval[order]
+    step_exceed = np.sum(max_rest >= t_sorted[None, :], axis=0)
+    p_step = (1.0 + step_exceed.astype(np.float64)) / float(b_reps + 1)
+    p_rw_sorted = np.maximum.accumulate(p_step)
+
+    p_rw = np.empty(k_cols, dtype=np.float64)
+    p_rw[order] = np.clip(p_rw_sorted, 0.0, 1.0)
+    p_rw = np.where(valid, p_rw, 1.0)
+
+    return pl.DataFrame(
+        {
+            "name": names,
+            "mean": means,
+            "t_stat": t_signed,
+            "p_raw": p_raw,
+            "p_rw": p_rw,
+        }
+    )
+
+
+def spa_test(
+    data: np.ndarray | pl.DataFrame | pl.LazyFrame,
+    benchmark: np.ndarray | pl.Series | Sequence[float] | str | float | None = None,
+    exclude: Sequence[str] = (),
+    n_boot: int = 2000,
+    mean_block: float | None = None,
+    seed: int | None = None,
+) -> dict[str, float | str]:
+    """Hansen (2005) Superior Predictive Ability (SPA) & White (2000) Reality Check test.
+
+    Tests the composite null hypothesis $H_0: \\max_{k=1,\\dots,K} \\mathbb{E}[d_{k,t}] \\le 0$ that no
+    candidate strategy outperforms the benchmark, using studentized test statistic:
+
+    $$
+    T_{\\text{SPA}} = \\max\\left(0, \\max_{1 \\le k \\le K} \\frac{\\sqrt{T}\\,\\bar{d}_k}{\\hat{\\omega}_k}\\right)
+    $$
+
+    and three null recentering estimators $g_k^{(i)}$ ($i \\in \\{\\text{lower}, \\text{consistent}, \\text{upper}\\}$):
+
+    $$
+    g_k^{(l)} = \\max(\\bar{d}_k, 0), \\qquad
+    g_k^{(c)} = \\bar{d}_k \\cdot \\mathbb{I}\\left(\\frac{\\sqrt{T}\\,\\bar{d}_k}{\\hat{\\omega}_k} \\ge -\\sqrt{2 \\ln \\ln T}\\right), \\qquad
+    g_k^{(u)} = \\bar{d}_k
+    $$
+
+    where ``p_upper`` corresponds to the studentized White (2000) Reality Check and satisfies
+    $p_{\\text{lower}} \\le p_{\\text{consistent}} \\le p_{\\text{upper}}$.
+
+    References
+    ----------
+    - Hansen, P. R. (2005). A Test for Superior Predictive Ability.
+      *Journal of Business & Economic Statistics*, 23(4), 365–380.
+    - White, H. (2000). A Reality Check for Data Snooping. *Econometrica*, 68(5), 1097–1126.
+
+    :param data: ``(T, K)`` NumPy array, Polars DataFrame, or LazyFrame of strategy returns.
+    :param benchmark: Benchmark return series: ``None`` (zero benchmark), scalar ``float``,
+        1-D array/Series of length $T$, or column name ``str`` in ``data``.
+    :param exclude: Column names to exclude when ``data`` is a DataFrame/LazyFrame.
+    :param n_boot: Number of stationary bootstrap replicates $B \\ge 1$.
+    :param mean_block: Expected geometric block length. Defaults to $\\max(1, T^{1/3})$.
+    :param seed: Optional integer seed for deterministic reproducibility.
+    :return: Dictionary with keys ``statistic``, ``p_lower``, ``p_consistent``, ``p_upper``,
+        ``best_name``, ``n_models``, and ``n_obs``.
+    """
+    if int(n_boot) < 1:
+        raise ValueError("n_boot must be at least 1")
+
+    excl_list = list(exclude)
+    bench_vec: np.ndarray | float
+    if isinstance(benchmark, str):
+        if isinstance(data, pl.LazyFrame):
+            data = data.collect()
+        if not isinstance(data, pl.DataFrame) or benchmark not in data.columns:
+            raise ValueError(f"Benchmark column '{benchmark}' not found in DataFrame")
+        bench_vec = _to_1d_array(data[benchmark], name="benchmark", min_len=10)
+        if benchmark not in excl_list:
+            excl_list.append(benchmark)
+    elif benchmark is None:
+        bench_vec = 0.0
+    elif isinstance(benchmark, (int, float)):
+        bench_vec = float(benchmark)
+    else:
+        bench_vec = _to_1d_array(benchmark, name="benchmark", min_len=10)
+
+    x_mat, names = _to_matrix(data, exclude=excl_list, min_rows=10)
+    t_obs, k_models = x_mat.shape
+    if isinstance(bench_vec, np.ndarray):
+        if bench_vec.size != t_obs:
+            raise ValueError(f"benchmark length ({bench_vec.size}) must match data rows ({t_obs})")
+        d_mat = x_mat - bench_vec[:, None]
+    else:
+        d_mat = x_mat - float(bench_vec)
+
+    b_reps = int(n_boot)
+    sqrt_t = math.sqrt(float(t_obs))
+    d_bar = d_mat.mean(axis=0)
+    idx = stationary_bootstrap_indices(t_obs, n_boot=b_reps, mean_block=mean_block, seed=seed)
+    d_star = _bootstrap_means(d_mat, idx)
+
+    if b_reps > 1:
+        omega = sqrt_t * np.std(d_star, axis=0, ddof=1)
+    else:
+        omega = np.std(d_mat, axis=0, ddof=1)
+
+    valid = omega > 1e-15
+    omega_safe = np.where(valid, omega, 1.0)
+    t_vec = np.where(valid, sqrt_t * d_bar / omega_safe, 0.0)
+    t_obs_stat = float(max(0.0, float(np.max(t_vec))))
+    best_idx = int(np.argmax(t_vec))
+
+    thresh = -math.sqrt(max(0.0, 2.0 * math.log(max(1.0000001, math.log(float(t_obs))))))
+    g_lower = np.maximum(d_bar, 0.0)
+    g_consistent = np.where(t_vec >= thresh, d_bar, 0.0)
+    g_upper = d_bar
+
+    p_vals: list[float] = []
+    for g_vec in (g_lower, g_consistent, g_upper):
+        z_star = np.where(
+            valid[None, :],
+            sqrt_t * (d_star - g_vec[None, :]) / omega_safe[None, :],
+            0.0,
+        )
+        t_boot = np.maximum(0.0, np.max(z_star, axis=1))
+        exceed = int(np.sum(t_boot >= t_obs_stat))
+        p_vals.append(float((1 + exceed) / (b_reps + 1)))
+
+    return {
+        "statistic": t_obs_stat,
+        "p_lower": p_vals[0],
+        "p_consistent": p_vals[1],
+        "p_upper": p_vals[2],
+        "best_name": names[best_idx],
+        "n_models": float(k_models),
+        "n_obs": float(t_obs),
+    }

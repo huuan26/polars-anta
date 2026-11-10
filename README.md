@@ -185,7 +185,9 @@ eval_df = alpha_df.anta.forward_returns(periods=(1, 5, 10), group_by="symbol")
 
 # Autocorrelation-robust Newey-West HAC t-statistic & Multi-Horizon IC Decay Half-Life:
 ic_stats = eval_df.anta.ic_summary("pure_alpha_weight", "fwd_ret_5", group_by="date", nw_lags=5)
-decay_table = eval_df.anta.ic_decay("pure_alpha_weight", horizons=(1, 2, 3, 5, 10, 20), group_by="date")
+decay_table = eval_df.anta.ic_decay(
+    "pure_alpha_weight", horizons=(1, 2, 3, 5, 10, 20), group_by="date"
+)
 
 # Non-normal skewness/kurtosis-adjusted PSR & multiple-testing Deflated Sharpe Ratio (DSR):
 # "strat_ret" = a strategy return column, e.g. bt.data["net_return"] from df.anta.backtest(...)

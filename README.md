@@ -225,9 +225,9 @@ print(bt.trades())  # Round-trip trade ledger with PnL, holding_bars, MAE & MFE!
 | :--- | :--- | :---: |
 | **Trend & Overlays** | Adaptive moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `pivot_points` | [Trend Docs](https://huuan26.github.io/polars-anta/indicators/trend/) |
 | **Momentum Oscillators** | `rsi`, `macd`, `ppo`, `trix`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | [Momentum Docs](https://huuan26.github.io/polars-anta/indicators/momentum/) |
-| **Volatility & Channels** | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `ulcer_index` | [Volatility Docs](https://huuan26.github.io/polars-anta/indicators/volatility/) |
+| **Volatility & Channels** | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `rogers_satchell_volatility`, `yang_zhang_volatility`, `ulcer_index` | [Volatility Docs](https://huuan26.github.io/polars-anta/indicators/volatility/) |
 | **Volume & Money Flow** | `vwap`, `vwap_bands`, `session_vwap`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `nvi`, `pvi`, `vpci`, `vr` | [Volume Docs](https://huuan26.github.io/polars-anta/indicators/volume/) |
-| **Statistics, OLS & Stationarity** | Rolling `zscore`, `percentile_rank`, `skewness`, `kurtosis`, CAPM `rolling_beta`/`rolling_alpha`, closed-form `linear_regression_*`, Fixed-Window Fractional Differentiation (`frac_diff`) | [Stats Docs](https://huuan26.github.io/polars-anta/indicators/stats/) |
+| **Statistics, OLS & Stationarity** | Rolling `zscore`, `percentile_rank`, `skewness`, `kurtosis`, CAPM `rolling_beta`/`rolling_alpha`, closed-form `linear_regression_*` (`slope`, `intercept`, `angle`, `forecast`, `r2`, `stderr`), Fixed-Window Fractional Differentiation (`frac_diff`) | [Stats Docs](https://huuan26.github.io/polars-anta/indicators/stats/) |
 | **Alpha Factors, Microstructure & Futures** | Cross-sectional ops (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`), liquidity & order flow (`amihud_illiquidity`, `kyle_lambda`, `roll_spread`, `corwin_schultz_spread`, `vpin`, `ofi`), index futures (`futures_basis`, `oi_regime`), regime complexity (`hurst_exponent`, `fractal_dimension`, `entropy`), and 33 formulaic alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`) | [Alpha Docs](https://huuan26.github.io/polars-anta/indicators/alpha/) |
 | **AFML Labeling, Factor Eval & Backtesting** | `triple_barrier_labels`, `trend_scanning_labels`, `forward_returns`, `information_coefficient`, Newey-West HAC `ic_summary`, `ic_decay`, `quantile_analysis`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `extract_trades` (MAE/MFE), `parameter_sweep` | [Eval & Backtest Docs](https://huuan26.github.io/polars-anta/indicators/evaluation-and-backtest/) |
 | **Data Engineering & Information Bars** | Multi-timeframe OHLCV aggregation (`resample_ohlcv`), information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`), continuous futures roll stitching (`stitch_futures_roll`), schema & price integrity checks (`validate_ohlcv`), batch feature generator (`df.anta.add_all()`) | [Resampling Docs](https://huuan26.github.io/polars-anta/guides/resampling-and-dataframe-api/) |
@@ -406,9 +406,11 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `envelopes(close, period=20, percentage=0.025)` | `Struct(upper, middle, lower)` | Percentage Moving Average Envelopes |
 | `stddev(close, period=20)` | `Float64` | Rolling Sample Standard Deviation |
 | `ulcer_index(close, period=14)` | `Float64` | Peter Martin's Downside Drawdown Depth & Duration Risk Index |
-| `historical_volatility(close, period=20, trading_days=252)` | `Float64` | Annualized Close-to-Close Log Return Volatility |
-| `parkinson_volatility(high, low, period=20, trading_days=252)` | `Float64` | Parkinson (1980) Extreme-Value High-Low Range Volatility Estimator |
-| `garman_klass_volatility(open, high, low, close, period=20, trading_days=252)` | `Float64` | Garman & Klass (1980) Minimum-Variance OHLC Volatility Estimator |
+| `historical_volatility(close, period=20, trading_periods=252)` | `Float64` | Annualized Close-to-Close Log Return Volatility |
+| `parkinson_volatility(high, low, period=20, trading_periods=252)` | `Float64` | Parkinson (1980) Extreme-Value High-Low Range Volatility Estimator |
+| `garman_klass_volatility(open, high, low, close, period=20, trading_periods=252)` | `Float64` | Garman & Klass (1980) Minimum-Variance OHLC Volatility Estimator |
+| `rogers_satchell_volatility(open, high, low, close, period=20, trading_periods=252)` | `Float64` | Rogers & Satchell (1991) drift-independent OHLC volatility estimator |
+| `yang_zhang_volatility(open, high, low, close, period=20, trading_periods=252)` | `Float64` | Yang & Zhang (2000) minimum-variance estimator combining overnight, open-to-close and Rogers–Satchell components |
 | `chaikin_volatility(high, low, period=10, roc_period=10)` | `Float64` | Marc Chaikin's High-Low Range Expansion Rate of Change |
 
 </details>
@@ -458,6 +460,8 @@ All indicators, alpha primitives, and evaluation functions are exported at the t
 | `linear_regression_intercept(close, period=14)` | `Float64` | Closed-Form Vectorized OLS Linear Regression Intercept (β₀) |
 | `linear_regression_angle(close, period=14)` | `Float64` | Rolling OLS Regression Trend Angle in Degrees arctan(β₁) × 180 / π |
 | `linear_regression_forecast(close, period=14)` | `Float64` | Rolling OLS End-of-Window Fitted Value ŷ_t = β₀ + β₁(n - 1) |
+| `linear_regression_r2(close, period=14)` | `Float64` | Closed-Form Rolling OLS Coefficient of Determination R² ∈ [0.0, 1.0] |
+| `linear_regression_stderr(close, period=14)` | `Float64` | Closed-Form Rolling OLS Standard Error of the Estimate (Residual Dispersion) |
 | `frac_diff(close, d=0.4, window=20)` | `Float64` | Fixed-Window Fractional Differentiation (FFD — López de Prado, 2018) (1 - B)<sup>d</sup> |
 
 </details>

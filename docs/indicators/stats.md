@@ -1,6 +1,6 @@
 # Quantitative Statistics, CAPM & Regression Transforms (`polars_anta.stats`)
 
-The `polars_anta.stats` module provides **15 vectorized statistical, econometric, and stationarity primitives** engineered for institutional factor standardization, systematic risk decomposition, rolling Ordinary Least Squares (OLS) regression, and memory-preserving fractional differentiation.
+The `polars_anta.stats` module provides **15 vectorized statistical, econometric, and stationarity primitives** engineered for factor standardization, systematic risk decomposition, rolling Ordinary Least Squares (OLS) regression, and memory-preserving fractional differentiation.
 
 ---
 

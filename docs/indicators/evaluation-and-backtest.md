@@ -1,6 +1,6 @@
 # Factor Evaluation, AFML Labeling & Vectorized Backtesting (`evaluation`, `backtest`)
 
-`polars-anta` provides an end-to-end institutional validation and simulation suite combining **AFML Path-Dependent Labeling**, **Alphalens-Style Cross-Sectional Factor Evaluation with Newey-West HAC Inference**, **Multiple-Testing Overfitting Controls (PSR & DSR)**, and an **Execution-Realistic Vectorized Backtester with Round-Trip MAE/MFE Trade Analytics**.
+`polars-anta` provides an end-to-end validation and simulation suite combining **AFML Path-Dependent Labeling**, **Alphalens-Style Cross-Sectional Factor Evaluation with Newey-West HAC Inference**, **Multiple-Testing Overfitting Controls (PSR & DSR)**, and an **Execution-Realistic Vectorized Backtester with Round-Trip MAE/MFE Trade Analytics**.
 
 ---
 
@@ -58,7 +58,7 @@ $$
 
 ---
 
-## 2. Institutional Factor Validation Suite (`polars_anta.evaluation`)
+## 2. Factor Validation Suite (`polars_anta.evaluation`)
 
 ### `forward_returns(df, close_col="close", periods=(1, 5, 10), group_by=None, prefix="fwd_ret_")`
 Appends multi-horizon forward return columns $r_{t \to t+p} = \frac{P_{t+p}}{P_t} - 1$ partitioned by `group_by`.
@@ -75,7 +75,7 @@ $$
 ---
 
 ### `ic_summary(df, factor_col, return_col, group_by=None, method="spearman", nw_lags=None)`
-Computes institutional IC summary metrics including **Newey-West (1987) HAC autocorrelation-consistent $t$-statistics**:
+Computes IC summary metrics including **Newey-West (1987) HAC autocorrelation-consistent $t$-statistics**:
 
 $$
 \hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad t_{\text{NW}} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
@@ -83,7 +83,7 @@ $$
 
 When `nw_lags=None`, automatically selects the Newey-West (1994) plug-in bandwidth $L = \max\left(1, \lfloor 4(T/100)^{2/9}\rfloor\right)$.
 
-| Returned Key | Formula / Meaning | Institutional Benchmark |
+| Returned Key | Formula / Meaning | Rule of thumb |
 | :--- | :--- | :--- |
 | `ic_mean` | $\overline{\text{IC}} = \frac{1}{T}\sum_{t=1}^T \text{IC}_t$ | $\vert \overline{\text{IC}}\vert  \ge 0.03$ (Daily) |
 | `ic_std` | Sample standard deviation $\hat{\sigma}_{\text{IC}}$ | Lower indicates regime stability |

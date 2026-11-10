@@ -1,6 +1,6 @@
 # Alpha Factor, Microstructure & Derivatives Primitives (`polars_anta.alpha`)
 
-The `polars_anta.alpha` module provides **71 institutional alpha primitives** spanning cross-sectional standardization and multi-factor OLS orthogonalization, order flow toxicity (VPIN, OFI), index futures basis & open interest regimes, liquidity/spread estimators, fractal complexity metrics, and 33 canonical formulaic alphas.
+The `polars_anta.alpha` module provides **71 alpha primitives** spanning cross-sectional standardization and multi-factor OLS orthogonalization, order flow toxicity (VPIN, OFI), index futures basis & open interest regimes, liquidity/spread estimators, fractal complexity metrics, and 33 canonical formulaic alphas.
 
 ---
 

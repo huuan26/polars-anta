@@ -1,6 +1,6 @@
 # API Reference & Indicator Catalog
 
-`polars-anta` provides **202 public functions** (203 exports in `__all__`, including `BacktestResult`) covering technical indicators, market microstructure estimators, AFML machine learning primitives, institutional factor evaluation tools, and execution-realistic backtesting utilities organized across eight specialized modules:
+`polars-anta` provides **202 public functions** (203 exports in `__all__`, including `BacktestResult`) covering technical indicators, market microstructure estimators, AFML machine learning primitives, factor evaluation tools, and execution-realistic backtesting utilities organized across eight specialized modules:
 
 | Domain / Module | Count | Key Functionality | API Reference |
 | :--- | :---: | :--- | :--- |
@@ -22,7 +22,7 @@ polars_anta/
 ├── trend.py        # Moving averages, adaptive filters, Heikin-Ashi & structural pivots
 ├── momentum.py     # Velocity oscillators, Gaussian Fisher transform & squeeze detectors
 ├── volatility.py   # Parkinson/Garman-Klass/Rogers-Satchell/Yang-Zhang variance, Wilder ATR stops & price channels
-├── volume.py       # Session-anchored VWAP, VWAP bands & institutional money flow
+├── volume.py       # Session-anchored VWAP, VWAP bands & money flow
 ├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & FFD (frac_diff)
 ├── alpha.py        # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 33 formulaic alphas
 ├── evaluation.py   # Triple-Barrier, Trend-Scanning, Rank IC/ICIR, Newey-West HAC, IC decay & PSR/DSR

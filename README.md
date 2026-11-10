@@ -2,11 +2,11 @@
 
 <img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/assets/banner.png" alt="polars-anta banner" width="100%" />
 
-### Institutional-Grade Alpha Research, Market Microstructure, Quantitative Feature Engineering & Vectorized Backtesting in Polars
+### Alpha Research, Market Microstructure, Feature Engineering & Vectorized Backtesting in Polars
 
 **Auditable mathematical expressions. Cross-sectional factor analytics and microstructure modeling. An intuitive dual `.anta` / `.ta` interface. Zero-C deployment with Rust-accelerated performance.**
 
-An open-source quantitative research engine for market microstructure estimation, cross-sectional alpha discovery, statistical factor evaluation, technical feature engineering, and loop-free vectorized backtesting. Purpose-built for **quantitative researchers, institutional prop trading desks, index futures & derivatives strategists, and systematic portfolio managers** who demand both sub-second execution speed and 100% mathematical transparency.
+An open-source quantitative research engine for market microstructure estimation, cross-sectional alpha discovery, statistical factor evaluation, technical feature engineering, and loop-free vectorized backtesting. Purpose-built for **quantitative researchers, prop trading desks, index futures & derivatives strategists, and systematic portfolio managers** who demand both sub-second execution speed and 100% mathematical transparency.
 
 [![CI](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml/badge.svg)](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml)
 [![PyPI Version](https://img.shields.io/pypi/v/polars-anta.svg?label=PyPI&color=0077b6)](https://pypi.org/project/polars-anta/)
@@ -26,34 +26,34 @@ An open-source quantitative research engine for market microstructure estimation
 
 ## What is `polars-anta`?
 
-**`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is an institutional-grade Python library for **quantitative feature engineering, market microstructure analysis, cross-sectional alpha research, statistical signal validation, and vectorized portfolio backtesting** powered natively by [Polars](https://pola.rs/).
+**`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is a Python library for **quantitative feature engineering, market microstructure analysis, cross-sectional alpha research, statistical signal validation, and vectorized portfolio backtesting** powered natively by [Polars](https://pola.rs/).
 
 Unlike traditional technical analysis packages designed around single-asset retail charting, `polars-anta` is architected from the ground up for **buy-side research workflows**: unifying 33 formulaic alphas from Kakushadze's *101 Formulaic Alphas*, liquidity and price-impact estimators (Amihud, Kyle's $\lambda$, Roll, Corwin-Schultz), closed-form rolling OLS regressions, cross-sectional standardization/neutralization, Alphalens-style Rank IC evaluation, and transaction-cost-aware vectorized backtesting inside Polars' multi-threaded Rust query engine.
 
-### Why Institutional & Quantitative Research Teams Choose `polars-anta`
+### Key properties
 
 - **End-to-end alpha research lifecycle** — move seamlessly from raw OHLCV integrity auditing and multi-timeframe resampling to microstructure extraction, cross-sectional factor neutralization, IC/quantile decay analysis, and vectorized backtesting in one unified Arrow/Polars pipeline.
-- **100% Auditable white-box mathematics** — Risk Committees and Quantitative Researchers can inspect clean, closed-form algebraic Polars expressions (`pl.Expr`) directly in Python rather than trusting opaque C/Cython black-box binaries.
+- **100% Auditable white-box mathematics** — every formula is a readable, closed-form Polars expression (`pl.Expr`) you can inspect in Python rather than an opaque C/Cython binary.
 - **Rust-accelerated panel execution** — computations compile directly into Polars' multi-threaded Rust query planner and SIMD kernels, achieving up to **112.4x speedups** over Pandas without GIL contention.
-- **Zero-C enterprise compliance** — installs deterministically via `pip install polars-anta` across air-gapped institutional Linux clusters, Docker research containers, Windows workstations, and macOS without `gcc`, `msvc`, or external C headers.
+- **No C compiler required** — a pure-Python wheel depending only on `polars` and `numpy`; installs with `pip` on Linux, macOS and Windows.
 - **Built for Index Futures & Multi-Asset Universes** — evaluate intraday signals on single-instrument futures (e.g., **VN30F1M**, CME E-mini, Crypto Perpetuals) or scale cross-sectional alphas across thousands of equities simultaneously via `.over("symbol")` and `.over("timestamp")`.
 
-> **The Institutional Research Pipeline:**
+> **Research pipeline:**
 > <p align="center"><strong>Raw Market Data &rarr; Data Validation & Resampling &rarr; Microstructure & Alpha Expressions (<code>.anta</code> / <code>.ta</code>) &rarr; Cross-Sectional Neutralization &rarr; Rank IC & Quantile Validation &rarr; Cost-Aware Vectorized Backtest</strong></p>
 
-| Capability | TA-Lib | pandas-ta | Alphalens / Legacy | `polars-anta` |
+| Capability | TA-Lib | pandas-ta | Alphalens (pandas) | `polars-anta` |
 | :--- | :---: | :---: | :---: | :---: |
-| **Deployment & C Dependencies** | External C library & MSVC / GCC | Pure Python / NumPy | Legacy Pandas (<2.0) lock-in | **Zero C compilation** (pure Polars & NumPy) |
+| **Deployment & C Dependencies** | External C library & MSVC / GCC | Pure Python / NumPy | Pandas-based | **Zero C compilation** (pure Polars & NumPy) |
 | **Execution Engine** | Single-threaded C loops | Single-threaded Pandas / GIL | Single-threaded Pandas | **Multi-threaded Rust** query engine + SIMD |
-| **Multi-Asset Panel Scaling** | Manual sequential loops | Slow `.groupby().apply()` | Memory-heavy MultiIndex | **Native `.over("symbol")`** parallelization |
+| **Multi-Asset Panel Scaling** | Manual sequential loops | Slow `.groupby().apply()` | Pandas MultiIndex | **Native `.over("symbol")`** parallelization |
 | **Dual Namespace API** | Unsupported | Single `.ta` accessor | Standalone functions only | **Both `.anta` & `.ta`** on `Expr`, `DataFrame`, `LazyFrame` |
 | **Cross-Sectional & Orthogonalization** | Unsupported | Unsupported | Basic quantile bucketing | **Built-in `cs_winsorize`, `cs_zscore`, `neutralize`, `orthogonalize`** |
 | **Microstructure & Derivatives** | Unsupported | Unsupported | Unsupported | **Volume/Dollar/Imbalance Bars, Futures Roll, VPIN, OFI, Kyle's $\lambda$** |
 | **Quant ML (AFML Primitives)** | Unsupported | Unsupported | Unsupported | **Fixed-Window FracDiff (`frac_diff`), Triple-Barrier & Trend-Scanning** |
-| **Institutional Eval & Backtesting** | Unsupported | Unsupported | IC only (no backtester) | **Newey-West HAC IC, `ic_decay`, PSR/DSR, Realistic Backtest & MAE/MFE** |
+| **Evaluation & Backtesting** | Unsupported | Unsupported | IC only (no backtester) | **Newey-West HAC IC, `ic_decay`, PSR/DSR, Realistic Backtest & MAE/MFE** |
 | **Lazy & Streaming Execution** | Unsupported | Unsupported | Unsupported | **Full `pl.LazyFrame`** query optimization & Arrow zero-copy |
 
-### Institutional Use Cases & Target Desks
+### Example use cases
 
 1. **Index Futures & Intraday Derivatives Desks (VN30F1M, CME E-Mini, Perpetual Futures)**
    Aggregate tick/minute feeds into information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`), stitch continuous roll series (`stitch_futures_roll`), track intraday `session_vwap` z-scores, measure order flow toxicity (`vpin`, `ofi`) and carry (`futures_basis`, `oi_regime`), and backtest with next-bar open/VWAP execution (`execution_price="open"`), session flatten masks (`flat_mask`), and round-trip MAE/MFE excursion ledgers (`bt.trades()`).
@@ -114,7 +114,7 @@ print(out.tail(3))
 
 ### 3. Explore quantitative workflows
 
-Start with our ready-to-run [example scripts](examples/) or [1-click Google Colab notebooks](#interactive-jupyter--colab-notebooks), or explore the five institutional workflows below:
+Start with our ready-to-run [example scripts](examples/) or [1-click Google Colab notebooks](#interactive-jupyter--colab-notebooks), or explore the five workflows below:
 
 #### A. Intraday Derivatives, Information Bars, Roll Stitching & Microstructure
 
@@ -178,7 +178,7 @@ alpha_df = panel_df.with_columns(
 )
 ```
 
-#### D. Institutional Factor Validation (Newey-West HAC IC, Alpha Half-Life & PSR / DSR)
+#### D. Factor Validation (Newey-West HAC IC, Alpha Half-Life & PSR / DSR)
 
 ```python
 eval_df = alpha_df.anta.forward_returns(periods=(1, 5, 10), group_by="symbol")
@@ -256,7 +256,7 @@ polars_anta/
 flowchart LR
     A["1. Microstructure & Roll<br/>Volume/Dollar/Imbalance Bars<br/>stitch_futures_roll • VPIN • OFI"] --> B["2. Quant ML & Stationarity<br/>Fixed-Window FracDiff (FFD)<br/>Triple-Barrier • Trend-Scanning"]
     B --> C["3. Factor Orthogonalization<br/>cs_winsorize • cs_zscore<br/>neutralize • orthogonalize (OLS)"]
-    C --> D["4. Institutional Validation<br/>Newey-West HAC t-stat<br/>IC Decay Half-Life • PSR & DSR"]
+    C --> D["4. Statistical Validation<br/>Newey-West HAC t-stat<br/>IC Decay Half-Life • PSR & DSR"]
     D --> E["5. Realistic Execution<br/>Next-Open/VWAP • Vol-Targeting<br/>No-Trade Buffer • MAE/MFE Ledger"]
 ```
 
@@ -267,7 +267,7 @@ flowchart LR
 | Resource | Description |
 | :--- | :--- |
 | [**Online Documentation**](https://huuan26.github.io/polars-anta/) | Full documentation website with search, mathematical formulas, and usage guides |
-| [**Quantitative Theory & Institutional Workflows**](docs/guides/quant-theory-and-workflows.md) | Deep-dive guide into AFML labeling, fractional differentiation, microstructure bars, Newey-West HAC, and PSR/DSR |
+| [**Quantitative Theory & Workflows**](docs/guides/quant-theory-and-workflows.md) | Deep-dive guide into AFML labeling, fractional differentiation, microstructure bars, Newey-West HAC, and PSR/DSR |
 | [**API Reference Overview**](docs/indicators/index.md) | Complete index of all supported functions, input arguments, and `pl.Struct` output schemas |
 | [**Getting Started Guide**](docs/getting-started.md) | Introduction to Polars expressions, `.unnest()`, and fluent `.anta` / `.ta` chaining |
 | [**Multi-Asset Universe Guide**](docs/guides/multi-asset.md) | Best practices for partitioning indicators and cross-sectional factors with `.over("ticker")` |
@@ -424,7 +424,7 @@ All 202 public functions (203 exports in `__all__`, including `BacktestResult`) 
 | :--- | :--- | :--- |
 | `obv(close, volume)` | `Float64` | Joe Granville's Cumulative On-Balance Volume |
 | `vwap(high, low, close, volume, period=None)` | `Float64` | Volume Weighted Average Price (Cumulative or Rolling Window) |
-| `vwap_bands(high, low, close, volume, period=None, mult1=1.0, mult2=2.0, mult3=3.0)` | `Struct(vwap, upper_1..3, lower_1..3)` | Institutional VWAP with Volume-Weighted Standard Deviation Bands |
+| `vwap_bands(high, low, close, volume, period=None, mult1=1.0, mult2=2.0, mult3=3.0)` | `Struct(vwap, upper_1..3, lower_1..3)` | VWAP with Volume-Weighted Standard Deviation Bands |
 | `session_vwap(high, low, close, volume, session_by=None, mult1=1.0, mult2=2.0)` | `Struct(vwap, upper_1..2, lower_1..2, zscore)` | Session-Anchored VWAP Resetting per Trading Date/Session with Deviation Z-Score |
 | `vwma(close, volume, period=20)` | `Float64` | Volume Weighted Moving Average |
 | `cmf(high, low, close, volume, period=20)` | `Float64` | Marc Chaikin's Money Flow (CLV-Weighted Volume Ratio) |
@@ -570,7 +570,7 @@ All 202 public functions (203 exports in `__all__`, including `BacktestResult`) 
 
 ## Quantitative Theory, Mathematical Foundations & Rust Vectorization Architecture
 
-For complete derivations, step-by-step proofs, and institutional research workflows, see [**Architecture & Mathematical Proofs**](docs/architecture.md) and [**Quantitative Theory & Institutional Workflows**](docs/guides/quant-theory-and-workflows.md).
+For complete derivations, step-by-step proofs, and research workflows, see [**Architecture & Mathematical Proofs**](docs/architecture.md) and [**Quantitative Theory & Workflows**](docs/guides/quant-theory-and-workflows.md).
 
 ### 1. Closed-Form Algebraic Reductions ($O(N)$ Rust Native Kernels)
 

@@ -9,6 +9,7 @@ Looping convention (per AGENTS.md Invariant #2):
 
 from __future__ import annotations
 
+import itertools
 import math
 from collections.abc import Sequence
 from statistics import NormalDist
@@ -570,4 +571,134 @@ def spa_test(
         "best_name": names[best_idx],
         "n_models": float(k_models),
         "n_obs": float(t_obs),
+    }
+
+
+def _sharpe_from_moments(sum_x: np.ndarray, sum_x2: np.ndarray, n_obs: float) -> np.ndarray:
+    """Compute sample Sharpe ratios ``mean / std(ddof=1)`` from sufficient statistics."""
+    mean = sum_x / n_obs
+    var = np.maximum(0.0, (sum_x2 - (sum_x * sum_x) / n_obs) / max(1.0, n_obs - 1.0))
+    std = np.sqrt(var)
+    return np.where(std > 1e-15, mean / std, 0.0)
+
+
+def pbo_cscv(
+    data: np.ndarray | pl.DataFrame | pl.LazyFrame,
+    exclude: Sequence[str] = (),
+    n_splits: int = 16,
+    max_combinations: int = 20_000,
+    seed: int | None = None,
+) -> dict[str, object]:
+    """Probability of Backtest Overfitting (PBO) via Combinatorially Symmetric Cross-Validation.
+
+    Implements Bailey, Borwein, López de Prado & Zhu (2017). Partitions the $(T, N)$ return matrix
+    into $S$ equal-length contiguous sub-matrices ($S$ even) and evaluates $\\binom{S}{S/2}$
+    in-sample / out-of-sample split combinations via block sufficient statistics:
+
+    $$
+    n^{\\ast}_c = \\arg\\max_{1 \\le n \\le N} \\widehat{\\text{SR}}^{\\text{IS}}_{c,n}, \\qquad
+    \\bar{\\omega}_c = \\frac{\\text{rank}_{\\text{OOS}}(n^{\\ast}_c)}{N + 1}, \\qquad
+    \\lambda_c = \\ln\\frac{\\bar{\\omega}_c}{1 - \\bar{\\omega}_c}
+    $$
+
+    $$
+    \\text{PBO} = \\frac{1}{|\\mathcal{C}|} \\sum_{c \\in \\mathcal{C}} \\mathbb{I}(\\lambda_c \\le 0)
+    $$
+
+    References
+    ----------
+    Bailey, D. H., Borwein, J. M., López de Prado, M., & Zhu, Q. J. (2017). The Probability of
+    Backtest Overfitting. *Journal of Computational Finance*, 20(4), 39–69.
+
+    :param data: ``(T, N)`` NumPy array, Polars DataFrame, or LazyFrame of strategy returns ($N \\ge 2$).
+    :param exclude: Column names to exclude when ``data`` is a DataFrame/LazyFrame.
+    :param n_splits: Even number of contiguous time blocks $S \\ge 4$ (default ``16``).
+    :param max_combinations: Maximum number of $\\binom{S}{S/2}$ combinations evaluated before
+        deterministic random subsampling via ``seed``.
+    :param seed: Optional integer seed for combination subsampling.
+    :return: Dictionary with keys ``pbo``, ``logits``, ``is_sharpe_best``, ``oos_sharpe_best``,
+        ``degradation_slope``, ``prob_oos_loss``, ``n_combinations``, and ``n_strategies``.
+    """
+    s_splits = int(n_splits)
+    if s_splits < 4 or s_splits % 2 != 0:
+        raise ValueError("n_splits must be an even integer >= 4")
+    max_comb = int(max_combinations)
+    if max_comb < 1:
+        raise ValueError("max_combinations must be at least 1")
+
+    x_mat, _ = _to_matrix(data, exclude=exclude, min_rows=max(10, 2 * s_splits))
+    t_raw, n_strat = x_mat.shape
+    if n_strat < 2:
+        raise ValueError("pbo_cscv requires at least 2 strategies (columns)")
+
+    rem = t_raw % s_splits
+    if rem > 0:
+        x_mat = x_mat[rem:]
+    t_used = x_mat.shape[0]
+    block_len = t_used // s_splits
+    if block_len < 2:
+        raise ValueError("Each CSCV split block must contain at least 2 observations")
+
+    blocks = x_mat.reshape(s_splits, block_len, n_strat)
+    sum_s = blocks.sum(axis=1)
+    sumsq_s = (blocks * blocks).sum(axis=1)
+
+    half = s_splits // 2
+    total_comb = math.comb(s_splits, half)
+    if total_comb <= max_comb:
+        combos = list(itertools.combinations(range(s_splits), half))
+    else:
+        rng = np.random.default_rng(seed)
+        if total_comb <= 250_000:
+            all_combos = list(itertools.combinations(range(s_splits), half))
+            chosen = rng.choice(total_comb, size=max_comb, replace=False)
+            combos = [all_combos[int(i)] for i in chosen]
+        else:
+            seen: set[tuple[int, ...]] = set()
+            combos = []
+            while len(combos) < max_comb:
+                comb = tuple(sorted(int(i) for i in rng.choice(s_splits, size=half, replace=False)))
+                if comb not in seen:
+                    seen.add(comb)
+                    combos.append(comb)
+
+    n_comb = len(combos)
+    c_mat = np.zeros((n_comb, s_splits), dtype=np.float64)
+    for row_i, comb in enumerate(combos):
+        c_mat[row_i, list(comb)] = 1.0
+
+    n_half = float(half * block_len)
+    is_sum = c_mat @ sum_s
+    is_sq = c_mat @ sumsq_s
+    oos_sum = sum_s.sum(axis=0)[None, :] - is_sum
+    oos_sq = sumsq_s.sum(axis=0)[None, :] - is_sq
+
+    is_sharpe = _sharpe_from_moments(is_sum, is_sq, n_half)
+    oos_sharpe = _sharpe_from_moments(oos_sum, oos_sq, n_half)
+
+    n_star = np.argmax(is_sharpe, axis=1)
+    rows = np.arange(n_comb)
+    is_best = is_sharpe[rows, n_star]
+    oos_best = oos_sharpe[rows, n_star]
+
+    less = np.sum(oos_sharpe < oos_best[:, None], axis=1)
+    equal = np.sum(oos_sharpe == oos_best[:, None], axis=1)
+    rank_oos = 1.0 + less.astype(np.float64) + 0.5 * (equal.astype(np.float64) - 1.0)
+    omega_bar = np.clip(rank_oos / float(n_strat + 1), 1e-12, 1.0 - 1e-12)
+    logits = np.log(omega_bar / (1.0 - omega_bar))
+
+    pbo_val = float(np.mean(logits <= 0.0))
+    prob_loss = float(np.mean(oos_best < 0.0))
+    var_is = float(np.var(is_best))
+    deg_slope = float(np.cov(is_best, oos_best, ddof=0)[0, 1] / var_is) if var_is > 1e-15 else 0.0
+
+    return {
+        "pbo": pbo_val,
+        "logits": logits,
+        "is_sharpe_best": is_best,
+        "oos_sharpe_best": oos_best,
+        "degradation_slope": deg_slope,
+        "prob_oos_loss": prob_loss,
+        "n_combinations": int(n_comb),
+        "n_strategies": int(n_strat),
     }

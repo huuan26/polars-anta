@@ -16,6 +16,7 @@ from polars_anta.inference import (
     _to_matrix,
     adjust_pvalues,
     bootstrap_test,
+    pbo_cscv,
     romano_wolf,
     spa_test,
     stationary_bootstrap_indices,
@@ -231,3 +232,28 @@ def test_spa_test_properties() -> None:
     assert res_df["n_models"] == 2.0
     assert res_df["best_name"] == "m2"
     assert res_df["p_consistent"] < 0.05
+
+
+def test_pbo_cscv_properties() -> None:
+    """Test CSCV PBO under pure noise, dominant strategy, subsampling, and odd n_splits."""
+    rng = np.random.default_rng(123)
+    noise_mat = rng.normal(0.0, 1.0, size=(1605, 20))  # 1605 trims 5 leading rows to 1600
+    res_noise = pbo_cscv(noise_mat, n_splits=16)
+    assert res_noise["n_combinations"] == 12870
+    assert res_noise["n_strategies"] == 20
+    assert 0.30 <= float(res_noise["pbo"]) <= 0.70
+
+    dom_mat = np.hstack([noise_mat, rng.normal(0.15, 1.0, size=(1605, 1))])
+    res_dom = pbo_cscv(dom_mat, n_splits=16)
+    assert float(res_dom["pbo"]) < 0.10
+
+    res_sub = pbo_cscv(noise_mat, n_splits=16, max_combinations=250, seed=42)
+    assert res_sub["n_combinations"] == 250
+    assert isinstance(res_sub["logits"], np.ndarray) and res_sub["logits"].shape == (250,)
+
+    with pytest.raises(ValueError, match="even integer"):
+        pbo_cscv(noise_mat, n_splits=15)
+    with pytest.raises(ValueError, match="at least 2 strategies"):
+        pbo_cscv(noise_mat[:, :1], n_splits=8)
+    with pytest.raises(ValueError, match="max_combinations"):
+        pbo_cscv(noise_mat, n_splits=8, max_combinations=0)

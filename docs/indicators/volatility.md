@@ -1,6 +1,6 @@
 # Volatility Estimators, ATR Stops & Price Channels (`polars_anta.volatility`)
 
-The `polars_anta.volatility` module provides **18 volatility estimators, range-based efficient variance models, and dynamic price channels** used for position sizing, volatility targeting, breakout detection, and stop-loss placement.
+The `polars_anta.volatility` module provides **20 volatility estimators, range-based efficient variance models, and dynamic price channels** used for position sizing, volatility targeting, breakout detection, and stop-loss placement.
 
 ---
 

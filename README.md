@@ -313,7 +313,7 @@ Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a *
 
 ## API Reference & Indicator Catalog
 
-All indicators, alpha primitives, and evaluation functions are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces. Click any module below to expand its complete function signature reference, or visit the [Online API Reference](https://huuan26.github.io/polars-anta/indicators/).
+All 202 public functions (203 exports in `__all__`, including `BacktestResult`) are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces. Click any module below to expand its complete function signature reference, or visit the [Online API Reference](https://huuan26.github.io/polars-anta/indicators/).
 
 <details>
 <summary><strong>1. Trend & Overlays</strong> — <code>polars_anta.trend</code> · <a href="docs/indicators/trend.md">Detailed Docs</a></summary>

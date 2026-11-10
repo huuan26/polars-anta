@@ -16,6 +16,13 @@ from polars_anta.inference import (
     _to_matrix,
     adjust_pvalues,
     bootstrap_test,
+    breakeven_cost,
+    breakeven_cost_from_backtest,
+    clark_west_test,
+    cusum_mean_test,
+    diebold_mariano_test,
+    empirical_bayes_shrinkage,
+    oos_r2,
     pbo_cscv,
     romano_wolf,
     spa_test,
@@ -257,3 +264,109 @@ def test_pbo_cscv_properties() -> None:
         pbo_cscv(noise_mat[:, :1], n_splits=8)
     with pytest.raises(ValueError, match="max_combinations"):
         pbo_cscv(noise_mat, n_splits=8, max_combinations=0)
+
+
+def test_empirical_bayes_shrinkage() -> None:
+    """Test EB shrinkage under tau2=0, small SE, grand_mean prior, and grouped priors."""
+    # Case 1: tau2 = 0 (SE larger than dispersion around prior) => full shrinkage to prior
+    eb_zero = empirical_bayes_shrinkage(
+        estimates=[0.01, -0.01, 0.005],
+        std_errors=[0.10, 0.10, 0.10],
+        names=["f1", "f2", "f3"],
+        prior="zero",
+    )
+    assert np.allclose(eb_zero["tau2"].to_numpy(), 0.0)
+    assert np.allclose(eb_zero["shrinkage"].to_numpy(), 1.0)
+    assert np.allclose(eb_zero["posterior_mean"].to_numpy(), 0.0)
+    assert np.allclose(eb_zero["posterior_sd"].to_numpy(), 0.0)
+    assert np.allclose(eb_zero["prob_positive"].to_numpy(), 0.5)
+
+    # Case 2: Tiny SE => posterior_mean ~= estimate
+    est = np.array([0.05, -0.04, 0.08, 0.02])
+    se = np.array([1e-4, 1e-4, 1e-4, 1e-4])
+    eb_prec = empirical_bayes_shrinkage(est, se, prior="grand_mean")
+    np.testing.assert_allclose(eb_prec["posterior_mean"].to_numpy(), est, rtol=1e-4)
+    probs = eb_prec["prob_positive"].to_numpy()
+    assert np.all((probs >= 0.0) & (probs <= 1.0))
+    assert probs[0] > 0.99 and probs[1] < 0.01
+
+    # Case 3: Grouped shrinkage
+    eb_grp = empirical_bayes_shrinkage(
+        estimates=[0.10, 0.12, -0.10, 0.001, -0.001, 0.002],
+        std_errors=[0.01, 0.01, 0.01, 0.05, 0.05, 0.05],
+        groups=["strong", "strong", "strong", "weak", "weak", "weak"],
+        prior="zero",
+    )
+    strong_rows = eb_grp.filter(pl.col("group") == "strong")
+    weak_rows = eb_grp.filter(pl.col("group") == "weak")
+    assert float(strong_rows["tau2"][0]) > 0.0
+    assert float(weak_rows["tau2"][0]) == 0.0
+    assert np.allclose(weak_rows["posterior_mean"].to_numpy(), 0.0)
+
+
+def test_oos_r2_clark_west_and_diebold_mariano() -> None:
+    """Test Campbell-Thompson OOS R2, Clark-West nested test, and Diebold-Mariano symmetry."""
+    rng = np.random.default_rng(55)
+    y = rng.normal(0.01, 0.10, size=200)
+
+    # Perfect forecast => R2_oos == 1.0
+    r2_perf = oos_r2(y, y, min_train=20)
+    assert math.isclose(r2_perf["r2_oos"], 1.0, rel_tol=1e-12)
+    assert r2_perf["n_obs"] == 180.0
+
+    # Forecast equal to expanding mean => R2_oos == 0.0
+    exp_mean = np.zeros_like(y)
+    exp_mean[1:] = np.cumsum(y[:-1]) / np.arange(1, y.size, dtype=np.float64)
+    r2_bench = oos_r2(y, exp_mean, min_train=20)
+    assert math.isclose(r2_bench["r2_oos"], 0.0, abs_tol=1e-12)
+
+    # Clark-West: true predictive signal vs zero benchmark => p < 0.05
+    signal = rng.normal(0.0, 1.0, size=300)
+    y_cw = 0.25 * signal + rng.normal(0.0, 1.0, size=300)
+    pred_r = np.zeros(300)
+    pred_u = 0.25 * signal
+    cw = clark_west_test(y_cw, pred_r, pred_u)
+    assert cw["statistic"] > 2.0
+    assert cw["p_value"] < 0.05
+
+    # Diebold-Mariano: symmetry when swapping pred_1 and pred_2
+    dm_12 = diebold_mariano_test(y_cw, pred_u, pred_r, loss="squared", horizon=1)
+    dm_21 = diebold_mariano_test(y_cw, pred_r, pred_u, loss="squared", horizon=1)
+    assert math.isclose(dm_12["statistic"], -dm_21["statistic"], rel_tol=1e-12)
+    assert math.isclose(dm_12["p_value"], dm_21["p_value"], rel_tol=1e-12)
+    assert dm_12["statistic"] < 0.0 and dm_12["p_value"] < 0.05
+
+    dm_abs = diebold_mariano_test(y_cw, pred_u, pred_r, loss="absolute", horizon=3)
+    assert dm_abs["statistic"] < 0.0
+
+
+def test_cusum_mean_test_and_breakeven_cost() -> None:
+    """Test OLS-CUSUM structural break detection and breakeven transaction cost."""
+    rng = np.random.default_rng(88)
+    stable = rng.normal(0.05, 0.10, size=400)
+    cusum_stable = cusum_mean_test(stable)
+    assert cusum_stable["p_value"] > 0.05
+
+    shifted = np.concatenate([rng.normal(0.10, 0.05, size=200), rng.normal(-0.10, 0.05, size=200)])
+    cusum_shift = cusum_mean_test(shifted)
+    assert cusum_shift["p_value"] < 0.01
+    assert 160.0 <= cusum_shift["break_index"] <= 240.0
+    assert cusum_shift["mean_before"] > 0.05 and cusum_shift["mean_after"] < -0.05
+
+    # Breakeven cost hand-calculable + BacktestResult integration
+    gross = [0.01, 0.02, -0.005, 0.015]  # sum = 0.04
+    to = [1.0, 0.0, 1.0, 0.0]  # sum = 2.0
+    assert math.isclose(breakeven_cost(gross, to), 0.02, rel_tol=1e-12)
+    assert math.isinf(breakeven_cost([0.01, 0.01], [0.0, 0.0]))
+    assert breakeven_cost([-0.01, 0.0], [0.0, 0.0]) == 0.0
+
+    df_bt = pl.DataFrame(
+        {
+            "close": [100.0, 102.0, 105.0, 103.0, 106.0, 108.0],
+            "signal": [1.0, 1.0, -1.0, -1.0, 1.0, 1.0],
+        }
+    )
+    bt_res = df_bt.anta.backtest(signal="signal", fee_rate=0.0)
+    c_star = breakeven_cost_from_backtest(bt_res)
+    expected_c = float(bt_res.data["gross_return"].sum()) / float(bt_res.data["turnover"].sum())
+    assert math.isclose(c_star, expected_c, rel_tol=1e-12)

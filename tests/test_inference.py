@@ -13,8 +13,10 @@ from polars_anta.evaluation import _newey_west_lrv, _nw_auto_lag
 from polars_anta.inference import (
     FalsificationResult,
     _bootstrap_means,
+    _normal_cdf,
     _to_1d_array,
     _to_matrix,
+    _two_sided_normal_p,
     adjust_pvalues,
     bootstrap_test,
     breakeven_cost,
@@ -553,3 +555,173 @@ def test_sweep_robustness_and_remaining_validations() -> None:
         falsify_factors(short_df, ["f1"], "ret", group_by="date")
     with pytest.raises(ValueError, match="at least 2 signals"):
         sweep_robustness(df, {"only_one": signals["ema_5_10"]})
+
+
+def test_namespace_and_exports_parity() -> None:
+    """Verify .anta, .ta, LazyFrame, and top-level exports parity for inference functions."""
+    expected_exports = {
+        "stationary_bootstrap_indices",
+        "bootstrap_test",
+        "adjust_pvalues",
+        "romano_wolf",
+        "spa_test",
+        "pbo_cscv",
+        "empirical_bayes_shrinkage",
+        "oos_r2",
+        "clark_west_test",
+        "diebold_mariano_test",
+        "cusum_mean_test",
+        "breakeven_cost",
+        "breakeven_cost_from_backtest",
+        "ic_matrix",
+        "long_short_returns",
+        "falsify_factors",
+        "FalsificationResult",
+        "sweep_robustness",
+    }
+    assert expected_exports.issubset(set(pa.__all__))
+    for name in expected_exports:
+        assert hasattr(pa, name)
+
+    rng = np.random.default_rng(314)
+    n_dates, n_assets = 40, 12
+    total = n_dates * n_assets
+    df = pl.DataFrame(
+        {
+            "date": np.repeat(np.arange(n_dates), n_assets),
+            "asset": np.tile(np.arange(n_assets), n_dates),
+            "ret": rng.normal(0.0, 0.02, size=total),
+            "f1": rng.normal(0.0, 1.0, size=total),
+            "f2": rng.normal(0.0, 1.0, size=total),
+        }
+    )
+    lf = df.lazy()
+
+    ic_top = pa.ic_matrix(df, ["f1", "f2"], "ret", group_by="date")
+    ic_anta = df.anta.ic_matrix(["f1", "f2"], "ret", group_by="date")
+    ic_ta = df.ta.ic_matrix(["f1", "f2"], "ret", group_by="date")
+    ic_lf = lf.anta.ic_matrix(["f1", "f2"], "ret", group_by="date")
+    assert ic_top.equals(ic_anta) and ic_top.equals(ic_ta) and ic_top.equals(ic_lf)
+
+    ls_top = pa.long_short_returns(df, ["f1", "f2"], "ret", group_by="date")
+    ls_anta = df.anta.long_short_returns(["f1", "f2"], "ret", group_by="date")
+    ls_ta = df.ta.long_short_returns(["f1", "f2"], "ret", group_by="date")
+    assert ls_top.equals(ls_anta) and ls_top.equals(ls_ta)
+
+    f_top = pa.falsify_factors(df, ["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    f_anta = df.anta.falsify_factors(["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    f_ta = df.ta.falsify_factors(["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    f_lf = lf.anta.falsify_factors(["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    assert f_top.table.equals(f_anta.table)
+    assert f_top.table.equals(f_ta.table)
+    assert f_top.table.equals(f_lf.table)
+
+    bt_df = pl.DataFrame(
+        {
+            "ts": np.arange(80),
+            "close": 100.0 + np.cumsum(rng.normal(0.0, 1.0, size=80)),
+            "s1": rng.choice([-1.0, 1.0], size=80),
+            "s2": rng.choice([-1.0, 1.0], size=80),
+        }
+    )
+    sw_anta = bt_df.anta.sweep_robustness(
+        {"s1": "s1", "s2": "s2"}, time_col="ts", n_splits=4, n_boot=49, seed=1
+    )
+    sw_ta = bt_df.ta.sweep_robustness(
+        {"s1": "s1", "s2": "s2"}, time_col="ts", n_splits=4, n_boot=49, seed=1
+    )
+    assert sw_anta["romano_wolf"].equals(sw_ta["romano_wolf"])  # type: ignore[union-attr]
+
+
+def test_inference_edge_cases_and_validation_complete() -> None:
+    """Cover remaining edge cases and validation branches in polars_anta.inference."""
+    assert math.isnan(_normal_cdf(float("nan")))
+    assert math.isnan(_two_sided_normal_p(float("nan")))
+
+    with pytest.raises(ValueError, match="1D or 2D"):
+        _to_matrix(np.ones((10, 2, 2)))
+    with pytest.raises(ValueError, match="at least 10 rows"):
+        _to_matrix(np.ones((5, 2)))
+    with pytest.raises(ValueError, match="1 column"):
+        _to_matrix(np.empty((12, 0)))
+    with pytest.raises(ValueError, match="NaN"):
+        bad = np.ones((12, 2))
+        bad[0, 0] = float("nan")
+        _to_matrix(bad)
+    with pytest.raises(ValueError, match="idx second dimension"):
+        _bootstrap_means(np.ones((10, 2)), np.zeros((5, 8), dtype=np.int64))
+    with pytest.raises(ValueError, match="n_boot"):
+        bootstrap_test(np.ones(15), n_boot=0)
+    with pytest.raises(ValueError, match="alternative"):
+        romano_wolf(np.ones((15, 2)), alternative="less")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="n_boot"):
+        romano_wolf(np.ones((15, 2)), n_boot=0)
+
+    rng = np.random.default_rng(11)
+    mat_15 = rng.normal(size=(15, 2))
+    assert len(romano_wolf(mat_15, n_boot=1, seed=11)) == 2
+    assert spa_test(mat_15, benchmark=0.01, n_boot=1, seed=11)["n_models"] == 2.0
+    assert spa_test(mat_15, benchmark=np.zeros(15), n_boot=5, seed=11)["n_models"] == 2.0
+
+    with pytest.raises(ValueError, match="n_boot"):
+        spa_test(mat_15, n_boot=0)
+    with pytest.raises(ValueError, match="not found"):
+        spa_test(pl.DataFrame({"a": range(15)}), benchmark="missing")
+    with pytest.raises(ValueError, match="benchmark length"):
+        spa_test(mat_15, benchmark=np.zeros(12))
+    with pytest.raises(ValueError, match="at least 32 rows"):
+        pbo_cscv(rng.normal(size=(16, 2)), n_splits=16)
+
+    # Trigger large combination subsampling branch (comb(24, 12) = 2,704,156 > 250_000)
+    res_large_s = pbo_cscv(rng.normal(size=(96, 3)), n_splits=24, max_combinations=15, seed=7)
+    assert res_large_s["n_combinations"] == 15
+
+    with pytest.raises(ValueError, match="same length"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05])
+    with pytest.raises(ValueError, match="names length"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.05], names=["only_one"])
+    with pytest.raises(ValueError, match="groups length"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.05], groups=["only_one"])
+    with pytest.raises(ValueError, match="same length"):
+        oos_r2(np.ones(25), np.ones(26), min_train=10)
+    with pytest.raises(ValueError, match="same length"):
+        clark_west_test(np.ones(15), np.ones(15), np.ones(14))
+    assert clark_west_test(np.ones(15), np.ones(15), np.ones(15))["statistic"] == 0.0
+    with pytest.raises(ValueError, match="same length"):
+        diebold_mariano_test(np.ones(15), np.ones(15), np.ones(14))
+    assert diebold_mariano_test(np.ones(15), np.ones(15), np.ones(15))["statistic"] == 0.0
+    assert cusum_mean_test(np.ones(20))["p_value"] == 1.0
+    assert cusum_mean_test(np.array([1.0, -1.0] * 20), nw_lags=0)["p_value"] == 1.0
+    with pytest.raises(ValueError, match="nw_lags"):
+        cusum_mean_test(np.ones(20), nw_lags=-1)
+    with pytest.raises(ValueError, match="match in length"):
+        breakeven_cost([0.01, 0.02], [1.0])
+
+    df_p = pl.DataFrame(
+        {"date": [1, 1, 2, 2], "f1": [1.0, 2.0, 1.0, 2.0], "r": [0.1, 0.2, 0.1, 0.2]}
+    )
+    assert len(ic_matrix(df_p, ["f1"], "r", group_by=["date"])) == 2
+    with pytest.raises(ValueError, match="group_by"):
+        ic_matrix(df_p, ["f1"], "r", group_by=[])
+    with pytest.raises(ValueError, match="method"):
+        ic_matrix(df_p, ["f1"], "r", group_by="date", method="kendall")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="factor_cols"):
+        ic_matrix(df_p, [], "r", group_by="date")
+    with pytest.raises(ValueError, match="quantiles"):
+        long_short_returns(df_p, ["f1"], "r", group_by="date", quantiles=1)
+    with pytest.raises(ValueError, match="mode"):
+        long_short_returns(df_p, ["f1"], "r", group_by="date", mode="invalid")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="factor_cols"):
+        long_short_returns(df_p, [], "r", group_by="date")
+    with pytest.raises(ValueError, match="horizon"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", horizon=0)
+    with pytest.raises(ValueError, match="n_boot"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", n_boot=0)
+    with pytest.raises(ValueError, match="fdr_q"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", fdr_q=1.0)
+    with pytest.raises(ValueError, match="fwer_alpha"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", fwer_alpha=0.0)
+    with pytest.raises(ValueError, match="factor_cols"):
+        falsify_factors(df_p, [], "r", group_by="date")
+    with pytest.raises(ValueError, match="time_col"):
+        sweep_robustness(df_p, {"a": "f1", "b": "f1"}, time_col="missing")

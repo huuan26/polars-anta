@@ -11,6 +11,7 @@ import pytest
 import polars_anta as pa
 from polars_anta.evaluation import _newey_west_lrv, _nw_auto_lag
 from polars_anta.inference import (
+    FalsificationResult,
     _bootstrap_means,
     _to_1d_array,
     _to_matrix,
@@ -22,11 +23,15 @@ from polars_anta.inference import (
     cusum_mean_test,
     diebold_mariano_test,
     empirical_bayes_shrinkage,
+    falsify_factors,
+    ic_matrix,
+    long_short_returns,
     oos_r2,
     pbo_cscv,
     romano_wolf,
     spa_test,
     stationary_bootstrap_indices,
+    sweep_robustness,
 )
 
 
@@ -370,3 +375,181 @@ def test_cusum_mean_test_and_breakeven_cost() -> None:
     c_star = breakeven_cost_from_backtest(bt_res)
     expected_c = float(bt_res.data["gross_return"].sum()) / float(bt_res.data["turnover"].sum())
     assert math.isclose(c_star, expected_c, rel_tol=1e-12)
+
+
+def test_ic_matrix_and_long_short_returns() -> None:
+    """Test ic_matrix parity with information_coefficient and hand-calculable long_short_returns."""
+    # Hand-calculable 2-period x 10-asset panel
+    dates = [1] * 10 + [2] * 10
+    assets = list(range(10)) * 2
+    f1 = [float(i) for i in range(10)] + [float(10 - i) for i in range(10)]
+    ret = [0.01 * float(i) for i in range(10)] + [0.02 * float(i) for i in range(10)]
+    f2 = [float(i % 3) for i in range(20)]
+    df = pl.DataFrame({"date": dates, "asset": assets, "f1": f1, "f2": f2, "ret": ret})
+
+    ic_mat = ic_matrix(df, ["f1", "f2"], "ret", group_by="date", method="spearman")
+    for f_name in ("f1", "f2"):
+        single = pa.information_coefficient(df, f_name, "ret", group_by="date", method="spearman")
+        np.testing.assert_allclose(
+            ic_mat[f_name].to_numpy(), single["ic"].to_numpy(), rtol=1e-12, atol=1e-12
+        )
+
+    ls_df = long_short_returns(df, ["f1"], "ret", group_by="date", quantiles=5, mode="long_short")
+    # Period 1: f1 = 0..9, ret = 0..0.09; Q1=[0.00, 0.01] mean=0.005, Q5=[0.08, 0.09] mean=0.085 => spread=0.08
+    # Period 2: f1 = 10..1, ret = 0..0.18; Q5 has i=0,1 (ret 0.00, 0.02, mean=0.01), Q1 has i=8,9 (ret 0.16, 0.18, mean=0.17) => spread=-0.16
+    np.testing.assert_allclose(ls_df["f1"].to_numpy(), [0.08, -0.16], rtol=1e-12, atol=1e-12)
+
+    tm_df = long_short_returns(
+        df.lazy(), ["f1"], "ret", group_by="date", quantiles=5, mode="top_minus_mean"
+    )
+    # Period 1 mean = 0.045, Q5 mean = 0.085 => 0.04
+    assert math.isclose(float(tm_df["f1"][0]), 0.04, rel_tol=1e-12)
+
+
+def test_falsify_factors_funnel_and_lazyframe_parity() -> None:
+    """Test falsify_factors on 3 true factors + 27 noise factors and verify LazyFrame parity."""
+    rng = np.random.default_rng(2026)
+    n_dates, n_assets = 80, 25
+    total = n_dates * n_assets
+    dates = np.repeat(np.arange(n_dates), n_assets)
+    assets = np.tile(np.arange(n_assets), n_dates)
+    fwd_ret = rng.normal(0.0, 0.02, size=total)
+
+    # 2 persistent true factors + 1 decaying true factor (strong in first half, zero in second half)
+    true_1 = 0.35 * fwd_ret + rng.normal(0.0, 0.02, size=total)
+    true_2 = -0.35 * fwd_ret + rng.normal(0.0, 0.02, size=total)
+    half_rows = (n_dates // 2) * n_assets
+    true_decay = np.concatenate(
+        [
+            0.55 * fwd_ret[:half_rows] + rng.normal(0.0, 0.015, size=half_rows),
+            rng.normal(0.0, 0.02, size=total - half_rows),
+        ]
+    )
+
+    cols: dict[str, np.ndarray] = {
+        "date": dates,
+        "asset": assets,
+        "fwd_ret": fwd_ret,
+        "true_1": true_1,
+        "true_2": true_2,
+        "true_decay": true_decay,
+    }
+    factor_names = ["true_1", "true_2", "true_decay"]
+    for i in range(27):
+        fname = f"noise_{i:02d}"
+        cols[fname] = rng.normal(0.0, 1.0, size=total)
+        factor_names.append(fname)
+
+    df = pl.DataFrame(cols)
+    res = falsify_factors(
+        df,
+        factor_cols=factor_names,
+        return_col="fwd_ret",
+        group_by="date",
+        horizon=1,
+        n_boot=299,
+        seed=42,
+    )
+    assert isinstance(res, FalsificationResult)
+    expected_keys = {
+        "n_tested",
+        "n_periods_used",
+        "n_raw_p05",
+        "expected_false_raw",
+        "n_bh",
+        "n_rw",
+        "n_robust",
+        "n_decaying",
+        "n_noise",
+    }
+    assert expected_keys.issubset(set(res.summary.keys()))
+    assert res.summary["n_tested"] == 30.0
+    assert res.summary["n_periods_used"] == 80.0
+
+    verdict_map = dict(
+        zip(res.table["factor"].to_list(), res.table["verdict"].to_list(), strict=True)
+    )
+    assert verdict_map["true_1"] in ("robust", "decaying")
+    assert verdict_map["true_2"] in ("robust", "decaying")
+    assert verdict_map["true_decay"] in ("robust", "decaying")
+    assert verdict_map["true_decay"] == "decaying"
+
+    noise_robust = sum(
+        1 for k, v in verdict_map.items() if k.startswith("noise_") and v == "robust"
+    )
+    assert noise_robust <= 2
+
+    rep = res.report()
+    assert (
+        isinstance(rep, str)
+        and "true_1" in rep
+        and "POLARS-ANTA FACTOR FALSIFICATION REPORT" in rep
+    )
+
+    # LazyFrame parity
+    res_lazy = falsify_factors(
+        df.lazy(),
+        factor_cols=factor_names,
+        return_col="fwd_ret",
+        group_by="date",
+        horizon=1,
+        n_boot=299,
+        seed=42,
+    )
+    assert res.table.equals(res_lazy.table)
+
+
+def test_sweep_robustness_and_remaining_validations() -> None:
+    """Test sweep_robustness across 4 EMA crossover configs and remaining ValueError guards."""
+    rng = np.random.default_rng(7)
+    n_bars = 320
+    close = 100.0 * np.exp(np.cumsum(rng.normal(0.0005, 0.01, size=n_bars)))
+    df = (
+        pl.DataFrame({"ts": np.arange(n_bars), "close": close})
+        .anta.ema(5, alias="ema_5")
+        .anta.ema(10, alias="ema_10")
+        .anta.ema(20, alias="ema_20")
+        .anta.ema(40, alias="ema_40")
+    )
+    signals = {
+        "ema_5_10": pl.when(pl.col("ema_5") > pl.col("ema_10")).then(1.0).otherwise(-1.0),
+        "ema_5_20": pl.when(pl.col("ema_5") > pl.col("ema_20")).then(1.0).otherwise(-1.0),
+        "ema_10_20": pl.when(pl.col("ema_10") > pl.col("ema_20")).then(1.0).otherwise(-1.0),
+        "ema_10_40": pl.when(pl.col("ema_10") > pl.col("ema_40")).then(1.0).otherwise(-1.0),
+    }
+    out = sweep_robustness(df, signals, time_col="ts", n_splits=8, n_boot=199, seed=7)
+    assert set(out.keys()) == {"returns_matrix", "pbo", "spa", "romano_wolf"}
+    assert isinstance(out["returns_matrix"], pl.DataFrame)
+    assert isinstance(out["romano_wolf"], pl.DataFrame) and len(out["romano_wolf"]) == 4
+
+    out_no_ts = sweep_robustness(df, signals, time_col=None, n_splits=8, n_boot=99, seed=7)
+    assert out_no_ts["returns_matrix"].columns == list(signals.keys())
+
+    # Remaining input validation checks
+    with pytest.raises(ValueError, match="strictly positive"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.0])
+    with pytest.raises(ValueError, match="prior"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.05], prior="flat")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="min_train"):
+        oos_r2(np.ones(30), np.ones(30), min_train=0)
+    with pytest.raises(ValueError, match="nw_lags"):
+        clark_west_test(np.ones(20), np.zeros(20), np.ones(20), nw_lags=-1)
+    with pytest.raises(ValueError, match="loss"):
+        diebold_mariano_test(np.ones(20), np.zeros(20), np.ones(20), loss="huber")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="horizon"):
+        diebold_mariano_test(np.ones(20), np.zeros(20), np.ones(20), horizon=0)
+    with pytest.raises(ValueError, match="non-negative"):
+        breakeven_cost([0.01, 0.02], [0.5, -0.1])
+    with pytest.raises(ValueError, match="BacktestResult"):
+        breakeven_cost_from_backtest("not_a_bt")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="at least 30"):
+        short_df = pl.DataFrame(
+            {
+                "date": np.repeat(np.arange(10), 5),
+                "f1": rng.normal(size=50),
+                "ret": rng.normal(size=50),
+            }
+        )
+        falsify_factors(short_df, ["f1"], "ret", group_by="date")
+    with pytest.raises(ValueError, match="at least 2 signals"):
+        sweep_robustness(df, {"only_one": signals["ema_5_10"]})

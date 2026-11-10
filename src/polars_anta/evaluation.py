@@ -361,6 +361,40 @@ def information_coefficient(
     return res.collect() if isinstance(res, pl.LazyFrame) else res
 
 
+def _nw_auto_lag(n_obs: int) -> int:
+    """Newey–West (1994) plug-in bandwidth: max(1, floor(4 * (T/100)^(2/9))), capped at T-1."""
+    if n_obs <= 1:
+        return 0
+    return min(max(1, int(4.0 * ((float(n_obs) / 100.0) ** (2.0 / 9.0)))), n_obs - 1)
+
+
+def _newey_west_lrv(u: np.ndarray, max_lag: int) -> np.ndarray | float:
+    """Bartlett-kernel long-run variance of DEMEANED series.
+
+    :param u: Demeaned array of shape ``(T,)`` or ``(T, K)``.
+    :param max_lag: Maximum Bartlett kernel lag $L \\ge 0$.
+    :return: ``float`` for 1-D input, or ``np.ndarray`` of shape ``(K,)`` for 2-D input, floored at ``1e-24``.
+    """
+    n_obs = u.shape[0]
+    effective_lag = min(max(0, int(max_lag)), max(0, n_obs - 1))
+    if u.ndim == 1:
+        gamma_0 = float(np.dot(u, u)) / float(n_obs)
+        lrv = gamma_0
+        for lag_j in range(1, effective_lag + 1):
+            weight = 1.0 - float(lag_j) / float(effective_lag + 1)
+            gamma_j = float(np.dot(u[lag_j:], u[:-lag_j])) / float(n_obs)
+            lrv += 2.0 * weight * gamma_j
+        return max(lrv, 1e-24)
+
+    gamma_0_vec = (u * u).sum(axis=0) / float(n_obs)
+    lrv_vec = gamma_0_vec.copy()
+    for lag_j in range(1, effective_lag + 1):
+        weight = 1.0 - float(lag_j) / float(effective_lag + 1)
+        gamma_j_vec = (u[lag_j:] * u[:-lag_j]).sum(axis=0) / float(n_obs)
+        lrv_vec = lrv_vec + 2.0 * weight * gamma_j_vec
+    return np.maximum(lrv_vec, 1e-24)
+
+
 def ic_summary(
     df: pl.DataFrame | pl.LazyFrame,
     factor_col: str,
@@ -421,19 +455,8 @@ def ic_summary(
 
     if n > 1 and std_val > 1e-12:
         u = ic_series.to_numpy().astype(np.float64, copy=False) - mean_val
-        max_lag = (
-            min(int(nw_lags), n - 1)
-            if nw_lags is not None
-            else min(max(1, int(4.0 * ((n / 100.0) ** (2.0 / 9.0)))), n - 1)
-        )
-        gamma_0 = float(np.dot(u, u)) / float(n)
-        lrv = gamma_0
-        for lag_j in range(1, max_lag + 1):
-            weight = 1.0 - float(lag_j) / float(max_lag + 1)
-            gamma_j = float(np.dot(u[lag_j:], u[:-lag_j])) / float(n)
-            lrv += 2.0 * weight * gamma_j
-        # Guard against negative Bartlett variance in tiny/degenerate samples
-        lrv = max(lrv, 1e-24)
+        max_lag = min(int(nw_lags), n - 1) if nw_lags is not None else _nw_auto_lag(n)
+        lrv = float(_newey_west_lrv(u, max_lag))
         nw_se = math.sqrt(lrv / float(n))
         nw_t_stat_val = mean_val / nw_se
     else:

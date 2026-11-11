@@ -101,3 +101,40 @@
 | `c793a02` | `2026-11-11 00:09:34 +0700` | research: discovery pipeline and results |
 | `4caec78` | `2026-11-11 00:11:39 +0700` | research: holdout evaluation (unlocked after pre-registration 4c1a4b5) |
 | `dacd8dc` | `2026-11-11 00:16:37 +0700` | docs(research): factor zoo report |
+
+## Exploratory Sensitivity & Incremental Predictability vs. 5-Day Reversal
+
+| Specification | Tested | Raw $p \le 0.05$ | NW $|t| \ge 1.96$ | BH $q \le 0.10$ | RW $p \le 0.05$ | `robust` | `fdr_only` | `decaying` | `noise` | $N_{\text{eff}}$ | $\lambda_1$ | Top-5 Share |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **Baseline Frozen Registry (150 Signals)** | 150 | 91 | 95 | 94 | 71 | 64 | 16 | 14 | 56 | 6.00 | 55.21 | 66.6% |
+| **Unique Signals Only (146 Signals, Drop 4 Exact Duplicates)** | 146 | 88 | 92 | 91 | 67 | 61 | 17 | 13 | 55 | 6.13 | 53.20 | 65.9% |
+| **Orthogonalized Against `rev_5_rank` (150 Signals)** | 150 | 110 | 113 | 114 | 100 | 91 | 7 | 16 | 36 | 9.37 | 40.21 | 58.5% |
+
+## Exploratory Q1–Q5 Annualized Active Return Decomposition (Discovery 2014–2021)
+
+| Factor | Family | Sign | Q1 (% Ann.) | Q2 (% Ann.) | Q3 (% Ann.) | Q4 (% Ann.) | Q5 (% Ann.) | Q5 − Q1 (% Ann.) | Q1 Share of Spread |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `returns_divergence_14` | `alpha` | -1 | -6.61% | -0.36% | +2.14% | +2.57% | +2.32% | +8.93% | 74.0% |
+| `hma_10` | `trend` | -1 | -6.91% | +2.01% | -0.92% | +1.71% | +4.11% | +11.02% | 62.7% |
+| `tema_10` | `trend` | -1 | -6.99% | -0.07% | +0.79% | -2.21% | +8.41% | +15.41% | 45.4% |
+| `zlema_10` | `trend` | -1 | -5.59% | +2.50% | -1.77% | +0.69% | +4.10% | +9.69% | 57.7% |
+| `true_range_norm` | `volatility` | -1 | -4.51% | -2.32% | +1.93% | -0.77% | +5.72% | +10.23% | 44.1% |
+| `alpha_018` | `alpha` | +1 | -16.62% | +2.71% | +6.91% | +9.73% | -2.66% | +13.96% | 119.1% |
+| `pivot_classic` | `trend` | -1 | -5.97% | -1.56% | +3.29% | +2.10% | +2.39% | +8.36% | 71.4% |
+| `pivot_fibonacci` | `trend` | -1 | -5.97% | -1.56% | +3.29% | +2.10% | +2.39% | +8.36% | 71.4% |
+| `pivot_woodie` | `trend` | -1 | -5.96% | -1.62% | +5.31% | -0.86% | +3.27% | +9.22% | 64.6% |
+| `alpha_023` | `alpha` | +1 | -2.83% | +12.19% | -0.00% | -3.99% | +3.56% | +6.38% | 44.3% |
+| `tsi` | `momentum` | +1 | -16.02% | -9.50% | +4.23% | +4.85% | +16.37% | +32.39% | 49.5% |
+| `trix_15` | `momentum` | +1 | -13.35% | -8.59% | +3.51% | +2.74% | +15.56% | +28.90% | 46.2% |
+
+## Exploratory Breakeven Transaction-Cost Survival Curve (80 Cost-Stage Candidates)
+
+| Round-Trip Cost (bps) | L1 Cost (bps) | Disc Net > 0 | Disc Raw $p \le 0.05$ | Disc BH $q \le 0.10$ | Holdout Net > 0 | Holdout Raw $p \le 0.05$ | Holdout BH $q \le 0.10$ |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `0` | `0.0` | 55 | 33 | 32 | 61 | 18 | 9 |
+| `10` | `5.0` | 37 | 23 | 20 | 47 | 7 | 0 |
+| `20` | `10.0` | 31 | 17 | 11 | 24 | 0 | 0 |
+| `30` | `15.0` | 25 | 11 | 0 | 11 | 0 | 0 |
+| `40` | `20.0` | 19 | 7 | 0 | 6 | 0 | 0 |
+| `50` | `25.0` | 15 | 4 | 0 | 3 | 0 | 0 |
+| `60` | `30.0` | 12 | 2 | 0 | 3 | 0 | 0 |

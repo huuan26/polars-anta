@@ -253,6 +253,68 @@ Per `PREREGISTRATION.md` §4, horizons $h = 1$ (next-day open-to-open) and $h = 
 | **$h = 5$ (Confirmatory)** | 150 | 91 | 95 | 94 | 71 | 64 | 16 | 14 | 56 | `returns_divergence_14` ($\text{IC} = -0.0276$, $t = -12.04$) |
 | **$h = 20$ (Exploratory)** | 150 | 96 | 97 | 99 | 62 | 61 | 33 | 5 | 51 | `vwap_bands_20` ($\text{IC} = +0.0454$, $t = +5.84$) |
 
+### 8.3 Exploratory Post-Holdout Analyses
+
+> **Exploratory — conducted after the holdout was unlocked; not part of the confirmatory design.**
+> All results in this subsection are generated deterministically by `python -m research.factor_zoo.run --stage exploratory` (`seed = 20268110`, $B = 2{,}000$) and stored under `research/factor_zoo/results/exploratory/`.
+
+#### 8.3.1 Unique-Signal Sensitivity (146 Signals) & Incremental Predictability Beyond 5-Day Reversal (`rev_5`)
+
+To verify that our conclusions are not artifacts of the **4** exact duplicate signal pairs (`pivot_fibonacci`, `natr_14`, `decay_linear_10`, `ts_zscore_20`) and to test whether the indicator catalog contains information beyond simple 5-day close-to-close return reversal $\text{rev}_{5,i,t} = -(C_{i,t}/C_{i,t-5} - 1)$ (whose standalone cross-sectional percentile rank `rev_5_rank` achieves Discovery $\overline{\text{IC}} = 0.0154$, $t_{\text{NW}} = 3.10$ and Holdout $\overline{\text{IC}} = 0.0178$, $t_{\text{NW}} = 2.05$), we re-run `falsify_factors` on (i) the **146** unique signals and (ii) all **150** signals after cross-sectionally orthogonalizing each signal against `rev_5_rank` on every trading day via `pa.orthogonalize(..., factors=["rev_5_rank"], over="date")`:
+
+| Specification | Tested | Raw $p \le 0.05$ | NW $|t| \ge 1.96$ | BH $q \le 0.10$ | RW $p \le 0.05$ | `robust` | `fdr_only` | `decaying` | `noise` | $N_{\text{eff}}$ | $\lambda_1$ | Top-5 Share |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **Baseline Frozen Registry (150 Signals)** | 150 | 91 | 95 | 94 | 71 | 64 | 16 | 14 | 56 | 6.00 | 55.21 | 66.6% |
+| **Unique Signals Only (146 Signals, Drop 4 Exact Duplicates)** | 146 | 88 | 92 | 91 | 67 | 61 | 17 | 13 | 55 | 6.13 | 53.20 | 65.9% |
+| **Orthogonalized Against `rev_5_rank` (150 Signals)** | 150 | 110 | 113 | 114 | 100 | 91 | 7 | 16 | 36 | 9.37 | 40.21 | 58.5% |
+
+- **146-Unique-Signal Sensitivity**: Dropping the **4** exact duplicate second entries reduces Discovery `robust` signals by exactly **3** (**64** $\to$ **61**) and Romano–Wolf survivors by **4** (**71** $\to$ **67**), while shifting $N_{\text{eff}}$ marginally from **$6.00$** to **$6.13$**.
+- **Incremental Predictability Beyond `rev_5`**: Orthogonalizing against 5-day close-to-close return reversal reduces the top eigenvalue from **$55.21$** to **$40.21$** and increases effective independent breadth from **$N_{\text{eff}} = 6.00$** to **$9.37$**. Crucially, **91** orthogonalized signals remain classified as `robust` in Discovery (**100** pass RW $p \le 0.05$), and **40** of those **91** replicate in the locked `2022–2026` Holdout under Romano–Wolf FWER ($p_{\text{RW}} \le 0.05$; **45** pass Holdout BH $q \le 0.10$ and **81** retain the same IC sign), led by high-low range and adaptive moving-average ratios (`true_range_norm` with orthogonalized Discovery $\text{IC} = -0.0470$, $t_{\text{NW}} = -11.77$, Holdout $\text{IC} = -0.0481$, $t_{\text{NW}} = -5.71$; `zlema_10` with orthogonalized Discovery $\text{IC} = -0.0371$, $t_{\text{NW}} = -11.30$, Holdout $\text{IC} = -0.0316$, $t_{\text{NW}} = -5.88$).
+
+![Incremental Predictability Beyond 5-Day Reversal](results/figures/06_incremental_vs_reversal.png)
+
+#### 8.3.2 Q1–Q5 Quintile Active Return Decomposition: Why Long-Only Q5 Fails Despite High Rank IC
+
+To understand why signals with Newey–West $|t| > 10$ fail long-only top-quintile execution, we decompose non-overlapping 5-day active returns (relative to the equal-weighted investable universe, oriented by discovery $\text{sign}(\overline{\text{IC}}_k)$) across all five quintiles (`Q1` through `Q5`):
+
+| Factor | Family | Sign | Q1 (% Ann.) | Q2 (% Ann.) | Q3 (% Ann.) | Q4 (% Ann.) | Q5 (% Ann.) | Q5 − Q1 (% Ann.) | Q1 Share of Spread |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `returns_divergence_14` | `alpha` | -1 | -6.61% | -0.36% | +2.14% | +2.57% | +2.32% | +8.93% | 74.0% |
+| `hma_10` | `trend` | -1 | -6.91% | +2.01% | -0.92% | +1.71% | +4.11% | +11.02% | 62.7% |
+| `tema_10` | `trend` | -1 | -6.99% | -0.07% | +0.79% | -2.21% | +8.41% | +15.41% | 45.4% |
+| `zlema_10` | `trend` | -1 | -5.59% | +2.50% | -1.77% | +0.69% | +4.10% | +9.69% | 57.7% |
+| `true_range_norm` | `volatility` | -1 | -4.51% | -2.32% | +1.93% | -0.77% | +5.72% | +10.23% | 44.1% |
+| `alpha_018` | `alpha` | +1 | -16.62% | +2.71% | +6.91% | +9.73% | -2.66% | +13.96% | 119.1% |
+| `pivot_classic` | `trend` | -1 | -5.97% | -1.56% | +3.29% | +2.10% | +2.39% | +8.36% | 71.4% |
+| `pivot_fibonacci` | `trend` | -1 | -5.97% | -1.56% | +3.29% | +2.10% | +2.39% | +8.36% | 71.4% |
+| `pivot_woodie` | `trend` | -1 | -5.96% | -1.62% | +5.31% | -0.86% | +3.27% | +9.22% | 64.6% |
+| `alpha_023` | `alpha` | +1 | -2.83% | +12.19% | -0.00% | -3.99% | +3.56% | +6.38% | 44.3% |
+| `tsi` | `momentum` | +1 | -16.02% | -9.50% | +4.23% | +4.85% | +16.37% | +32.39% | 49.5% |
+| `trix_15` | `momentum` | +1 | -13.35% | -8.59% | +3.51% | +2.74% | +15.56% | +28.90% | 46.2% |
+
+- **Short-Leg Dominance**: Across the top-10 $|t_{\text{NW}}|$ discovery signals, the theoretical frictionless long-short spread $\text{Q5} - \text{Q1}$ averages **$+10.16\%/\text{yr}$** in Discovery and **$+16.28\%/\text{yr}$** in Holdout. However, **$65.5\%$** of that spread in Discovery ($\text{Q1} = -6.80\%/\text{yr}$ vs. $\text{Q5} = +3.36\%/\text{yr}$) and **$90.0\%$** in Holdout ($\text{Q1} = -12.29\%/\text{yr}$ vs. $\text{Q5} = +3.99\%/\text{yr}$) originates in the **short leg (Q1 underperformance of recent extreme winners/high-volatility spikes)**, which cannot be shorted on `HOSE` cash equities.
+- **Resolving the `alpha_018` Paradox**: In Discovery, `alpha_018` achieves $\text{IC} = 0.0327$ ($t_{\text{NW}} = 10.59$) and a $\text{Q5} - \text{Q1}$ spread of **$+13.96\%/\text{yr}$**, yet its long-only Q5 excess return is **$-2.66\%/\text{yr}$** ($-0.0005$ per 5 days, breakeven $-6.7\text{ bps}$) because its positive rank correlation is driven by severe underperformance in **Q1 ($-16.62\%/\text{yr}$, accounting for $119.1\%$ of $\text{Q5} - \text{Q1}$)** and strong returns in **Q3–Q4 ($+6.91\%/\text{yr}$ and $+9.73\%/\text{yr}$)** while the extreme top tail Q5 reverses slightly.
+
+![Quintile Spread Decomposition](results/figures/07_quintile_spread.png)
+
+#### 8.3.3 Breakeven Transaction-Cost Survival Curve (`0–60 bps` Round-Trip)
+
+Varying the round-trip transaction cost assumption across $\{0, 10, 20, 30, 40, 50, 60\}\text{ bps}$ (where L1 cost rate $= \text{RT bps} / 2$) for all **80** non-decaying cost-stage candidates quantifies how sensitive long-only Q5 survival is to fee tiers:
+
+| Round-Trip Cost (bps) | L1 Cost (bps) | Disc Net > 0 | Disc Raw $p \le 0.05$ | Disc BH $q \le 0.10$ | Holdout Net > 0 | Holdout Raw $p \le 0.05$ | Holdout BH $q \le 0.10$ |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `0` | `0.0` | 55 | 33 | 32 | 61 | 18 | 9 |
+| `10` | `5.0` | 37 | 23 | 20 | 47 | 7 | 0 |
+| `20` | `10.0` | 31 | 17 | 11 | 24 | 0 | 0 |
+| `30` | `15.0` | 25 | 11 | 0 | 11 | 0 | 0 |
+| `40` | `20.0` | 19 | 7 | 0 | 6 | 0 | 0 |
+| `50` | `25.0` | 15 | 4 | 0 | 3 | 0 | 0 |
+| `60` | `30.0` | 12 | 2 | 0 | 3 | 0 | 0 |
+
+Even at an institutional/zero-commission cost tier of **30 bps round-trip** (`15.0 bps` per L1 turnover unit, corresponding to `10 bps` statutory sell tax + `10 bps`/side slippage with zero brokerage fee), **0** standalone 5-day rebalanced Q5 strategies survive Benjamini–Hochberg FDR control ($q \le 0.10$) in Discovery, and in the locked Holdout **0** survive BH $q \le 0.10$ at any cost $\ge 10\text{ bps}$ round-trip.
+
+![Breakeven Transaction Cost Survival Curve](results/figures/08_breakeven_curve.png)
+
 ---
 
 ## 9. Limitations
@@ -284,8 +346,14 @@ python -m research.factor_zoo.run --stage discovery
 # 4. Run locked Holdout evaluation (verifies Git analysis-plan guard first)
 python -m research.factor_zoo.run --stage holdout --unlock-holdout
 
-# 5. Render all figures and auto-generated Markdown tables
+# 5. Run exploratory post-holdout analyses (incremental IC vs rev_5, Q1-Q5, breakeven curve)
+python -m research.factor_zoo.run --stage exploratory
+
+# 6. Render all 8 figures and auto-generated Markdown tables
 python -m research.factor_zoo.render
+
+# 7. Audit every backticked identifier and numeric claim in REPORT.md
+python -m research.factor_zoo.audit_report research/factor_zoo/REPORT.md
 ```
 
 ---

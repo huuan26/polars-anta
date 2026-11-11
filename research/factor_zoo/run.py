@@ -3,6 +3,7 @@
 Usage:
     python -m research.factor_zoo.run --stage discovery
     python -m research.factor_zoo.run --stage holdout --unlock-holdout
+    python -m research.factor_zoo.run --stage exploratory
 """
 
 from __future__ import annotations
@@ -11,18 +12,19 @@ import argparse
 import json
 import sys
 
+from research.factor_zoo.exploratory import run_exploratory
 from research.factor_zoo.pipeline import run_discovery, run_holdout
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run the pre-registered Vietnamese Equity Factor Zoo falsification pipeline."
+        description="Run the Vietnamese Equity Factor Zoo falsification pipeline."
     )
     parser.add_argument(
         "--stage",
-        choices=("discovery", "holdout"),
+        choices=("discovery", "holdout", "exploratory"),
         required=True,
-        help="Pipeline stage to execute ('discovery' or 'holdout').",
+        help="Pipeline stage to execute ('discovery', 'holdout', or 'exploratory').",
     )
     parser.add_argument(
         "--unlock-holdout",
@@ -34,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.stage == "discovery":
         summary = run_discovery()
         print(json.dumps(summary["funnel"], indent=2))
+        return 0
+
+    if args.stage == "exploratory":
+        summary = run_exploratory()
+        print(json.dumps(summary, indent=2))
         return 0
 
     try:

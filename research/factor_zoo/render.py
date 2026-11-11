@@ -408,7 +408,277 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     fig.savefig(fig_dir / "05_cumulative_ic_cusum.png")
     plt.close(fig)
 
-    # Copy all 5 figures to docs/assets/research/
+    # ------------------------------------------------------------------
+    # Figures 6-8: Exploratory Post-Holdout Analyses (if present)
+    # ------------------------------------------------------------------
+    exp_dir = results_dir / "exploratory"
+    if exp_dir.exists():
+        inc_csv = exp_dir / "incremental_vs_reversal.csv"
+        inc_json = exp_dir / "incremental_vs_reversal.json"
+        if inc_csv.exists() and inc_json.exists():
+            inc_df = pl.read_csv(inc_csv)
+            inc_meta = json.loads(inc_json.read_text(encoding="utf-8"))
+            fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.6), dpi=160)
+
+            ax0 = axes[0]
+            raw_t = inc_df["raw_disc_t_nw"].to_numpy()
+            orth_t = inc_df["orth_disc_t_nw"].to_numpy()
+            is_rep = inc_df["orth_hold_rw_replicated"].to_numpy()
+            ax0.scatter(
+                raw_t[~is_rep],
+                orth_t[~is_rep],
+                color="#64748b",
+                alpha=0.55,
+                s=26,
+                label="Not RW-replicated in Holdout",
+            )
+            ax0.scatter(
+                raw_t[is_rep],
+                orth_t[is_rep],
+                color="#10b981",
+                alpha=0.85,
+                s=34,
+                label=f"Holdout RW p ≤ 0.05 ({int(np.sum(is_rep))} signals)",
+            )
+            lim = max(float(np.max(np.abs(raw_t))), float(np.max(np.abs(orth_t)))) * 1.1
+            ax0.plot([-lim, lim], [-lim, lim], color="#94a3b8", linestyle="--", linewidth=1.0)
+            ax0.axhline(0.0, color="#475569", linewidth=0.8)
+            ax0.axvline(0.0, color="#475569", linewidth=0.8)
+            ax0.set_xlim(-lim, lim)
+            ax0.set_ylim(-lim, lim)
+            ax0.set_xlabel("Raw Discovery Newey–West t-Stat", fontsize=9.5)
+            ax0.set_ylabel("Orthogonalized Discovery NW t-Stat (vs. rev_5)", fontsize=9.5)
+            ax0.set_title(
+                "A. Signal NW t-Stats Before vs. After Orthogonalizing rev_5",
+                fontsize=10.2,
+                fontweight="bold",
+            )
+            ax0.grid(True, linestyle=":")
+            ax0.legend(loc="upper left", fontsize=8.2)
+
+            ax1 = axes[1]
+            b_meta = inc_meta["before_orthogonalization"]
+            a_meta = inc_meta["after_orthogonalization"]
+            cats = [
+                "Discovery\nBH q ≤ 0.10",
+                "Discovery\nRW p ≤ 0.05",
+                "Discovery\nrobust",
+                "Holdout RW\nReplicated",
+            ]
+            b_vals = [
+                b_meta["n_bh_q10"],
+                b_meta["n_rw_p05"],
+                b_meta["n_verdict_robust"],
+                b_meta["n_holdout_rw_replicated"],
+            ]
+            a_vals = [
+                a_meta["n_bh_q10"],
+                a_meta["n_rw_p05"],
+                a_meta["n_verdict_robust"],
+                a_meta["n_holdout_rw_replicated"],
+            ]
+            x_pos = np.arange(len(cats))
+            width = 0.36
+            bars1 = ax1.bar(
+                x_pos - width / 2,
+                b_vals,
+                width,
+                color="#3b82f6",
+                label=f"Raw Signals (N_eff = {b_meta['n_eff']:.2f})",
+            )
+            bars2 = ax1.bar(
+                x_pos + width / 2,
+                a_vals,
+                width,
+                color="#10b981",
+                label=f"Orthogonalized vs. rev_5 (N_eff = {a_meta['n_eff']:.2f})",
+            )
+            for b in list(bars1) + list(bars2):
+                h_val = int(b.get_height())
+                ax1.text(
+                    b.get_x() + b.get_width() / 2,
+                    h_val + 2,
+                    f"{h_val}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8.5,
+                    fontweight="bold",
+                )
+            ax1.set_xticks(x_pos)
+            ax1.set_xticklabels(cats, fontsize=8.5)
+            ax1.set_ylim(0, 130)
+            ax1.set_ylabel("Number of Signals", fontsize=9.5)
+            ax1.set_title(
+                "B. Statistical Survival Before vs. After Removing 5d Reversal",
+                fontsize=10.2,
+                fontweight="bold",
+            )
+            ax1.grid(True, axis="y", linestyle=":")
+            ax1.legend(loc="upper right", fontsize=8.2)
+
+            fig.suptitle(
+                "Exploratory Analysis (a): Incremental Predictability Beyond 5-Day Return Reversal",
+                fontsize=11.5,
+                fontweight="bold",
+                y=1.01,
+            )
+            fig.tight_layout()
+            fig.savefig(fig_dir / "06_incremental_vs_reversal.png", bbox_inches="tight")
+            plt.close(fig)
+
+        q_json = exp_dir / "quintile_spread.json"
+        if q_json.exists():
+            q_meta = json.loads(q_json.read_text(encoding="utf-8"))
+            q_rows = q_meta["rows"]
+            top10_disc = [r for r in q_rows if r["sample"] == "discovery"][:10]
+            top10_hold = [r for r in q_rows if r["sample"] == "holdout"][:10]
+            d_means = [
+                float(np.mean([r[f"q{i}_excess_ann_pct"] for r in top10_disc])) for i in range(1, 6)
+            ]
+            h_means = [
+                float(np.mean([r[f"q{i}_excess_ann_pct"] for r in top10_hold])) for i in range(1, 6)
+            ]
+            a018_disc = next(
+                r for r in q_rows if r["sample"] == "discovery" and r["factor"] == "alpha_018"
+            )
+            a018_vals = [float(a018_disc[f"q{i}_excess_ann_pct"]) for i in range(1, 6)]
+
+            fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.5), dpi=160)
+            q_labels = ["Q1 (Short Leg)", "Q2", "Q3", "Q4", "Q5 (Long Leg)"]
+            x_q = np.arange(5)
+            w_q = 0.36
+
+            ax0 = axes[0]
+            b_d = ax0.bar(
+                x_q - w_q / 2, d_means, w_q, color="#3b82f6", label="Discovery (2014–2021)"
+            )
+            b_h = ax0.bar(x_q + w_q / 2, h_means, w_q, color="#10b981", label="Holdout (2022–2026)")
+            ax0.axhline(0.0, color="#475569", linewidth=0.9)
+            for b in list(b_d) + list(b_h):
+                v = float(b.get_height())
+                ax0.text(
+                    b.get_x() + b.get_width() / 2,
+                    v + (0.4 if v >= 0 else -1.1),
+                    f"{v:+.1f}%",
+                    ha="center",
+                    va="bottom" if v >= 0 else "top",
+                    fontsize=7.8,
+                )
+            ax0.set_xticks(x_q)
+            ax0.set_xticklabels(q_labels, fontsize=8.5)
+            ax0.set_ylim(-15.5, 8.5)
+            ax0.set_ylabel("Mean Annualized Active Return vs. EW Universe (%)", fontsize=9)
+            ax0.set_title(
+                "A. Mean Q1–Q5 Active Returns (Top-10 |t_NW| Discovery Signals)",
+                fontsize=10.2,
+                fontweight="bold",
+            )
+            ax0.grid(True, axis="y", linestyle=":")
+            ax0.legend(loc="lower right", fontsize=8.5)
+
+            ax1 = axes[1]
+            colors_a18 = ["#ef4444" if v < 0 else "#6366f1" for v in a018_vals]
+            b_a18 = ax1.bar(x_q, a018_vals, width=0.52, color=colors_a18)
+            ax1.axhline(0.0, color="#475569", linewidth=0.9)
+            for b in b_a18:
+                v = float(b.get_height())
+                ax1.text(
+                    b.get_x() + b.get_width() / 2,
+                    v + (0.5 if v >= 0 else -1.3),
+                    f"{v:+.1f}%",
+                    ha="center",
+                    va="bottom" if v >= 0 else "top",
+                    fontsize=8.2,
+                    fontweight="bold",
+                )
+            ax1.set_xticks(x_q)
+            ax1.set_xticklabels(q_labels, fontsize=8.5)
+            ax1.set_ylim(-19.5, 13.0)
+            ax1.set_ylabel("Annualized Active Return vs. EW Universe (%)", fontsize=9)
+            ax1.set_title(
+                "B. Non-Monotonic Tail Profile of alpha_018 (Discovery IC = +0.0327)",
+                fontsize=10.2,
+                fontweight="bold",
+            )
+            ax1.grid(True, axis="y", linestyle=":")
+
+            fig.suptitle(
+                "Exploratory Analysis (b): Q1–Q5 Active Return Asymmetry & Short-Leg Dominance",
+                fontsize=11.5,
+                fontweight="bold",
+                y=1.01,
+            )
+            fig.tight_layout()
+            fig.savefig(fig_dir / "07_quintile_spread.png", bbox_inches="tight")
+            plt.close(fig)
+
+        be_json = exp_dir / "breakeven_curve.json"
+        if be_json.exists():
+            be_meta = json.loads(be_json.read_text(encoding="utf-8"))
+            curve = be_meta["curve"]
+            d_curve = [r for r in curve if r["sample"] == "discovery"]
+            h_curve = [r for r in curve if r["sample"] == "holdout"]
+            grid = [int(r["round_trip_cost_bps"]) for r in d_curve]
+
+            fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.4), dpi=160, sharey=True)
+            for ax_i, (s_title, s_rows) in enumerate(
+                [
+                    ("A. Discovery (2014–2021, 80 Candidates)", d_curve),
+                    ("B. Locked Holdout (2022–2026, 80 Candidates)", h_curve),
+                ]
+            ):
+                ax_c = axes[ax_i]
+                ax_c.plot(
+                    grid,
+                    [r["n_positive_net"] for r in s_rows],
+                    marker="o",
+                    linewidth=2.0,
+                    color="#3b82f6",
+                    label="Positive Net Excess Return (> 0)",
+                )
+                ax_c.plot(
+                    grid,
+                    [r["n_raw_p05"] for r in s_rows],
+                    marker="s",
+                    linewidth=2.0,
+                    color="#f59e0b",
+                    label="Unadjusted Bootstrap p ≤ 0.05",
+                )
+                ax_c.plot(
+                    grid,
+                    [r["n_bh_q10"] for r in s_rows],
+                    marker="^",
+                    linewidth=2.2,
+                    color="#10b981",
+                    label="Benjamini–Hochberg FDR q ≤ 0.10",
+                )
+                ax_c.axvline(
+                    60,
+                    color="#ef4444",
+                    linestyle="--",
+                    linewidth=1.3,
+                    label="Baseline Retail HOSE Cost (60 bps RT)",
+                )
+                ax_c.set_xticks(grid)
+                ax_c.set_xlabel("Round-Trip Transaction Cost Assumption (bps)", fontsize=9.5)
+                if ax_i == 0:
+                    ax_c.set_ylabel("Number of Surviving Signals (out of 80)", fontsize=9.5)
+                ax_c.set_ylim(-2, 68)
+                ax_c.set_title(s_title, fontsize=10.2, fontweight="bold")
+                ax_c.grid(True, linestyle=":")
+                ax_c.legend(loc="upper right", fontsize=8.2)
+
+            fig.suptitle(
+                "Exploratory Analysis (c): Long-Only Q5 Signal Survival Across Transaction Cost Assumptions",
+                fontsize=11.5,
+                fontweight="bold",
+                y=1.01,
+            )
+            fig.tight_layout()
+            fig.savefig(fig_dir / "08_breakeven_curve.png", bbox_inches="tight")
+            plt.close(fig)
+
+    # Copy all figures to docs/assets/research/
     for png_file in fig_dir.glob("*.png"):
         shutil.copy2(png_file, docs_fig_dir / png_file.name)
 
@@ -576,6 +846,81 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
             if len(parts) == 3:
                 evt, ts, desc = parts
                 md_lines.append(f"| `{evt}` | `{ts}` | {desc} |")
+
+    if exp_dir.exists():
+        u146_path = exp_dir / "unique_146_sensitivity.json"
+        inc_path = exp_dir / "incremental_vs_reversal.json"
+        q_path = exp_dir / "quintile_spread.json"
+        be_path = exp_dir / "breakeven_curve.json"
+
+        if u146_path.exists() and inc_path.exists():
+            u146 = json.loads(u146_path.read_text(encoding="utf-8"))
+            inc = json.loads(inc_path.read_text(encoding="utf-8"))
+            b_o = inc["before_orthogonalization"]
+            a_o = inc["after_orthogonalization"]
+            md_lines.extend(
+                [
+                    "",
+                    "## Exploratory Sensitivity & Incremental Predictability vs. 5-Day Reversal",
+                    "",
+                    "| Specification | Tested | Raw $p \\le 0.05$ | NW $|t| \\ge 1.96$ | BH $q \\le 0.10$ | RW $p \\le 0.05$ | `robust` | `fdr_only` | `decaying` | `noise` | $N_{\\text{eff}}$ | $\\lambda_1$ | Top-5 Share |",
+                    "| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                    f"| **Baseline Frozen Registry (150 Signals)** | {b_o['n_tested']} | {b_o['n_raw_p05']} | {b_o['n_nw_t196']} | {b_o['n_bh_q10']} | {b_o['n_rw_p05']} | {b_o['n_verdict_robust']} | {b_o['n_verdict_fdr_only']} | {b_o['n_verdict_decaying']} | {b_o['n_verdict_noise']} | {b_o['n_eff']:.2f} | {b_o['top1_eigenvalue']:.2f} | {100.0 * b_o['top5_variance_share']:.1f}% |",
+                    f"| **Unique Signals Only (146 Signals, Drop 4 Exact Duplicates)** | {u146['n_tested']} | {u146['n_raw_p05']} | {u146['n_nw_t196']} | {u146['n_bh_q10']} | {u146['n_rw_p05']} | {u146['n_verdict_robust']} | {u146['n_verdict_fdr_only']} | {u146['n_verdict_decaying']} | {u146['n_verdict_noise']} | {u146['effective_independent_tests']['n_eff']:.2f} | {u146['effective_independent_tests']['top1_eigenvalue']:.2f} | {100.0 * u146['effective_independent_tests']['top5_variance_share']:.1f}% |",
+                    f"| **Orthogonalized Against `rev_5_rank` (150 Signals)** | {a_o['n_tested']} | {a_o['n_raw_p05']} | {a_o['n_nw_t196']} | {a_o['n_bh_q10']} | {a_o['n_rw_p05']} | {a_o['n_verdict_robust']} | {a_o['n_verdict_fdr_only']} | {a_o['n_verdict_decaying']} | {a_o['n_verdict_noise']} | {a_o['n_eff']:.2f} | {a_o['top1_eigenvalue']:.2f} | {100.0 * a_o['top5_variance_share']:.1f}% |",
+                ]
+            )
+
+        if q_path.exists():
+            q_data = json.loads(q_path.read_text(encoding="utf-8"))
+            md_lines.extend(
+                [
+                    "",
+                    "## Exploratory Q1–Q5 Annualized Active Return Decomposition (Discovery 2014–2021)",
+                    "",
+                    "| Factor | Family | Sign | Q1 (% Ann.) | Q2 (% Ann.) | Q3 (% Ann.) | Q4 (% Ann.) | Q5 (% Ann.) | Q5 − Q1 (% Ann.) | Q1 Share of Spread |",
+                    "| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                ]
+            )
+            for r in q_data["rows"]:
+                if r["sample"] == "discovery":
+                    md_lines.append(
+                        f"| `{r['factor']}` | `{r['family']}` | {r['ic_direction']:+.0f} | "
+                        f"{r['q1_excess_ann_pct']:+.2f}% | {r['q2_excess_ann_pct']:+.2f}% | "
+                        f"{r['q3_excess_ann_pct']:+.2f}% | {r['q4_excess_ann_pct']:+.2f}% | "
+                        f"{r['q5_excess_ann_pct']:+.2f}% | {r['q5_minus_q1_ann_pct']:+.2f}% | "
+                        f"{100.0 * r['q1_short_leg_share_of_spread']:.1f}% |"
+                    )
+
+        if be_path.exists():
+            be_data = json.loads(be_path.read_text(encoding="utf-8"))
+            d_map = {
+                int(r["round_trip_cost_bps"]): r
+                for r in be_data["curve"]
+                if r["sample"] == "discovery"
+            }
+            h_map = {
+                int(r["round_trip_cost_bps"]): r
+                for r in be_data["curve"]
+                if r["sample"] == "holdout"
+            }
+            md_lines.extend(
+                [
+                    "",
+                    "## Exploratory Breakeven Transaction-Cost Survival Curve (80 Cost-Stage Candidates)",
+                    "",
+                    "| Round-Trip Cost (bps) | L1 Cost (bps) | Disc Net > 0 | Disc Raw $p \\le 0.05$ | Disc BH $q \\le 0.10$ | Holdout Net > 0 | Holdout Raw $p \\le 0.05$ | Holdout BH $q \\le 0.10$ |",
+                    "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                ]
+            )
+            for bps in sorted(d_map):
+                dr = d_map[bps]
+                hr = h_map[bps]
+                md_lines.append(
+                    f"| `{bps}` | `{dr['l1_cost_bps']:.1f}` | {dr['n_positive_net']} | "
+                    f"{dr['n_raw_p05']} | {dr['n_bh_q10']} | {hr['n_positive_net']} | "
+                    f"{hr['n_raw_p05']} | {hr['n_bh_q10']} |"
+                )
 
     tables_path = results_dir / "tables.md"
     tables_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")

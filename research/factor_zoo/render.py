@@ -961,7 +961,7 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
         "",
         "Read the full study in [`research/factor_zoo/REPORT.md`](research/factor_zoo/REPORT.md).",
         "",
-        "<details markdown=\"1\">",
+        '<details markdown="1">',
         "<summary>Study design, reproducibility and full results tables</summary>",
         "",
         "| Design choice | Value |",

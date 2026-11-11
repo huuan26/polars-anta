@@ -1,0 +1,230 @@
+{
+  "price_jumps": {
+    "total_return_observations": 1138156,
+    "n_abs_ret_gt_075": 5737,
+    "n_abs_ret_gt_150": 343,
+    "n_abs_ret_gt_300": 32,
+    "n_ret_lt_neg_150": 126,
+    "n_ret_gt_pos_150": 217,
+    "n_gt_150_near_typical_split_ratio": 78,
+    "frac_gt_150_near_typical_split_ratio": 0.2274,
+    "typical_split_ratio_hits": {
+      "10:11 (10% stock div)": 0,
+      "100:115 (15% stock div)": 0,
+      "5:6 (20% stock div)": 44,
+      "4:5 (25% stock div)": 25,
+      "10:13 (30% stock div)": 7,
+      "2:3 (50% stock div)": 2,
+      "1:2 (100% split/bonus)": 0
+    },
+    "tickers_with_gt_075": 205,
+    "tickers_with_gt_150": 57,
+    "top_10_tickers_by_jump_count": [
+      {
+        "ticker": "ADP",
+        "n_gt_075": 307,
+        "n_gt_150": 40,
+        "n_gt_300": 1
+      },
+      {
+        "ticker": "DSC",
+        "n_gt_075": 265,
+        "n_gt_150": 22,
+        "n_gt_300": 1
+      },
+      {
+        "ticker": "NHA",
+        "n_gt_075": 247,
+        "n_gt_150": 0,
+        "n_gt_300": 0
+      },
+      {
+        "ticker": "PDV",
+        "n_gt_075": 210,
+        "n_gt_150": 19,
+        "n_gt_300": 3
+      },
+      {
+        "ticker": "ANT",
+        "n_gt_075": 201,
+        "n_gt_150": 15,
+        "n_gt_300": 0
+      },
+      {
+        "ticker": "ORS",
+        "n_gt_075": 199,
+        "n_gt_150": 0,
+        "n_gt_300": 0
+      },
+      {
+        "ticker": "PVP",
+        "n_gt_075": 198,
+        "n_gt_150": 16,
+        "n_gt_300": 1
+      },
+      {
+        "ticker": "ABR",
+        "n_gt_075": 193,
+        "n_gt_150": 33,
+        "n_gt_300": 4
+      },
+      {
+        "ticker": "AFX",
+        "n_gt_075": 182,
+        "n_gt_150": 17,
+        "n_gt_300": 0
+      },
+      {
+        "ticker": "VCA",
+        "n_gt_075": 170,
+        "n_gt_150": 14,
+        "n_gt_300": 7
+      }
+    ],
+    "top_15_extreme_events": [
+      {
+        "ticker": "PHC",
+        "date": "2014-03-21",
+        "prev_close": 770.0,
+        "close": 1530.0,
+        "price_ratio": 1.987,
+        "ret_1d": 0.987
+      },
+      {
+        "ticker": "VCA",
+        "date": "2013-08-21",
+        "prev_close": 1480.0,
+        "close": 2450.0,
+        "price_ratio": 1.6554,
+        "ret_1d": 0.6554
+      },
+      {
+        "ticker": "SGR",
+        "date": "2017-06-26",
+        "prev_close": 27960.0,
+        "close": 13550.0,
+        "price_ratio": 0.4846,
+        "ret_1d": -0.5154
+      },
+      {
+        "ticker": "NHT",
+        "date": "2017-12-08",
+        "prev_close": 2330.0,
+        "close": 3270.0,
+        "price_ratio": 1.4034,
+        "ret_1d": 0.4034
+      },
+      {
+        "ticker": "PDV",
+        "date": "2018-02-07",
+        "prev_close": 2490.0,
+        "close": 1490.0,
+        "price_ratio": 0.5984,
+        "ret_1d": -0.4016
+      },
+      {
+        "ticker": "HHV",
+        "date": "2016-11-28",
+        "prev_close": 2220.0,
+        "close": 3110.0,
+        "price_ratio": 1.4009,
+        "ret_1d": 0.4009
+      },
+      {
+        "ticker": "TCI",
+        "date": "2020-03-20",
+        "prev_close": 5220.0,
+        "close": 3130.0,
+        "price_ratio": 0.5996,
+        "ret_1d": -0.4004
+      },
+      {
+        "ticker": "ABR",
+        "date": "2019-11-28",
+        "prev_close": 14740.0,
+        "close": 8840.0,
+        "price_ratio": 0.5997,
+        "ret_1d": -0.4003
+      },
+      {
+        "ticker": "HNA",
+        "date": "2017-10-12",
+        "prev_close": 8480.0,
+        "close": 11870.0,
+        "price_ratio": 1.3998,
+        "ret_1d": 0.3998
+      },
+      {
+        "ticker": "HHV",
+        "date": "2015-12-21",
+        "prev_close": 5860.0,
+        "close": 8190.0,
+        "price_ratio": 1.3976,
+        "ret_1d": 0.3976
+      },
+      {
+        "ticker": "VCA",
+        "date": "2012-11-05",
+        "prev_close": 1260.0,
+        "close": 1760.0,
+        "price_ratio": 1.3968,
+        "ret_1d": 0.3968
+      },
+      {
+        "ticker": "ADP",
+        "date": "2013-08-29",
+        "prev_close": 1160.0,
+        "close": 700.0,
+        "price_ratio": 0.6034,
+        "ret_1d": -0.3966
+      },
+      {
+        "ticker": "VCA",
+        "date": "2013-08-20",
+        "prev_close": 2450.0,
+        "close": 1480.0,
+        "price_ratio": 0.6041,
+        "ret_1d": -0.3959
+      },
+      {
+        "ticker": "SIP",
+        "date": "2019-06-13",
+        "prev_close": 3890.0,
+        "close": 5430.0,
+        "price_ratio": 1.3959,
+        "ret_1d": 0.3959
+      },
+      {
+        "ticker": "TDP",
+        "date": "2020-10-12",
+        "prev_close": 7730.0,
+        "close": 10790.0,
+        "price_ratio": 1.3959,
+        "ret_1d": 0.3959
+      }
+    ],
+    "note": "TODO(verify): Public VNDirect dchart / SSI iBoard history endpoints return raw series containing 5,737 daily moves exceeding +/-7.5% (5,653 after zero-volume filtering) and 343 exceeding +/-15% (126 negative, 217 positive; 78/343 = 22.74% within +/-0.015 of typical split/dividend ratios). Whether the upstream feed is partially adjusted or contains unadjusted corporate-action discontinuities is not independently verified; the pipeline filters |r_t| > 7.5%."
+  },
+  "survivorship": {
+    "total_tickers_in_cache": 392,
+    "cutoff_date": "2026-10-01",
+    "n_tickers_last_date_before_cutoff": 2,
+    "min_last_date": "2026-04-29",
+    "max_last_date": "2026-11-10",
+    "tickers_ending_before_cutoff": [
+      {
+        "ticker": "LGC",
+        "first_date": "2012-03-20",
+        "last_date": "2026-04-29",
+        "n_bars": 2801
+      },
+      {
+        "ticker": "TTE",
+        "first_date": "2018-12-10",
+        "last_date": "2026-07-01",
+        "n_bars": 1021
+      }
+    ],
+    "note": "The ticker directory endpoint returns currently active HOSE listings at fetch time; historical delistings between 2012 and 2026 are not included (survivorship bias)."
+  }
+}

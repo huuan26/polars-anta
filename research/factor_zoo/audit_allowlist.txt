@@ -1,0 +1,128 @@
+# Legitimate backtick identifiers in REPORT.md, README.md, and docs/index.md
+# Format: <identifier> # <reason>
+polars # Python dependency / library name
+numpy # Python dependency / library name
+pandas # Baseline comparison library name
+pip # Python package installer CLI
+uv # Astral Python package manager CLI
+pytest # Test runner CLI
+ruff # Linter/formatter CLI
+anta # Polars namespace accessor (.anta)
+ta # Polars namespace accessor (.ta)
+df # Standard DataFrame variable name in documentation prose
+bt # Standard BacktestResult variable name in documentation prose
+bt_df # Backtest DataFrame argument name in extract_trades signature
+expr # Standard Polars Expression parameter name
+close # OHLCV column name
+open # OHLCV column name
+high # OHLCV column name
+low # OHLCV column name
+volume # OHLCV column name
+vwap # OHLCV / typical-price proxy column name
+date # Panel time column name
+ticker # Panel asset column name
+symbol # Panel asset column name in examples
+timestamp # Panel timestamp column name in examples
+datetime # Timestamp dtype / column concept
+in_universe # Point-in-time universe boolean column in data.py
+fwd_ret_1 # 1-day open-to-open forward return column in data.py
+fwd_ret_5 # 5-day open-to-open forward return column in data.py
+fwd_ret_20 # 20-day open-to-open forward return column in data.py
+rev_5 # 5-day reversal control factor in exploratory.py
+rev_5_rank # Cross-sectionally ranked 5-day reversal control factor
+robust # FalsificationResult verdict category
+fdr_only # FalsificationResult verdict category
+decaying # FalsificationResult verdict category
+noise # FalsificationResult verdict category
+trend # polars_anta submodule and signal family name
+momentum # polars_anta submodule and signal family name
+volatility # polars_anta submodule and signal family name
+stats # polars_anta submodule and signal family name
+microstructure # Signal family name in registry.py
+alpha # polars_anta submodule and signal family name
+evaluation # polars_anta submodule name
+inference # polars_anta submodule name
+backtest # polars_anta submodule and namespace method name
+resample # polars_anta submodule and namespace method name
+percent_b # Struct field of bollinger_bands
+pivot_p # Canonical pivot point field reference in prose
+s3 # Struct field of camarilla_pivots
+r3 # Struct field of camarilla_pivots
+upper_1 # Struct field of vwap_bands
+lower_1 # Struct field of vwap_bands
+tenkan_sen # Struct field of ichimoku
+kijun_sen # Struct field of ichimoku
+senkou_span_a # Struct field of ichimoku
+senkou_span_b # Struct field of ichimoku
+chikou_span # Struct field of ichimoku
+ha_open # Struct field of heikin_ashi
+ha_high # Struct field of heikin_ashi
+ha_low # Struct field of heikin_ashi
+ha_close # Struct field of heikin_ashi
+vi_plus # Struct field of vortex
+vi_minus # Struct field of vortex
+plus_di # Struct field of adx
+minus_di # Struct field of adx
+ssl_up # Struct field of ssl_channel
+ssl_down # Struct field of ssl_channel
+hlv # Struct field of ssl_channel
+tii # Struct field of trend_intensity_index
+tii_signal # Struct field of trend_intensity_index
+long_stop # Struct field of chandelier_exit
+short_stop # Struct field of chandelier_exit
+squeeze_on # Struct field of squeeze_momentum
+squeeze_off # Struct field of squeeze_momentum
+no_squeeze # Struct field of squeeze_momentum
+touch_bars # Struct field of triple_barrier_labels
+realized_return # Struct field of triple_barrier_labels
+meta_label # Struct field of triple_barrier_labels
+t_value # Struct field of trend_scanning_labels
+optimal_window # Struct field of trend_scanning_labels
+holding_bars # Column of extract_trades ledger
+execution_price # Parameter of vectorized_backtest
+flat_mask # Parameter of vectorized_backtest
+vol_target # Parameter of vectorized_backtest
+no_trade_buffer # Parameter of vectorized_backtest
+signal_lag # Parameter of vectorized_backtest
+group_by_dynamic # Polars DataFrame method used in resample_ohlcv
+sliding_window_view # NumPy stride utility used in rolling kernels
+ewm_mean # Polars expression method used in RMA/EMA
+forward_fill # Polars expression method used in signals_to_positions
+rle_id # Polars expression method used in extract_trades
+over # Polars windowing parameter/method
+slope # Suffix of linear_regression_slope
+intercept # Suffix of linear_regression_intercept
+angle # Suffix of linear_regression_angle
+forecast # Suffix of linear_regression_forecast
+r2 # Suffix of linear_regression_r2
+stderr # Suffix of linear_regression_stderr
+p_lower # Key of spa_test result dict
+p_consistent # Key of spa_test result dict
+p_upper # Key of spa_test result dict
+breakeven_fee_rate # Key of breakeven_cost result dict
+breakeven_bps # Key of breakeven_cost result dict
+eb_shrink # Alias for empirical_bayes_shrinkage in namespace
+high_lt_open # Validation metric key from validate_ohlcv
+low_gt_close # Validation metric key from validate_ohlcv
+low_gt_open # Validation metric key from validate_ohlcv
+high_lt_close # Validation metric key from validate_ohlcv
+high_lt_low # Validation metric key from validate_ohlcv
+bid_price # Order book input column for ofi
+bid_size # Order book input column for ofi
+ask_price # Order book input column for ofi
+ask_size # Order book input column for ofi
+futures_close # Input column for futures_basis
+spot_close # Input column for futures_basis
+days_to_expiry # Input column for futures_basis
+open_interest # Input column for oi_regime
+verify_preregistration_guard # Holdout guard function in research/factor_zoo/pipeline.py
+rolling # Pandas DataFrame.rolling method referenced in benchmark prose
+groupby # Pandas DataFrame.groupby method referenced in benchmark prose
+__all__ # Python module export list attribute in polars_anta.__init__
+icir # Key of ic_summary return dictionary
+t_stat # Key of ic_summary return dictionary
+nw_t_stat # Key of ic_summary return dictionary
+hit_rate # Key of ic_summary return dictionary
+n_periods # Key of ic_summary return dictionary
+dsr # Column of parameter_sweep output DataFrame
+

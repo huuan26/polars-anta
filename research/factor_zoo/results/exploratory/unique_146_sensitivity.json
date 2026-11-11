@@ -1,0 +1,23 @@
+{
+  "n_tested": 146,
+  "dropped_exact_duplicates": [
+    "pivot_fibonacci",
+    "natr_14",
+    "decay_linear_10",
+    "ts_zscore_20"
+  ],
+  "n_raw_p05": 88,
+  "n_nw_t196": 92,
+  "n_bh_q10": 91,
+  "n_rw_p05": 67,
+  "n_verdict_robust": 61,
+  "n_verdict_fdr_only": 17,
+  "n_verdict_decaying": 13,
+  "n_verdict_noise": 55,
+  "effective_independent_tests": {
+    "n_factors": 146.0,
+    "n_eff": 6.128587774005247,
+    "top1_eigenvalue": 53.203667329324304,
+    "top5_variance_share": 0.6590197923013819
+  }
+}

@@ -1,31 +1,15 @@
-We ran a pre-specified analysis plan ([`PREREGISTRATION.md`](research/factor_zoo/PREREGISTRATION.md), commit `4c1a4b559d22a1367ce46b513ab7ff1079fff360`, registry SHA-256 `8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c`; see [Deviations and Timeline](research/factor_zoo/REPORT.md#31-deviations-from-the-analysis-plan--timeline)) on every daily-OHLCV-compatible signal in `polars-anta`: **150** signals (**146** unique after accounting for **4** exact duplicate pairs), each at its **default parameters**, on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (`HOSE`) equity universe.
+We ran every daily signal in `polars-anta` (**150** signals, **146** unique) through the library's own falsification pipeline on the most liquid stocks of the Ho Chi Minh Stock Exchange (`HOSE`). The analysis plan was committed to Git before any results were computed, and the `2022-2026` holdout was evaluated only after the discovery results were committed.
 
-| Design choice | Value |
-| :--- | :--- |
-| Discovery sample | `2014-01-01` to `2021-12-31` |
-| Locked holdout | `2022-01-01` to `2026-11-10` |
-| Confirmatory horizon | $h = 5$ open-to-open trading days |
-| Execution costs | `60 bps` round-trip (brokerage, slippage and sell tax) |
+> **Why Vietnam?** `HOSE` is a retail-driven emerging market with daily price limits, no short selling for most investors and high trading costs. It is far less studied than US equities, which makes it a demanding out-of-sample test for signals that were designed elsewhere.
 
-#### Track A: statistical predictability (cross-sectional Rank IC, $h = 5$ days)
-
-| Stage | Signals | Share of Registry | Notes |
-| :--- | ---: | ---: | :--- |
-| **A1. Tested in registry** | **150** | `100.0%` | 146 unique signals + 4 exact duplicate pairs ($N_{\text{eff}} = 6.00$) |
-| **A2. Benjamini-Hochberg FDR $q \le 0.10$** | **94** | `62.7%` | Raw stationary bootstrap $p \le 0.05$: **91** (NW $|t| \ge 1.96$: **95**; $\approx 7.5$ expected under i.i.d. noise) |
-| **A3. Romano-Wolf stepdown FWER $p_{\text{RW}} \le 0.05$** | **71** | `47.3%` | Joint studentized $\max$-$t$ bootstrap across all 150 IC series |
-| **A4. Structurally stable (`robust` verdict)** | **64** | `42.7%` | RW $p \le 0.05$ and non-decaying (plus **16** `fdr_only`, **14** `decaying`, **56** `noise`) |
-| **A5. Replicate in locked holdout** | **38** | `25.3%` | **38** of **64** (`59.4%`) pass holdout RW $p \le 0.05$ (**49** or `76.6%` pass BH $q \le 0.10$; **54** or `84.4%` retain sign) |
-
-#### Track B: economic implementability (long-only Q5 vs. equal-weight universe, HOSE costs)
-
-| Stage | Signals | Share of Registry | Share of 80 Candidates |
-| :--- | ---: | ---: | ---: |
-| **B1. Non-decaying discovery survivors evaluated** | **80** | `53.3%` | `100.0%` (**64** `robust` + **16** `fdr_only`) |
-| **B2. Positive net excess return after `60 bps` round-trip costs** | **12** | `8.0%` | `15.0%` |
-| **B3. Unadjusted one-sided bootstrap $p \le 0.05$ on net excess** | **2** | `1.3%` | `2.5%` (`trix_15`, `tsi`) |
-| **B4. Survive Benjamini-Hochberg FDR $q \le 0.10$ across cost stage** | **0** | `0.0%` | `0.0%` |
-| **B5. Confirmed post-cost survivors in locked holdout** | **0** | `0.0%` | `0.0%` |
+| Question | Result |
+| :--- | ---: |
+| Signals tested | **150** |
+| Effectively independent tests among them | $N_{\text{eff}} = 6.00$ |
+| Significant after multiple-testing correction (Romano-Wolf, 5% FWER) | **71** |
+| Significant and stable over the discovery period (`2014-2021`) | **64** |
+| Still significant in the locked holdout (`2022-2026`) | **38** of 64 |
+| Significant long-only excess return after `60 bps` round-trip costs | **0** |
 
 <div align="center">
 
@@ -33,6 +17,51 @@ We ran a pre-specified analysis plan ([`PREREGISTRATION.md`](research/factor_zoo
 
 </div>
 
-- **Why 91 of 150 pass raw $p \le 0.05$.** Spectral decomposition of the $150 \times 150$ daily Spearman IC correlation matrix gives an eigenvalue participation ratio of **$N_{\text{eff}} = 6.00$** effective independent tests ($\lambda_1 = 55.21$; the top 5 principal components explain **66.6%** of cross-signal IC variance).
-- **Predictability is not implementability.** In the locked `2022-2026` holdout, **38 of the 64** non-decaying `robust` discovery signals (`59.4%`) replicate their cross-sectional Rank IC under Romano-Wolf FWER control ($p_{\text{RW}} \le 0.05$, with **97.6%** median IC retention and $r = 0.77$ discovery-vs-holdout IC correlation across all 150 signals). Traded as standalone 5-day rebalanced long-only top-quintile (Q5) portfolios against the equal-weight universe under retail `HOSE` execution frictions, the top-6 $|t_{\text{NW}}|$ fast reversal signals face 63.8% to 87.2% one-way turnover every 5 days, with breakeven costs of -6.7 to 20.5 bps round-trip (5.7 to 20.5 bps across the 5 with positive gross Q5 excess). The only 2 slower momentum signals passing unadjusted $p \le 0.05$ (`trix_15`, `tsi`) fail BH correction ($q = 1.00$) and decay in holdout (illustrative, $n = 2$).
-- **Exploratory post-holdout diagnostics ([`REPORT.md` Section 8.3](research/factor_zoo/REPORT.md#83-exploratory-post-holdout-analyses)).** Orthogonalizing all 150 signals against 5-day return reversal (`rev_5_rank`) raises $N_{\text{eff}}$ from **6.00** to **9.37** and leaves **91** `robust` discovery signals (**40** replicating in holdout under RW $p \le 0.05$). A Q1-Q5 decomposition shows that **65.5%** of the top-10 signals' $\text{Q5} - \text{Q1}$ spread in discovery (**90.0%** in holdout) comes from Q1 short-leg underperformance. **0** standalone 5-day Q5 strategies survive BH $q \le 0.10$ at any cost $\ge 30\text{ bps}$ round-trip in discovery, or $\ge 10\text{ bps}$ in holdout. Read the full study in [**`research/factor_zoo/REPORT.md`**](research/factor_zoo/REPORT.md).
+**What this means**
+
+- **Most signals are variations of the same effect.** 91 of 150 signals pass a naive $p \le 0.05$ test, but their daily ICs move together so closely that they amount to only $N_{\text{eff}} = 6.00$ independent tests. Much of this common component is short-term (5-day) reversal: removing it raises $N_{\text{eff}}$ from 6.00 to 9.37.
+- **The predictive power holds up out of sample.** 38 of the 64 stable discovery signals remain significant in the holdout, with a median IC retention of 97.6%.
+- **But it does not pay for itself.** The strongest signals replace 63.8% to 87.2% of the portfolio every 5 days and break even at 20.5 bps round-trip at best, well below realistic costs. In addition, 65.5% of the top-10 signals' long-short spread in discovery (90.0% in holdout) comes from the short leg, which long-only investors cannot capture.
+
+Read the full study in [`research/factor_zoo/REPORT.md`](research/factor_zoo/REPORT.md).
+
+<details>
+<summary><strong>Study design, reproducibility and full results tables</strong></summary>
+
+<br/>
+
+| Design choice | Value |
+| :--- | :--- |
+| Universe | Point-in-time top-150 most liquid `HOSE` stocks |
+| Signals | 150 signals at default parameters (146 unique; 4 exact duplicate pairs disclosed) |
+| Discovery sample | `2014-01-01` to `2021-12-31` |
+| Locked holdout | `2022-01-01` to `2026-11-10` |
+| Forecast horizon | 5 trading days, open to open |
+| Execution costs | `60 bps` round-trip (brokerage, slippage and sell tax) |
+| Analysis plan | [`PREREGISTRATION.md`](research/factor_zoo/PREREGISTRATION.md), committed in [`4c1a4b5`](https://github.com/huuan26/polars-anta/commit/4c1a4b559d22a1367ce46b513ab7ff1079fff360) |
+| Signal registry checksum | SHA-256 recorded in `PREREGISTRATION.md` and verified by the pipeline |
+| Deviations from the plan | [Deviations and Timeline](research/factor_zoo/REPORT.md#31-deviations-from-the-analysis-plan--timeline) |
+
+**Track A: statistical predictability** (cross-sectional Rank IC, 5-day horizon)
+
+| Stage | Signals | Share | Notes |
+| :--- | ---: | ---: | :--- |
+| A1. Tested | **150** | `100.0%` | 146 unique signals |
+| A2. Benjamini-Hochberg FDR $q \le 0.10$ | **94** | `62.7%` | Raw bootstrap $p \le 0.05$: **91** ($\approx 7.5$ expected by chance) |
+| A3. Romano-Wolf FWER $p \le 0.05$ | **71** | `47.3%` | Joint bootstrap across all 150 IC series |
+| A4. Stable (`robust` verdict) | **64** | `42.7%` | Plus **16** `fdr_only`, **14** `decaying`, **56** `noise` |
+| A5. Replicate in holdout | **38** | `25.3%` | **38** of **64** pass holdout RW $p \le 0.05$; **54** keep their sign |
+
+**Track B: economic implementability** (long-only top quintile vs. equal-weight universe)
+
+| Stage | Signals | Share of 80 Candidates |
+| :--- | ---: | ---: |
+| B1. Candidates evaluated (`robust` + `fdr_only`) | **80** | `100.0%` |
+| B2. Positive net excess return after costs | **12** | `15.0%` |
+| B3. Unadjusted one-sided $p \le 0.05$ | **2** | `2.5%` (`trix_15`, `tsi`) |
+| B4. Benjamini-Hochberg FDR $q \le 0.10$ | **0** | `0.0%` |
+| B5. Confirmed in holdout | **0** | `0.0%` |
+
+A cost sweep from 0 to 60 bps round-trip finds **0** significant long-only strategies at $\ge 30$ bps in discovery and at $\ge 10$ bps in holdout ([`REPORT.md` Section 8.3](research/factor_zoo/REPORT.md#83-exploratory-post-holdout-analyses)).
+
+</details>

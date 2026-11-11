@@ -25,10 +25,8 @@ We ran every daily signal in `polars-anta` (**150** signals, **146** unique) thr
 
 Read the full study in [`research/factor_zoo/REPORT.md`](research/factor_zoo/REPORT.md).
 
-<details>
-<summary><strong>Study design, reproducibility and full results tables</strong></summary>
-
-<br/>
+<details markdown="1">
+<summary>Study design, reproducibility and full results tables</summary>
 
 | Design choice | Value |
 | :--- | :--- |

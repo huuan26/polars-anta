@@ -2,8 +2,6 @@
 
 <img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/assets/banner.png" alt="polars-anta banner" width="100%" />
 
-# polars-anta
-
 **Build alpha signals in Polars, then test whether they are real.**
 
 [Case Study](#case-study-150-signals-on-vietnamese-equities) | [Documentation](https://huuan26.github.io/polars-anta/) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Examples](examples/) | [Report an Issue](https://github.com/huuan26/polars-anta/issues)

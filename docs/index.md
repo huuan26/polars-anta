@@ -8,7 +8,7 @@
   </div>
 
   <div class="anta-hero-subtitle">
-    Most technical signals are noise. <strong>polars-anta</strong> ships <strong>219</strong> signal and evaluation primitives <strong>and</strong> the statistical machinery &mdash; stationary block bootstrap, Benjamini&ndash;Hochberg FDR, Romano&ndash;Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting and empirical-Bayes shrinkage &mdash; to show which survive.
+    On Vietnamese equities, <strong>150</strong> technical signals collapse to <strong>~6</strong> independent dimensions (<code>N_eff = 6.00</code>); the dominant one replicates out of sample (<strong>38</strong> of <strong>64</strong> <code>robust</code> signals) but does not survive long-only trading costs (<strong>0</strong> survivors). <strong>polars-anta</strong> ships <strong>219</strong> signal and evaluation primitives <strong>and</strong> the statistical machinery &mdash; stationary block bootstrap, Benjamini&ndash;Hochberg FDR, Romano&ndash;Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting and empirical-Bayes shrinkage &mdash; to separate genuine structure from noise.
   </div>
 
   <div class="anta-badges">
@@ -29,24 +29,24 @@
 
 <div class="anta-metrics-grid">
   <div class="anta-metric-card">
-    <div class="anta-metric-value">150</div>
-    <div class="anta-metric-label">Signals Tested</div>
-    <div class="anta-metric-desc">Pre-registered HOSE Factor Zoo (<code>N_eff = 6.0</code>)</div>
+    <div class="anta-metric-value">150 &middot; N<sub>eff</sub> &approx; 6</div>
+    <div class="anta-metric-label">150 Signals Tested &middot; N_eff &approx; 6</div>
+    <div class="anta-metric-desc">146 unique signals collapse to 6.00 independent dimensions</div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">0 / 38</div>
-    <div class="anta-metric-label">Survived Holdout</div>
-    <div class="anta-metric-desc">0 post-cost Q5 &middot; 38 replicate Rank IC (RW &le; 0.05)</div>
+    <div class="anta-metric-value">38</div>
+    <div class="anta-metric-label">38 Replicate Out-of-Sample (Statistical)</div>
+    <div class="anta-metric-desc">38 of 64 <code>robust</code> signals pass Holdout RW &le; 0.05 (97.6% retention)</div>
+  </div>
+  <div class="anta-metric-card">
+    <div class="anta-metric-value">0</div>
+    <div class="anta-metric-label">0 Survive Long-Only Costs</div>
+    <div class="anta-metric-desc">0 standalone Q5 strategies survive retail HOSE costs (60 bps RT) &amp; BH</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">219</div>
     <div class="anta-metric-label">Public Functions</div>
-    <div class="anta-metric-desc">Dual <code>.anta</code> &amp; <code>.ta</code> API</div>
-  </div>
-  <div class="anta-metric-card">
-    <div class="anta-metric-value">Zero-C</div>
-    <div class="anta-metric-label">Pure Polars &amp; NumPy</div>
-    <div class="anta-metric-desc">No C/Cython or SciPy compiler</div>
+    <div class="anta-metric-desc">Zero-C Polars &amp; NumPy dual <code>.anta</code> / <code>.ta</code> API</div>
   </div>
 </div>
 
@@ -54,16 +54,27 @@
 
 ## Evidence: The Factor Zoo Inside This Library
 
-In our pre-registered empirical study ([**Factor Zoo Study**](research/factor-zoo.md), commit `4c1a4b559d22a1367ce46b513ab7ff1079fff360`), we tested all **150** daily-OHLCV-compatible signals in `polars-anta` at their default parameters on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (`HOSE`) universe (`2014-01-01`–`2021-12-31` discovery, `2022-01-01`–`2026-11-10` locked holdout, $h = 5$ open-to-open days):
+In our pre-specified empirical study ([**Factor Zoo Study**](research/factor-zoo.md), commit `4c1a4b559d22a1367ce46b513ab7ff1079fff360`; see [Deviations & Timeline](research/factor-zoo.md#31-deviations-from-the-analysis-plan-timeline)), we tested all **150** daily-OHLCV-compatible signals (**146** unique after accounting for **4** exact duplicate pairs) in `polars-anta` at their default parameters on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (`HOSE`) universe (`2014-01-01`–`2021-12-31` discovery, `2022-01-01`–`2026-11-10` locked holdout, $h = 5$ open-to-open days):
 
-| Stage | Signals |
-| :--- | ---: |
-| Tested (pre-registered registry) | 150 |
-| Raw p < 0.05 (Stationary Bootstrap; Newey–West $\|t\| \ge 1.96$: 95) | 91 *(≈ 7.5 expected by chance)* |
-| Benjamini–Hochberg q ≤ 0.10 | 94 |
-| Romano–Wolf FWER ≤ 0.05 | 71 (64 non-decaying `robust`) |
-| Survive costs (long-only, VN fees & tax, BH q ≤ 0.10) | 0 (2 at raw p ≤ 0.05) |
-| Confirmed in locked holdout (2022-01-01–2026-11-10) | 0 (38 statistical IC survivors) |
+#### Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, $h = 5$ Days)
+
+| Stage | Signals | Share of Registry | Notes |
+| :--- | ---: | ---: | :--- |
+| **A1. Tested in Registry** | **150** | `100.0%` | 146 unique signals + 4 exact duplicate pairs ($N_{\text{eff}} = 6.00$) |
+| **A2. Benjamini–Hochberg FDR $q \le 0.10$** | **94** | `62.7%` | Raw Stationary Bootstrap $p \le 0.05$: **91** (NW $|t| \ge 1.96$: **95**; $\approx 7.5$ under i.i.d. noise) |
+| **A3. Romano–Wolf Stepdown FWER $p_{\text{RW}} \le 0.05$** | **71** | `47.3%` | Joint studentized $\max$-$t$ bootstrap across all 150 IC series |
+| **A4. Structurally Stable (`robust` Verdict)** | **64** | `42.7%` | RW $p \le 0.05$ and non-decaying (+ **16** `fdr_only`, **14** `decaying`, **56** `noise`) |
+| **A5. Replicate in Locked Holdout (`2022-01-01`–`2026-11-10`)** | **38** | `25.3%` | **38** of **64** (`59.4%`) pass Holdout RW $p \le 0.05$ (**49** or `76.6%` pass BH $q \le 0.10$; **54** or `84.4%` retain sign) |
+
+#### Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)
+
+| Stage | Signals | Share of Registry | Share of 80 Candidates |
+| :--- | ---: | ---: | ---: |
+| **B1. Non-Decaying Discovery Survivors Evaluated** | **80** | `53.3%` | `100.0%` (**64** `robust` + **16** `fdr_only`) |
+| **B2. Positive Net Excess Return After HOSE Costs (`60 bps` RT)** | **12** | `8.0%` | `15.0%` |
+| **B3. Unadjusted One-Sided Bootstrap $p \le 0.05$ on Net Excess** | **2** | `1.3%` | `2.5%` (`trix_15`, `tsi`) |
+| **B4. Survive Benjamini–Hochberg FDR $q \le 0.10$ Across Cost Stage** | **0** | `0.0%` | `0.0%` |
+| **B5. Confirmed Post-Cost Survivors in Locked Holdout** | **0** | `0.0%` | `0.0%` |
 
 ![Factor Zoo Falsification Funnel](assets/research/01_falsification_funnel.png)
 

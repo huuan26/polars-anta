@@ -1,0 +1,153 @@
+{
+  "n_registered_signals": 150,
+  "n_exact_duplicate_pairs": 4,
+  "n_unique_signals": 146,
+  "dropped_in_unique_146": [
+    "pivot_fibonacci",
+    "natr_14",
+    "decay_linear_10",
+    "ts_zscore_20"
+  ],
+  "exact_duplicates": [
+    {
+      "signal_kept": "wma_10",
+      "signal_duplicate": "decay_linear_10",
+      "family_kept": "trend",
+      "family_duplicate": "alpha",
+      "transform_kept": "close / wma(close, 10) - 1",
+      "transform_duplicate": "close / decay_linear(close, 10) - 1",
+      "max_abs_ic_diff": 0.0,
+      "ic_corr": 1.0
+    },
+    {
+      "signal_kept": "pivot_classic",
+      "signal_duplicate": "pivot_fibonacci",
+      "family_kept": "trend",
+      "family_duplicate": "trend",
+      "transform_kept": "close / pivot - 1",
+      "transform_duplicate": "close / fibonacci_pivot - 1",
+      "max_abs_ic_diff": 0.0,
+      "ic_corr": 1.0
+    },
+    {
+      "signal_kept": "atr_14_norm",
+      "signal_duplicate": "natr_14",
+      "family_kept": "volatility",
+      "family_duplicate": "volatility",
+      "transform_kept": "atr(14) / close",
+      "transform_duplicate": "natr(14)",
+      "max_abs_ic_diff": 0.0,
+      "ic_corr": 1.0
+    },
+    {
+      "signal_kept": "zscore_20",
+      "signal_duplicate": "ts_zscore_20",
+      "family_kept": "stats",
+      "family_duplicate": "alpha",
+      "transform_kept": "zscore(close, 20)",
+      "transform_duplicate": "ts_zscore(close, 20)",
+      "max_abs_ic_diff": 0.0,
+      "ic_corr": 1.0
+    }
+  ],
+  "n_near_duplicate_pairs_abs_corr_gt_099": 12,
+  "near_duplicates_099": [
+    {
+      "signal_a": "cfo_14",
+      "signal_b": "linreg_forecast_14",
+      "family_a": "momentum",
+      "family_b": "stats",
+      "ic_corr": -1.0,
+      "max_abs_ic_diff": 1.022715
+    },
+    {
+      "signal_a": "bb_percent_b",
+      "signal_b": "zscore_20",
+      "family_a": "volatility",
+      "family_b": "stats",
+      "ic_corr": 1.0,
+      "max_abs_ic_diff": 0.003901
+    },
+    {
+      "signal_a": "bb_percent_b",
+      "signal_b": "ts_zscore_20",
+      "family_a": "volatility",
+      "family_b": "alpha",
+      "ic_corr": 1.0,
+      "max_abs_ic_diff": 0.003901
+    },
+    {
+      "signal_a": "cmf_20",
+      "signal_b": "adl_roc_20",
+      "family_a": "volume",
+      "family_b": "volume",
+      "ic_corr": 1.0,
+      "max_abs_ic_diff": 0.000478
+    },
+    {
+      "signal_a": "hl_ratio",
+      "signal_b": "relative_spread",
+      "family_a": "alpha",
+      "family_b": "alpha",
+      "ic_corr": 0.999759,
+      "max_abs_ic_diff": 0.028619
+    },
+    {
+      "signal_a": "bop",
+      "signal_b": "alpha_101",
+      "family_a": "momentum",
+      "family_b": "alpha",
+      "ic_corr": 0.999247,
+      "max_abs_ic_diff": 0.036206
+    },
+    {
+      "signal_a": "envelopes_20",
+      "signal_b": "twap_20",
+      "family_a": "volatility",
+      "family_b": "alpha",
+      "ic_corr": 0.998545,
+      "max_abs_ic_diff": 0.036193
+    },
+    {
+      "signal_a": "vwap_20",
+      "signal_b": "vwma_20",
+      "family_a": "volume",
+      "family_b": "volume",
+      "ic_corr": 0.997273,
+      "max_abs_ic_diff": 0.04627
+    },
+    {
+      "signal_a": "pivot_classic",
+      "signal_b": "pivot_woodie",
+      "family_a": "trend",
+      "family_b": "trend",
+      "ic_corr": 0.994959,
+      "max_abs_ic_diff": 0.102761
+    },
+    {
+      "signal_a": "pivot_fibonacci",
+      "signal_b": "pivot_woodie",
+      "family_a": "trend",
+      "family_b": "trend",
+      "ic_corr": 0.994959,
+      "max_abs_ic_diff": 0.102761
+    },
+    {
+      "signal_a": "macd_hist",
+      "signal_b": "ppo_hist",
+      "family_a": "momentum",
+      "family_b": "momentum",
+      "ic_corr": 0.993774,
+      "max_abs_ic_diff": 0.119522
+    },
+    {
+      "signal_a": "trix_15",
+      "signal_b": "kst",
+      "family_a": "momentum",
+      "family_b": "momentum",
+      "ic_corr": 0.99077,
+      "max_abs_ic_diff": 0.136877
+    }
+  ],
+  "factor_table_rows": 150
+}

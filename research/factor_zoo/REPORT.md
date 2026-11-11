@@ -1,14 +1,14 @@
 # How Many Technical and Formulaic Alphas Survive Multiple-Testing and Transaction-Cost Falsification on Vietnamese Equities?
 
-> **Pre-Registered Empirical Study (`polars-anta` Factor Zoo)**
-> **Pre-Registration Commit**: `4c1a4b559d22a1367ce46b513ab7ff1079fff360` ([`PREREGISTRATION.md`](PREREGISTRATION.md))
-> **Signal Registry SHA-256**: `8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c` ($K = 150$ signals)
+> **Pre-Specified Empirical Study (`polars-anta` Factor Zoo)**
+> **Analysis-Plan Commit**: `4c1a4b559d22a1367ce46b513ab7ff1079fff360` ([`PREREGISTRATION.md`](PREREGISTRATION.md))
+> **Signal Registry SHA-256**: `8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c` ($K = 150$ signals, $146$ unique)
 
 ---
 
 ## 1. TL;DR
 
-- **High statistical redundancy ($N_{\text{eff}} = 6.00$) inflates naive discovery counts**: Out of **150** pre-registered daily OHLCV signals evaluated at default parameters on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (`HOSE`) universe during Discovery (`2014-01-01` to `2021-12-31`, $1{,}998$ trading days, $h = 5$ open-to-open days), **91** pass raw Stationary Bootstrap $p \le 0.05$ (**95** have Newey–West $|t| \ge 1.96$, vs. $7.5$ expected by chance under independence). Eigenvalue decomposition of the $150 \times 150$ daily IC correlation matrix reveals an effective independent test count of **$N_{\text{eff}} = 6.00$** (the top 1 eigenvalue is $55.21$ and the top 5 principal components explain **$66.6\%$** of cross-signal IC variance).
+- **High statistical redundancy ($N_{\text{eff}} = 6.00$) inflates naive discovery counts**: Out of **150** pre-specified daily OHLCV signals (**146** unique after accounting for **4** exact duplicate pairs) evaluated at default parameters on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (`HOSE`) universe during Discovery (`2014-01-01` to `2021-12-31`, $1{,}998$ trading days, $h = 5$ open-to-open days), **91** pass raw Stationary Bootstrap $p \le 0.05$ (**95** have Newey–West $|t| \ge 1.96$, vs. $7.5$ expected by chance under independence). Eigenvalue decomposition of the $150 \times 150$ daily IC correlation matrix reveals an effective independent test count of **$N_{\text{eff}} = 6.00$** (the top 1 eigenvalue is $55.21$ and the top 5 principal components explain **$66.6\%$** of cross-signal IC variance).
 - **Strong out-of-sample statistical IC replication, but severe standalone turnover drag**: After joint multiple-testing correction and OLS-CUSUM structural stability screening, **94** signals pass Benjamini–Hochberg FDR ($q \le 0.10$), **71** pass Romano–Wolf stepdown FWER ($\alpha \le 0.05$), and **64** are classified as structurally stable (`robust`) while **14** are flagged as `decaying`. In the locked Holdout sample (`2022-01-01` to `2026-11-10`, $1{,}202$ valid $5$-day return sessions), cross-sectional Rank IC correlates at **$r = 0.77$** ($0.7675$) with Discovery across all 150 signals, and **38 of the 64** `robust` discovery signals replicate under Romano–Wolf FWER ($p_{\text{RW}} \le 0.05$) with a median IC retention ratio of **$97.6\%$** ($0.9764$).
 - **Zero standalone single-factor long-only strategies survive both Vietnamese equity transaction costs and multiple-testing control**: When implemented as 5-day rebalanced, equal-weighted long-only top-quintile (Q5) portfolios against the equal-weight universe under realistic `HOSE` execution frictions (`0.15%`/side brokerage + `0.10%`/side slippage + `0.10%` statutory sell tax = `30 bps` per unit of L1 weight turnover $\sum_i |w_{i,t} - w_{i,t-1}|$, or `60 bps` round-trip replacement cost), the top-6 $|t_{\text{NW}}|$ fast mean-reversion signals suffer breakeven cost ceilings of only `-6.7–20.5 bps` round-trip (`5.7–20.5 bps` among the 5 with positive gross Q5 excess). Only **2** slower momentum signals (`trix_15` at $+8.37\%/\text{yr}$, raw $p = 0.0170$; `tsi` at $+7.65\%/\text{yr}$, raw $p = 0.0320$) clear the cost hurdle at unadjusted $p \le 0.05$, **0** survive Benjamini–Hochberg adjustment ($q \le 0.10$) across the 80 cost-stage candidates, and both `trix_15` and `tsi` suffer structural breaks (`CUSUM p = 0.013` and `0.009`) and negative net excess returns in the locked `2022–2026` holdout (**0** confirmed post-cost holdout survivors).
 
@@ -18,20 +18,44 @@
 
 Modern empirical asset pricing faces a well-documented **Factor Zoo** problem: when researchers test hundreds of correlated technical indicators and formulaic alphas on the same historical panel, conventional single-hypothesis $t$-thresholds ($|t| \ge 1.96$) produce massive false-discovery rates (Harvey, Liu & Zhu 2016; Chordia, Goyal & Saretto 2020). While recent work shows that many equity anomalies share a common statistical component that replicates better than naive uniform priors suggest once shrunken via Empirical Bayes (Jensen, Kelly & Pedersen 2023), a critical gap remains between **frictionless cross-sectional predictability** (Rank IC) and **net-of-cost implementability** in emerging markets (Hou, Xue & Zhang 2020; Novy-Marx & Velikov 2016).
 
-Rather than marketing `polars-anta` as a collection of *"200+ fast alpha indicators"*, this study subjects the library's entire daily-OHLCV indicator and WorldQuant formulaic alpha catalog ($K = 150$ scale-free signals) to a **pre-registered statistical and economic falsification funnel** on Vietnamese equities (`HOSE`), using the inference machinery built into `polars_anta.inference`.
+Rather than marketing `polars-anta` as a collection of *"200+ fast alpha indicators"*, this study subjects the library's entire daily-OHLCV indicator and WorldQuant formulaic alpha catalog ($K = 150$ scale-free signals) to a **pre-specified statistical and economic falsification funnel** on Vietnamese equities (`HOSE`), using the inference machinery built into `polars_anta.inference`.
 
 ---
 
-## 3. Pre-Registration & Anti-Data-Mining Protocol
+## 3. Pre-Specified Analysis Plan & Anti-Data-Mining Protocol
 
-To eliminate hindsight bias, parameter tuning, and post-hoc threshold selection, the entire experimental design was frozen prior to unlocking the `2022–2026` holdout period:
+To constrain hindsight bias, parameter tuning, and post-hoc threshold selection, the experimental design was specified and committed prior to running the discovery and holdout pipelines:
 
-- **Pre-Registration Document**: [`research/factor_zoo/PREREGISTRATION.md`](PREREGISTRATION.md)
+- **Analysis Plan Document**: [`research/factor_zoo/PREREGISTRATION.md`](PREREGISTRATION.md)
 - **Frozen Configuration**: [`research/factor_zoo/config.py`](config.py)
 - **Frozen Signal Registry**: [`research/factor_zoo/registry.py`](registry.py)
-- **Git Pre-Registration Commit Hash**: `4c1a4b559d22a1367ce46b513ab7ff1079fff360`
+- **Git Analysis-Plan Commit Hash**: `4c1a4b559d22a1367ce46b513ab7ff1079fff360`
 - **Registry Canonical SHA-256**: `8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c`
 - **Programmatic Holdout Guard**: `verify_preregistration_guard()` in [`research/factor_zoo/pipeline.py`](pipeline.py) refuses to execute `--stage holdout` unless `--unlock-holdout` is explicitly passed, `PREREGISTRATION.md` is committed to Git, and `git status --porcelain` confirms zero uncommitted modifications to `PREREGISTRATION.md`, `config.py`, and `registry.py`.
+
+### 3.1 Deviations from the Analysis Plan & Timeline
+
+Because the analysis plan was committed in the same repository session as data caching and pipeline execution rather than registered on an external third-party registry prior to data access, we refer to the protocol throughout this report as a **pre-specified analysis plan** and disclose the complete execution timeline and all deviations below (auto-derived from [`results/audit/timeline.txt`](results/audit/timeline.txt)):
+
+| Commit / Event | Timestamp (`+07:00`) | Description |
+| :--- | :--- | :--- |
+| `DATA_CACHE` | `2026-11-10 23:41:01 +07:00` | research/data/vn_daily.meta.json CreationTime (raw HOSE OHLCV panel cached) |
+| `66bcaf0` | `2026-11-10 23:42:23 +0700` | research: data loader and point-in-time universe |
+| `c0df52e` | `2026-11-10 23:48:37 +0700` | research: signal registry |
+| `4c1a4b5` | `2026-11-10 23:50:27 +0700` | research: pre-register factor zoo study (registry sha256=8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c) |
+| `c793a02` | `2026-11-11 00:09:34 +0700` | research: discovery pipeline and results |
+| `4caec78` | `2026-11-11 00:11:39 +0700` | research: holdout evaluation (unlocked after pre-registration 4c1a4b5) |
+| `dacd8dc` | `2026-11-11 00:16:37 +0700` | docs(research): factor zoo report |
+
+**Disclosed Deviations:**
+
+1. **Data cached prior to analysis-plan commit (`DATA_CACHE` vs. `4c1a4b5`)**: The raw `HOSE` daily OHLCV panel (`research/data/vn_daily.parquet`, spanning `2012-03-19` to `2026-11-10` including the holdout period) was fetched and cached at `2026-11-10 23:41:01 +07:00`, approximately 9 minutes before the analysis-plan commit `4c1a4b5` (`2026-11-10 23:50:27 +0700`).
+2. **Internal review checkpoints bypassed during batch execution (`4c1a4b5` $\to$ `c793a02` $\to$ `4caec78`)**: Internal review checkpoints between data collection, analysis-plan lock (`4c1a4b5`), Discovery execution (`c793a02` at `2026-11-11 00:09:34 +0700`), and Holdout unlock (`4caec78` at `2026-11-11 00:11:39 +0700`) were bypassed during batch execution; the holdout evaluation was executed 2 minutes after the Discovery commit without an intervening manual review pause.
+3. **Cost-stage candidate filter aligned with written specification prior to commit (`c793a02`)**: During the first uncommitted run of the Discovery script, the cost-stage candidate filter selected signals with `p_rw <= 0.05 OR q_bh <= 0.10` (94 signals, including 14 signals classified as `decaying`). Before committing Discovery in `c793a02`, the filter was updated to match the written specification (`verdict in {"robust", "fdr_only"}`), **reducing** the number of evaluated cost-stage candidates from **94** to **80** and leaving the confirmatory conclusion unchanged (**0** survivors after Benjamini–Hochberg FDR $q \le 0.10$).
+4. **Unadjusted cost-stage $p \le 0.05$ diagnostic count added post-hoc (`c793a02`)**: The intermediate count of cost-stage candidates achieving unadjusted one-sided bootstrap $p \le 0.05$ (`n_cost_raw_p05 = 2`: `trix_15`, `tsi`) was added in `c793a02` for diagnostic visibility; it is not a survival criterion in `PREREGISTRATION.md` (which requires BH $q \le 0.10$).
+5. **Four exact duplicate signal pairs in the frozen registry (`c0df52e`)**: Post-hoc auditing ([`results/audit/duplicate_signals.json`](results/audit/duplicate_signals.json)) identified **4** exact duplicate pairs ($\max |\Delta \text{IC}_t| = 0.0$, $\text{corr} = 1.0$) among the 150 registered entries, yielding **146** unique signals (`wma_10` $\equiv$ `decay_linear_10`, `pivot_classic` $\equiv$ `pivot_fibonacci`, `atr_14_norm` $\equiv$ `natr_14`, and `zscore_20` $\equiv$ `ts_zscore_20`), plus **12** near-duplicate pairs with $|\text{corr}| > 0.99$. To preserve the frozen SHA-256 hash of `registry.py`, all 150 entries remain in the primary tables, and an exploratory 146-unique-signal sensitivity check is reported in §8.3.
+6. **Correction of earlier Appendix A (`dacd8dc` $\to$ `8efa20c`)**: An earlier version of Appendix A in commit `dacd8dc` listed library functions that do not exist; it has been replaced in commit `8efa20c` by a table generated directly from `EXCLUDED_SIGNALS` in `registry.py` (**10** export groups).
+7. **Post-hoc confirmation of `HOSE` execution and market parameters (`4c1a4b5`)**: The `HOSE` execution cost and market structure constants in `config.py` (`0.15%`/side brokerage, `0.10%`/side slippage, `0.10%` sell tax, no short selling, $\pm 7.0\%$ daily price limit) were initialized from standard retail schedules at commit `4c1a4b5` and formally confirmed by the author post-hoc on `2026-11-11`.
 
 ---
 
@@ -39,9 +63,9 @@ To eliminate hindsight bias, parameter tuning, and post-hoc threshold selection,
 
 ### 4.1 Source & Sample Period
 
-Daily OHLCV bars were retrieved for all **392** three-letter common equity tickers listed on the Ho Chi Minh Stock Exchange (`HOSE`), spanning `2012-03-19` through `2026-11-10` (**1,138,548** raw ticker-day observations). The period `2012-03-19` to `2013-12-31` serves strictly as a warm-up buffer for rolling lookback windows and the 250-day listing-age filter.
+Daily OHLCV bars were retrieved from public Vietnamese equity market endpoints—primary `VNDirect` (`api-finfo.vndirect.com.vn` ticker directory and `dchart-api.vndirect.com.vn` daily history) with `SSI iBoard` (`iboard-query.ssi.com.vn`) as automatic fallback—for all **392** three-letter common equity tickers listed on the Ho Chi Minh Stock Exchange (`HOSE`), spanning `2012-03-19` through `2026-11-10` (**1,138,548** raw ticker-day observations). The period `2012-03-19` to `2013-12-31` serves strictly as a warm-up buffer for rolling lookback windows and the 250-day listing-age filter.
 
-### 4.2 Pre-Registered 3-Step Cleaning Pipeline
+### 4.2 Pre-Specified 3-Step Cleaning Pipeline
 
 Executed deterministically in [`research/factor_zoo/data.py`](data.py):
 
@@ -233,11 +257,13 @@ Per `PREREGISTRATION.md` §4, horizons $h = 1$ (next-day open-to-open) and $h = 
 
 ## 9. Limitations
 
-1. **Survivorship Bias in Public Exchange Directory**: The public exchange directory query returned `392` currently listed 3-letter `HOSE` equities and `0` delisted tickers. Although the point-in-time rolling 60-day median traded value filter (`top 150`, minimum `5,000 VND`, minimum `250` trading sessions) excludes distressed micro-caps as liquidity deteriorates, historical delistings between 2014 and 2026 are absent from the public feed.
-2. **Daily Typical-Price VWAP Proxy**: For formulaic alphas requiring `vwap` (`alpha_001`–`alpha_101`), intraday trade-by-trade VWAP is unavailable in public daily feeds and is proxied by daily typical price $(H_t + L_t + C_t)/3$.
-3. **Long-Only Constraint & Equal-Weight Rebalancing**: Evaluating each signal as a standalone 5-day rebalanced equal-weighted Q5 portfolio without turnover regularization (e.g., no buffer banding, no multi-factor combination, no trade-off against expected transaction cost) represents a deliberately harsh falsification benchmark. Combining the $N_{\text{eff}} \approx 6$ orthogonal dimensions with a turnover-penalized optimizer is the natural next step beyond single-factor falsification.
-4. **Stylized Transaction Cost Schedule**: The pre-registered `60 bps` round-trip cost (`0.15%`/side brokerage + `0.10%`/side slippage + `0.10%` sell tax) is constant across stocks and time, whereas institutional market impact scales non-linearly with order size relative to daily volume.
-5. **Cross-Sectional Breadth ($N \le 150$)**: Compared to US CRSP panels ($N \approx 3{,}000$), a 150-stock universe has higher idiosyncratic portfolio variance in each quintile (30 stocks per quintile).
+1. **Survivorship Bias in Public Exchange Directory**: The public exchange directory query (`VNDirect` / `SSI iBoard`) returned **392** currently listed 3-letter `HOSE` equities (`0` historical delisted tickers; only **2** cached tickers have a last trading date before `2026-10-01`: `LGC` ending `2026-04-29` with **2,801** bars and `TTE` ending `2026-07-01` with **1,021** bars, see [`results/audit/data_adjustment_check.json`](results/audit/data_adjustment_check.json)). Although the point-in-time rolling 60-day median traded value filter (`top 150`, minimum `5,000 VND`, minimum `250` trading sessions) excludes distressed micro-caps as liquidity deteriorates, historical delistings between 2012 and 2026 are absent from the public feed.
+2. **Corporate-Action & Price-Adjustment Uncertainty in Public Feeds**: Across **1,138,156** raw 1-day return observations in the cached feed, **5,737** exceed $\pm 7.5\%$ (**5,653** after zero-volume filtering), **343** exceed $\pm 15\%$ (**126** negative, **217** positive), and **32** exceed $\pm 30\%$. Out of the **343** moves exceeding $\pm 15\%$, **78** (**22.74%**) fall within $\pm 0.015$ of typical stock-dividend or split price ratios (**44** near `5:6`, **25** near `4:5`, **7** near `10:13`, **2** near `2:3`). Whether the upstream public history endpoint is partially adjusted or unadjusted for corporate actions is not independently verified; the cleaning pipeline mitigates single-day discontinuities by dropping observations with $|C_t / C_{t-1} - 1| > 7.5\%$.
+3. **Daily Typical-Price VWAP Proxy**: For formulaic alphas requiring `vwap` (`alpha_001`–`alpha_101`), intraday trade-by-trade VWAP is unavailable in public daily feeds and is proxied by daily typical price $(H_t + L_t + C_t)/3$.
+4. **Long-Only Constraint & Equal-Weight Rebalancing**: Evaluating each signal as a standalone 5-day rebalanced equal-weighted Q5 portfolio without turnover regularization (e.g., no buffer banding, no multi-factor combination, no trade-off against expected transaction cost) represents a deliberately harsh falsification benchmark. Combining the $N_{\text{eff}} = 6.00$ orthogonal dimensions with a turnover-penalized optimizer is the natural next step beyond single-factor falsification.
+5. **Retail Transaction Cost Schedule**: The pre-specified `60 bps` round-trip cost (`0.15%`/side brokerage + `0.10%`/side slippage + `0.10%` statutory sell tax, confirmed post-hoc on `2026-11-11`) reflects standard Vietnamese retail commission tiers and is constant across stocks and time, whereas institutional brokerage fees can be lower while price impact scales non-linearly with order size relative to daily volume.
+6. **Exact and Near-Duplicate Signals in the Frozen Registry**: As documented in [`results/audit/duplicate_signals.json`](results/audit/duplicate_signals.json), the **150** registered entries contain **4** exact duplicate pairs (**146** unique signals) and **12** near-duplicate pairs with $|\text{corr}| > 0.99$. While the participation ratio ($N_{\text{eff}} = 6.00$) and Romano–Wolf joint bootstrap naturally account for collinearity, a 146-unique-signal sensitivity check is reported in §8.3.
+7. **Cross-Sectional Breadth ($N \le 150$)**: Compared to US CRSP panels ($N \approx 3{,}000$), a 150-stock universe has higher idiosyncratic portfolio variance in each quintile (30 stocks per quintile).
 
 ---
 
@@ -255,10 +281,10 @@ python -m research.factor_zoo.fetch_data
 # 3. Run confirmatory Discovery pipeline (2014-01-01 to 2021-12-31, seed=20261110)
 python -m research.factor_zoo.run --stage discovery
 
-# 4. Run locked Holdout evaluation (verifies Git pre-registration guard first)
+# 4. Run locked Holdout evaluation (verifies Git analysis-plan guard first)
 python -m research.factor_zoo.run --stage holdout --unlock-holdout
 
-# 5. Render all 5 figures and auto-generated Markdown tables
+# 5. Render all figures and auto-generated Markdown tables
 python -m research.factor_zoo.render
 ```
 

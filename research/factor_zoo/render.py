@@ -560,6 +560,23 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     for export_name, fam, reason in EXCLUDED_SIGNALS:
         md_lines.append(f"| `{export_name}` | `{fam}` | {reason} |")
 
+    timeline_path = results_dir / "audit" / "timeline.txt"
+    if timeline_path.exists():
+        md_lines.extend(
+            [
+                "",
+                "## Execution Timeline (Auto-derived from `results/audit/timeline.txt`)",
+                "",
+                "| Commit / Event | Timestamp (`+07:00`) | Description |",
+                "| :--- | :--- | :--- |",
+            ]
+        )
+        for raw_line in timeline_path.read_text(encoding="utf-8").splitlines():
+            parts = raw_line.strip().split("|", 2)
+            if len(parts) == 3:
+                evt, ts, desc = parts
+                md_lines.append(f"| `{evt}` | `{ts}` | {desc} |")
+
     tables_path = results_dir / "tables.md"
     tables_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
 

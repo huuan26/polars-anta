@@ -89,3 +89,15 @@
 | `ts_scale / ts_delta / ts_delay / signed_power / ts_min / ts_max / ts_sum / ts_std / ts_product / ts_correlation / ts_covariance` | `alpha` | Low-level algebraic DSL building blocks used inside alpha_001..alpha_101. |
 | `resample_* / stitch_futures_roll / validate_ohlcv` | `resample` | Data engineering, bar aggregation, and validation utilities. |
 | `evaluation.* / backtest.* / inference.*` | `evaluation/backtest/inference` | Target return generators, evaluation metrics, backtesting engine, and inference tests. |
+
+## Execution Timeline (Auto-derived from `results/audit/timeline.txt`)
+
+| Commit / Event | Timestamp (`+07:00`) | Description |
+| :--- | :--- | :--- |
+| `﻿DATA_CACHE` | `2026-11-10 23:41:01 +07:00` | research/data/vn_daily.meta.json CreationTime (raw HOSE OHLCV panel cached) |
+| `66bcaf0` | `2026-11-10 23:42:23 +0700` | research: data loader and point-in-time universe |
+| `c0df52e` | `2026-11-10 23:48:37 +0700` | research: signal registry |
+| `4c1a4b5` | `2026-11-10 23:50:27 +0700` | research: pre-register factor zoo study (registry sha256=8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c) |
+| `c793a02` | `2026-11-11 00:09:34 +0700` | research: discovery pipeline and results |
+| `4caec78` | `2026-11-11 00:11:39 +0700` | research: holdout evaluation (unlocked after pre-registration 4c1a4b5) |
+| `dacd8dc` | `2026-11-11 00:16:37 +0700` | docs(research): factor zoo report |

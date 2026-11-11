@@ -353,6 +353,8 @@ def audit_markdown_file(
         # 1. Identifier check on inline backticks
         for match in _BACKTICK_RE.finditer(raw_line):
             span = match.group(1).strip()
+            if re.match(r"^[0-9a-f]{7,40}$", span):
+                continue
             if _IDENT_RE.match(span):
                 if span not in allowed_idents:
                     ident_errors.append(f"{md_path}:{lineno}: unknown identifier `{span}`")
@@ -381,8 +383,14 @@ def audit_markdown_file(
         cleaned = re.sub(r"\bSection\s+\d+(?:\.\d+)*", " ", cleaned)
         cleaned = re.sub(r"\|\s*\*\*[0-9]+[a-z]?\.\s+", "| **", cleaned)
         cleaned = re.sub(
-            r"\b(19|20)\d{2}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?\b", " ", cleaned
+            r"\b(19|20)\d{2}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?(?:\s*[+-]0\d:?00)?\b",
+            " ",
+            cleaned,
         )
+        cleaned = re.sub(r"\b\d{2}:\d{2}(?::\d{2})?\b", " ", cleaned)
+        cleaned = re.sub(r"[+-]0\d:?00\b", " ", cleaned)
+        cleaned = re.sub(r"\b\d{1,3}:\d{1,3}\b", " ", cleaned)
+        cleaned = re.sub(r"\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*[0-9])[0-9a-f]{7,64}\b", " ", cleaned)
         cleaned = re.sub(r"\b(19|20)\d{2}[–-](19|20)\d{2}\b", " ", cleaned)
         cleaned = cleaned.replace("{,}", ",").replace(r"\text{–}", " ")
 

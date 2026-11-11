@@ -271,22 +271,19 @@ python -m research.factor_zoo.render
 
 ---
 
-## Appendix A. Excluded Library Functions (`60` Primitives)
+## Appendix A. Excluded Library Exports (`10` Export Groups)
 
-Per `PREREGISTRATION.md`, functions in `polars-anta` that are cross-sectional/time-series preprocessing utilities, inference/evaluation estimators, multi-series pair functions, intraday-only indicators, or event-only flags with degenerate daily cross-sectional variation are excluded ex-ante:
+Generated directly from `EXCLUDED_SIGNALS` in [`research/factor_zoo/registry.py`](registry.py) (an earlier version of this appendix in commit `dacd8dc` listed library functions that do not exist; it has been replaced by a table generated from `EXCLUDED_SIGNALS`):
 
-| Function | Module | Exclusion Reason |
+| Export / Function Group | Family / Module | Exclusion Reason |
 | :--- | :--- | :--- |
-| `ichimoku` | `trend` | Forward-shifted `senkou_a`/`senkou_b` cloud columns require special alignment; `tenkan`/`kijun` ratios are already covered by rolling midpoint/MA primitives. |
-| `zigzag` | `trend` | Retroactive pivot-labeling algorithm uses future bars to confirm extrema (look-ahead bias if used as a real-time signal). |
-| `td_sequential` | `momentum` | Discrete integer setup counter (`1..9`) with high tie concentration (>80% zeros) in daily cross-sections. |
-| `ttm_squeeze` | `volatility` | Binary/struct squeeze flag already represented continuously by `squeeze_momentum` and `bb_width_20` / `keltner_pos`. |
-| `klinger` | `volume` | Cumulative unbounded signed volume oscillator with unit-root drift across multi-year panels. |
-| `vpin` | `microstructure` | Requires high-frequency volume-bucket bar aggregation; daily bars violate fixed-bucket assumptions. |
-| `ofi`, `trade_imbalance` | `microstructure` | Require Level-1 bid/ask quote updates or tick-level aggressor side not present in daily OHLCV. |
-| `session_vwap` | `volume` | Intraday session-reset VWAP; identical to daily typical price on single daily bars. |
-| `opening_range`, `time_of_day_Stats` | `intraday` | Strictly intraday timestamp primitives (`datetime` bars required). |
-| `engulfing` .. `three_black_crows` (15 functions) | `patterns` | Binary `{0, 1, -1}` candlestick pattern flags are zero on >92% of stock-days, producing degenerate cross-sectional rank ties. |
-| `winsorize` .. `forward` (15 functions) | `transforms` / `cross_sectional` | Data preprocessing, target return construction, and standardization utilities (not standalone alpha signals). |
-| `backtest` .. `sweep_robustness` (20 functions) | `evaluation` / `inference` | Statistical evaluation and falsification estimators used to test the registry. |
-| `kalman_beta`, `rolling_corr`, `rolling_cov`, `rolling_beta` | `stats` | Bivariate pair/benchmark estimators requiring an external factor or pair series. |
+| `ofi` | `microstructure` | Requires L1 order-book bid_price, bid_size, ask_price, ask_size. |
+| `futures_basis` | `microstructure` | Requires derivatives futures_close, spot_close, and days_to_expiry. |
+| `oi_regime` | `microstructure` | Requires futures open_interest series not present in cash equities. |
+| `session_vwap` | `volume` | Intraday session-anchored VWAP requiring sub-daily bars. |
+| `rolling_beta` | `stats` | Bivariate rolling regression requiring an external benchmark return column. |
+| `rolling_alpha` | `stats` | Bivariate CAPM intercept requiring an external benchmark return column. |
+| `cs_rank / cs_zscore / cs_winsorize / neutralize / orthogonalize` | `alpha` | Cross-sectional conditioning operators (not standalone time-series signals). |
+| `ts_scale / ts_delta / ts_delay / signed_power / ts_min / ts_max / ts_sum / ts_std / ts_product / ts_correlation / ts_covariance` | `alpha` | Low-level algebraic DSL building blocks used inside alpha_001..alpha_101. |
+| `resample_* / stitch_futures_roll / validate_ohlcv` | `resample` | Data engineering, bar aggregation, and validation utilities. |
+| `evaluation.* / backtest.* / inference.*` | `evaluation/backtest/inference` | Target return generators, evaluation metrics, backtesting engine, and inference tests. |

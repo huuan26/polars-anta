@@ -14,7 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from research.factor_zoo.config import REPO_ROOT, RESULTS_DIR
+from research.factor_zoo.config import DEFAULT_CONFIG, REPO_ROOT, RESULTS_DIR
+from research.factor_zoo.registry import EXCLUDED_SIGNALS
 
 
 def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
@@ -409,6 +410,18 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
             f"{r['ic_holdout']:.4f} | {r['t_nw_holdout']:.2f} | {r['p_rw_holdout']:.4f} | "
             f"{r['retention_ratio']:.2f} | {r['full_sample_cusum_p']:.3f} |"
         )
+
+    md_lines.extend(
+        [
+            "",
+            f"## Appendix A. Excluded Library Exports (`{len(EXCLUDED_SIGNALS)}` Export Groups)",
+            "",
+            "| Export / Function Group | Family / Module | Exclusion Reason |",
+            "| :--- | :--- | :--- |",
+        ]
+    )
+    for export_name, fam, reason in EXCLUDED_SIGNALS:
+        md_lines.append(f"| `{export_name}` | `{fam}` | {reason} |")
 
     tables_path = results_dir / "tables.md"
     tables_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")

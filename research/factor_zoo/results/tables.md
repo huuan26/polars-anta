@@ -56,3 +56,18 @@
 | `alpha_023` | `alpha` | 0.0310 | 0.0301 | 9.47 | 0.0005 | 12.3 | 0.0332 | 6.83 | 0.0005 | 1.07 | 0.330 |
 | `tsi` | `momentum` | 0.0369 | 0.0338 | 6.24 | 0.0005 | 112.7 | -0.0011 | -0.10 | 1.0000 | -0.03 | 0.009 |
 | `trix_15` | `momentum` | 0.0313 | 0.0284 | 4.95 | 0.0010 | 129.8 | -0.0089 | -0.75 | 0.9930 | -0.28 | 0.013 |
+
+## Appendix A. Excluded Library Exports (`10` Export Groups)
+
+| Export / Function Group | Family / Module | Exclusion Reason |
+| :--- | :--- | :--- |
+| `ofi` | `microstructure` | Requires L1 order-book bid_price, bid_size, ask_price, ask_size. |
+| `futures_basis` | `microstructure` | Requires derivatives futures_close, spot_close, and days_to_expiry. |
+| `oi_regime` | `microstructure` | Requires futures open_interest series not present in cash equities. |
+| `session_vwap` | `volume` | Intraday session-anchored VWAP requiring sub-daily bars. |
+| `rolling_beta` | `stats` | Bivariate rolling regression requiring an external benchmark return column. |
+| `rolling_alpha` | `stats` | Bivariate CAPM intercept requiring an external benchmark return column. |
+| `cs_rank / cs_zscore / cs_winsorize / neutralize / orthogonalize` | `alpha` | Cross-sectional conditioning operators (not standalone time-series signals). |
+| `ts_scale / ts_delta / ts_delay / signed_power / ts_min / ts_max / ts_sum / ts_std / ts_product / ts_correlation / ts_covariance` | `alpha` | Low-level algebraic DSL building blocks used inside alpha_001..alpha_101. |
+| `resample_* / stitch_futures_roll / validate_ohlcv` | `resample` | Data engineering, bar aggregation, and validation utilities. |
+| `evaluation.* / backtest.* / inference.*` | `evaluation/backtest/inference` | Target return generators, evaluation metrics, backtesting engine, and inference tests. |

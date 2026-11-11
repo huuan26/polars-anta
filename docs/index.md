@@ -16,13 +16,13 @@
     <a href="https://pypi.org/project/polars-anta/"><img src="https://img.shields.io/pypi/v/polars-anta.svg?label=PyPI&color=1D7AFC" alt="PyPI Version" /></a>
     <a href="https://pypi.org/project/polars-anta/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-1D7AFC" alt="Python Version" /></a>
     <a href="https://pola.rs"><img src="https://img.shields.io/badge/polars-%3E%3D1.0.0-1D7AFC" alt="Polars Version" /></a>
-    <a href="indicators/"><img src="https://img.shields.io/badge/functions-202%20public%20functions-10b981" alt="Public Functions" /></a>
+    <a href="indicators/"><img src="https://img.shields.io/badge/functions-219%20public%20functions-10b981" alt="Public Functions" /></a>
     <a href="https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" /></a>
   </div>
 
   <div class="anta-cta-group">
     <a href="getting-started/" class="md-button md-button--primary anta-btn-primary">Get Started in 60s</a>
-    <a href="indicators/" class="md-button anta-btn-secondary">Explore 202-Function API Catalog</a>
+    <a href="indicators/" class="md-button anta-btn-secondary">Explore 219-Function API Catalog</a>
     <a href="guides/quant-theory-and-workflows/" class="md-button anta-btn-secondary">Mathematical Theory</a>
   </div>
 </div>
@@ -34,7 +34,7 @@
     <div class="anta-metric-desc">Rolling OLS vs. pandas <code>rolling().apply()</code></div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">202</div>
+    <div class="anta-metric-value">219</div>
     <div class="anta-metric-label">Public Functions</div>
     <div class="anta-metric-desc">Dual <code>.anta</code> &amp; <code>.ta</code> API</div>
   </div>
@@ -283,10 +283,11 @@ Measured across **1,000,000 bars** (single-asset random walk) and a **500 ticker
 | :--- | :--- |
 | [**Quantitative Theory & Workflows**](guides/quant-theory-and-workflows.md) | Deep-dive into the mathematics and theory of AFML labeling, FFD, microstructure bars, Gram-Schmidt orthogonalization, Newey-West HAC, and PSR/DSR |
 | [**Architecture & Mathematical Proofs**](architecture.md) | Step-by-step algebraic proofs of the WMA–SMA OLS identity, Wilder RMA recurrences, and zero-copy `sliding_window_view` vectorization |
-| [**API Reference & Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 202 public functions |
+| [**API Reference & Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 219 public functions |
 | [**Getting Started Guide**](getting-started.md) | Installation, expression syntax, `pl.Struct` unnesting, and fluent DataFrame chaining |
 | [**Multi-Asset Universe Guide**](guides/multi-asset.md) | Scaling indicators and cross-sectional factors across hundreds of symbols with `.over("ticker")` |
 | [**Information Bars, Roll & Resampling**](guides/resampling-and-dataframe-api.md) | Calendar/Volume/Dollar/Imbalance bars, continuous futures stitching (`stitch_futures_roll`), and OHLCV validation |
 | [**Factor Evaluation & Backtesting**](indicators/evaluation-and-backtest.md) | Rank IC, Newey-West ICIR, `ic_decay`, Triple-Barrier/Trend-Scanning, `df.anta.backtest()`, and MAE/MFE trade ledgers |
+| [**Statistical Inference & Falsification**](indicators/inference.md) | Stationary bootstrap, Romano–Wolf stepdown, Hansen SPA, CSCV PBO, Empirical-Bayes shrinkage, and `falsify_factors()` |
 | [**Performance Benchmarks**](benchmarks.md) | 1,000,000-row latency comparisons against Pandas and reproduction instructions |
 | [**Interactive Colab Notebooks**](https://github.com/huuan26/polars-anta/tree/master/examples) | Runnable Jupyter / Google Colab tutorials covering screening, momentum, and backtesting |

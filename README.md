@@ -233,6 +233,7 @@ print(bt.trades())  # Round-trip trade ledger with PnL, holding_bars, MAE & MFE!
 | **Alpha Factors, Microstructure & Futures** | Cross-sectional ops (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`), liquidity & order flow (`amihud_illiquidity`, `kyle_lambda`, `roll_spread`, `corwin_schultz_spread`, `vpin`, `ofi`), index futures (`futures_basis`, `oi_regime`), regime complexity (`hurst_exponent`, `fractal_dimension`, `entropy`), and 33 formulaic alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`) | [Alpha Docs](https://huuan26.github.io/polars-anta/indicators/alpha/) |
 | **AFML Labeling, Factor Eval & Backtesting** | `triple_barrier_labels`, `trend_scanning_labels`, `forward_returns`, `information_coefficient`, Newey-West HAC `ic_summary`, `ic_decay`, `quantile_analysis`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `extract_trades` (MAE/MFE), `parameter_sweep` | [Eval & Backtest Docs](https://huuan26.github.io/polars-anta/indicators/evaluation-and-backtest/) |
 | **Data Engineering & Information Bars** | Multi-timeframe OHLCV aggregation (`resample_ohlcv`), information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`), continuous futures roll stitching (`stitch_futures_roll`), schema & price integrity checks (`validate_ohlcv`), batch feature generator (`df.anta.add_all()`) | [Resampling Docs](https://huuan26.github.io/polars-anta/guides/resampling-and-dataframe-api/) |
+| **Statistical Inference & Falsification** | Stationary Bootstrap (`stationary_bootstrap_indices`, `bootstrap_test`), multiple testing (`adjust_pvalues`, `romano_wolf`, `spa_test`), backtest overfitting (`pbo_cscv`), Empirical-Bayes shrinkage (`empirical_bayes_shrinkage`), OOS & stability tests (`oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `breakeven_cost_from_backtest`), panel falsification (`ic_matrix`, `long_short_returns`, `falsify_factors`, `sweep_robustness`) | [Inference Docs](https://huuan26.github.io/polars-anta/indicators/inference/) |
 
 ---
 
@@ -249,6 +250,7 @@ polars_anta/
 ├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & Fractional Diff (FFD)
 ├── alpha.py        # Cross-sectional orthogonalization, microstructure, futures & 33 formulaic alphas
 ├── evaluation.py   # AFML labeling, Newey-West Rank IC, IC decay, quantiles & PSR/DSR metrics
+├── inference.py    # Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, Empirical Bayes & falsify_factors
 ├── backtest.py     # Realistic vectorized backtester, vol-targeting, MAE/MFE ledger & sweeps
 ├── resample.py     # Calendar/Volume/Dollar/Imbalance bars, futures roll stitching & validation
 └── namespace.py    # Dual .anta and .ta registration across Expr, DataFrame & LazyFrame
@@ -317,7 +319,7 @@ Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a *
 
 ## API Reference & Indicator Catalog
 
-All 202 public functions (203 exports in `__all__`, including `BacktestResult`) are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces. Click any module below to expand its complete function signature reference, or visit the [Online API Reference](https://huuan26.github.io/polars-anta/indicators/).
+All 219 public functions (221 exports in `__all__`, including `BacktestResult` and `FalsificationResult`) are exported at the top level (`import polars_anta as pa`) and registered on `.anta` and `.ta` namespaces. Click any module below to expand its complete function signature reference, or visit the [Online API Reference](https://huuan26.github.io/polars-anta/indicators/).
 
 <details>
 <summary><strong>1. Trend & Overlays</strong> — <code>polars_anta.trend</code> · <a href="docs/indicators/trend.md">Detailed Docs</a></summary>
@@ -567,6 +569,32 @@ All 202 public functions (203 exports in `__all__`, including `BacktestResult`) 
 | `resample_dollar_bars(df, dollar_threshold, ...)` | Information Bars | Cumulative Dollar/Notional Bar sampling (∑ P_i V_i ≥ Θ_D) invariant to price inflation |
 | `resample_imbalance_bars(df, expected_imbalance, ...)` | Information Bars | López de Prado (2018) Tick/Volume Imbalance Bars (|∑ b_i v_i| ≥ Θ_imbalance) |
 | `stitch_futures_roll(df, method="backward", ...)` | Continuous Futures | Non-leaky continuous futures stitching (`"backward"`, `"ratio"`, `"panama"`) across contract expiries |
+
+</details>
+
+<details>
+<summary><strong>9. Statistical Inference & Falsification</strong> — <code>polars_anta.inference</code> · <a href="docs/indicators/inference.md">Detailed Docs</a></summary>
+
+<br/>
+
+| Function Signature | Domain | Description |
+| :--- | :--- | :--- |
+| `stationary_bootstrap_indices(n_obs, n_boot=1000, mean_block=None, seed=None)` | Bootstrap | Politis & Romano (1994) circular Stationary Bootstrap index matrix `(n_boot, n_obs)` |
+| `bootstrap_test(series, statistic="mean", null_value=0.0, alternative="two-sided", ...)` | Bootstrap Inference | Stationary Bootstrap hypothesis test & percentile CI for sample mean or annualized Sharpe ratio |
+| `adjust_pvalues(p_values, method="bh")` | Multiple Testing | Classical FWER/FDR $p$-value adjustments (`"bonferroni"`, `"holm"`, `"bh"`, `"by"`) |
+| `romano_wolf(data, exclude=(), n_boot=2000, mean_block=None, alternative="two-sided", seed=None)` | Multiple Testing | Romano & Wolf (2005, 2016) studentized stepdown $\max$-$t$ FWER control via Stationary Bootstrap |
+| `spa_test(data, benchmark=None, exclude=(), n_boot=2000, mean_block=None, seed=None)` | Multiple Testing | Hansen (2005) Superior Predictive Ability (`p_lower`, `p_consistent`) & White (2000) Reality Check (`p_upper`) |
+| `pbo_cscv(data, exclude=(), n_splits=16, max_combinations=20_000, seed=None)` | Overfitting | Bailey et al. (2017) Combinatorially Symmetric Cross-Validation Probability of Backtest Overfitting (PBO) |
+| `empirical_bayes_shrinkage(estimates, std_errors, names=None, prior="zero", groups=None)` | Shrinkage | Efron–Morris (1975) / Jensen, Kelly & Pedersen (2023) Empirical-Bayes normal shrinkage |
+| `oos_r2(actual, predicted, benchmark=None, min_train=20)` | Forecast Evaluation | Campbell & Thompson (2008) out-of-sample $R^2_{\text{OOS}}$ against a benchmark or expanding mean |
+| `clark_west_test(actual, predicted_model, predicted_benchmark, nw_lags=None)` | Forecast Evaluation | Clark & West (2007) MSPE-adjusted one-sided test for nested forecast models |
+| `diebold_mariano_test(actual, pred1, pred2, loss="squared", horizon=1, nw_lags=None)` | Forecast Evaluation | Diebold & Mariano (1995) Newey–West HAC test for equal predictive accuracy |
+| `cusum_mean_test(series, nw_lags=None)` | Structural Stability | Ploberger & Krämer (1992) HAC-standardized OLS-CUSUM supremum test for mean stability |
+| `breakeven_cost(gross_returns, turnover)` / `breakeven_cost_from_backtest(bt)` | Transaction Costs | Exact per-unit-turnover fee rate (`breakeven_fee_rate`, `breakeven_bps`) that zeroes net mean return |
+| `ic_matrix(df, factor_cols, return_col, group_by, method="spearman")` | Panel Evaluation | Single-pass cross-sectional Rank/Pearson IC matrix `(T × K)` across multiple candidate factors |
+| `long_short_returns(df, factor_cols, return_col, group_by, quantiles=5, mode="long_short")` | Panel Evaluation | Top-minus-bottom quantile (`"long_short"`) or top-quantile (`"long_only"`) factor return matrix |
+| `falsify_factors(df, factor_cols, return_col, group_by, horizon=1, ...)` / `FalsificationResult` | Factor Falsification | 7-stage statistical sieve (IC → NW HAC → Stationary Bootstrap → BH FDR & Romano–Wolf FWER → EB Shrinkage → CUSUM → Verdict) |
+| `sweep_robustness(df, signals, ...)` | Sweep Diagnostics | Audits `parameter_sweep` grids automatically with CSCV PBO, Hansen SPA, and Romano–Wolf FWER |
 
 </details>
 

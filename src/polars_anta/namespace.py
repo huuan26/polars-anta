@@ -7,11 +7,23 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 import polars as pl
 
-from . import alpha, backtest, evaluation, momentum, resample, stats, trend, volatility, volume
+from . import (
+    alpha,
+    backtest,
+    evaluation,
+    inference,
+    momentum,
+    resample,
+    stats,
+    trend,
+    volatility,
+    volume,
+)
 
 if TYPE_CHECKING:
     from .backtest import BacktestResult
     from .core import IntoExpr
+    from .inference import FalsificationResult
 
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
 
@@ -3743,6 +3755,90 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
             asset_col=asset_col,
             time_col=time_col,
             lag=lag,
+        )
+
+    def ic_matrix(
+        self,
+        factor_cols: Sequence[str],
+        return_col: str,
+        group_by: str | Sequence[str],
+        method: Literal["spearman", "pearson"] = "spearman",
+    ) -> pl.DataFrame:
+        """Compute a wide (T, K) DataFrame of per-period Information Coefficients across K factors."""
+        return inference.ic_matrix(
+            self._df,
+            factor_cols=factor_cols,
+            return_col=return_col,
+            group_by=group_by,
+            method=method,
+        )
+
+    def long_short_returns(
+        self,
+        factor_cols: Sequence[str],
+        return_col: str,
+        group_by: str | Sequence[str],
+        quantiles: int = 5,
+        mode: Literal["long_short", "top_minus_mean"] = "long_short",
+    ) -> pl.DataFrame:
+        """Compute a wide (T, K) DataFrame of per-period quantile spread returns across K factors."""
+        return inference.long_short_returns(
+            self._df,
+            factor_cols=factor_cols,
+            return_col=return_col,
+            group_by=group_by,
+            quantiles=quantiles,
+            mode=mode,
+        )
+
+    def falsify_factors(
+        self,
+        factor_cols: Sequence[str],
+        return_col: str,
+        group_by: str | Sequence[str],
+        horizon: int = 1,
+        method: Literal["spearman", "pearson"] = "spearman",
+        n_boot: int = 1000,
+        mean_block: float | None = None,
+        fdr_q: float = 0.10,
+        fwer_alpha: float = 0.05,
+        prior: Literal["zero", "grand_mean"] = "zero",
+        seed: int | None = None,
+    ) -> FalsificationResult:
+        """Run the multi-factor statistical falsification funnel across candidate alpha columns."""
+        return inference.falsify_factors(
+            self._df,
+            factor_cols=factor_cols,
+            return_col=return_col,
+            group_by=group_by,
+            horizon=horizon,
+            method=method,
+            n_boot=n_boot,
+            mean_block=mean_block,
+            fdr_q=fdr_q,
+            fwer_alpha=fwer_alpha,
+            prior=prior,
+            seed=seed,
+        )
+
+    def sweep_robustness(
+        self,
+        signals: Mapping[str, IntoExpr],
+        time_col: str | None = None,
+        n_splits: int = 16,
+        n_boot: int = 1000,
+        seed: int | None = None,
+        **backtest_kwargs: Any,
+    ) -> dict[str, object]:
+        """Evaluate a parameter sweep jointly via CSCV PBO, Hansen SPA, and Romano-Wolf."""
+        return inference.sweep_robustness(
+            self._df,
+            signals=signals,
+            time_col=time_col,
+            n_splits=n_splits,
+            n_boot=n_boot,
+            seed=seed,
+            **backtest_kwargs,
         )
 
     def backtest(

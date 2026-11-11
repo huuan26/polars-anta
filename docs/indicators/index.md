@@ -1,6 +1,6 @@
 # API Reference & Indicator Catalog
 
-`polars-anta` provides **202 public functions** (203 exports in `__all__`, including `BacktestResult`) covering technical indicators, market microstructure estimators, AFML machine learning primitives, factor evaluation tools, and execution-realistic backtesting utilities organized across eight specialized modules:
+`polars-anta` provides **219 public functions** (221 exports in `__all__`, including `BacktestResult` and `FalsificationResult`) covering technical indicators, market microstructure estimators, AFML machine learning primitives, factor evaluation tools, statistical inference & multiple-testing falsification, and execution-realistic backtesting utilities organized across nine specialized modules:
 
 | Domain / Module | Count | Key Functionality | API Reference |
 | :--- | :---: | :--- | :--- |
@@ -12,6 +12,7 @@
 | **6. Alpha, Microstructure & Futures** (`polars_anta.alpha`) | 71 | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`, `vpin`, `ofi`, `futures_basis`, `oi_regime`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, 33 formulaic alphas | [Alpha & Microstructure API →](alpha.md) |
 | **7. AFML Labeling, Evaluation & Backtest** (`evaluation`, `backtest`) | 24 | `triple_barrier_labels`, `trend_scanning_labels`, `ic_summary` (Newey-West HAC), `ic_decay`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `BacktestResult.trades` (MAE/MFE), `parameter_sweep` | [Evaluation & Backtest API →](evaluation-and-backtest.md) |
 | **8. Information Bars & Roll Stitching** (`polars_anta.resample`) | 6 | `resample_ohlcv`, `resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`, `stitch_futures_roll`, `validate_ohlcv` | [Resampling & Bars Guide →](../guides/resampling-and-dataframe-api.md) |
+| **9. Statistical Inference & Falsification** (`polars_anta.inference`) | 17 | `stationary_bootstrap_indices`, `bootstrap_test`, `adjust_pvalues`, `romano_wolf`, `spa_test`, `pbo_cscv`, `empirical_bayes_shrinkage`, `oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `falsify_factors`, `sweep_robustness` | [Inference API →](inference.md) |
 
 ---
 
@@ -26,6 +27,7 @@ polars_anta/
 ├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & FFD (frac_diff)
 ├── alpha.py        # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 33 formulaic alphas
 ├── evaluation.py   # Triple-Barrier, Trend-Scanning, Rank IC/ICIR, Newey-West HAC, IC decay & PSR/DSR
+├── inference.py    # Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, Empirical Bayes & falsify_factors
 ├── backtest.py     # Execution-realistic vectorized backtester, MAE/MFE trade ledger & parameter_sweep
 ├── resample.py     # Time bars, Volume/Dollar/Imbalance bars, continuous futures roll & validation
 └── namespace.py    # Dual .anta and .ta registration across pl.Expr, pl.DataFrame & pl.LazyFrame

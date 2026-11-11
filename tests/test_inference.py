@@ -1,0 +1,727 @@
+"""Unit and statistical validation tests for polars_anta.inference."""
+
+from __future__ import annotations
+
+import math
+
+import numpy as np
+import polars as pl
+import pytest
+
+import polars_anta as pa
+from polars_anta.evaluation import _newey_west_lrv, _nw_auto_lag
+from polars_anta.inference import (
+    FalsificationResult,
+    _bootstrap_means,
+    _normal_cdf,
+    _to_1d_array,
+    _to_matrix,
+    _two_sided_normal_p,
+    adjust_pvalues,
+    bootstrap_test,
+    breakeven_cost,
+    breakeven_cost_from_backtest,
+    clark_west_test,
+    cusum_mean_test,
+    diebold_mariano_test,
+    empirical_bayes_shrinkage,
+    falsify_factors,
+    ic_matrix,
+    long_short_returns,
+    oos_r2,
+    pbo_cscv,
+    romano_wolf,
+    spa_test,
+    stationary_bootstrap_indices,
+    sweep_robustness,
+)
+
+
+def test_ic_summary_nw_refactor_parity() -> None:
+    """Verify exact numerical parity of ic_summary after extracting Newey-West helpers."""
+    rng = np.random.default_rng(42)
+    n_dates, n_assets = 80, 25
+    dates = np.repeat(np.arange(n_dates), n_assets)
+    assets = np.tile(np.arange(n_assets), n_dates)
+    ret = rng.normal(0.0, 0.02, size=n_dates * n_assets)
+    factor = 0.25 * ret + rng.normal(0.0, 0.02, size=n_dates * n_assets)
+    df = pl.DataFrame({"date": dates, "asset": assets, "factor": factor, "fwd_ret": ret})
+
+    expected = {
+        None: 10.278339483747970,
+        0: 10.937702275911013,
+        5: 10.830998426443744,
+    }
+    for lags, exp_val in expected.items():
+        res = pa.ic_summary(df, "factor", "fwd_ret", group_by="date", nw_lags=lags)
+        assert math.isclose(res["nw_t_stat"], exp_val, rel_tol=1e-12)
+
+    assert _nw_auto_lag(1) == 0
+    u_2d = np.column_stack([ret[:50] - ret[:50].mean(), factor[:50] - factor[:50].mean()])
+    lrv_2d = _newey_west_lrv(u_2d, 3)
+    assert isinstance(lrv_2d, np.ndarray)
+    assert lrv_2d.shape == (2,)
+    assert math.isclose(float(lrv_2d[0]), float(_newey_west_lrv(u_2d[:, 0], 3)), rel_tol=1e-12)
+
+
+def test_stationary_bootstrap_indices_and_means() -> None:
+    """Test stationary bootstrap index generation, mean block length, and BLAS means parity."""
+    idx1 = stationary_bootstrap_indices(n_obs=2000, n_boot=500, mean_block=10.0, seed=123)
+    idx2 = stationary_bootstrap_indices(n_obs=2000, n_boot=500, mean_block=10.0, seed=123)
+    assert idx1.shape == (500, 2000)
+    assert idx1.dtype == np.int64
+    assert int(idx1.min()) >= 0 and int(idx1.max()) < 2000
+    np.testing.assert_array_equal(idx1, idx2)
+
+    # Check empirical mean block length: contiguous step is (idx[:, t] - idx[:, t-1]) % T == 1
+    is_cont = ((idx1[:, 1:] - idx1[:, :-1]) % 2000) == 1
+    empirical_p = 1.0 - float(is_cont.mean())
+    empirical_block = 1.0 / empirical_p
+    assert 8.5 <= empirical_block <= 11.5
+
+    # When mean_block=1, draws are i.i.d. uniform => adjacent step rate ~ 1/T
+    idx_iid = stationary_bootstrap_indices(n_obs=1000, n_boot=300, mean_block=1.0, seed=7)
+    adj_rate = float((((idx_iid[:, 1:] - idx_iid[:, :-1]) % 1000) == 1).mean())
+    assert adj_rate < 0.01
+
+    # _bootstrap_means exact parity with X[idx].mean(axis=1) and chunking parity
+    rng = np.random.default_rng(99)
+    x_mat = rng.normal(size=(60, 5))
+    idx_small = stationary_bootstrap_indices(60, n_boot=40, mean_block=5.0, seed=99)
+    direct = x_mat[idx_small].mean(axis=1)
+    blas_full = _bootstrap_means(x_mat, idx_small)
+    blas_chunked = _bootstrap_means(x_mat, idx_small, chunk_bytes=8 * 60 * 7)
+    np.testing.assert_allclose(blas_full, direct, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(blas_chunked, direct, rtol=1e-12, atol=1e-12)
+
+
+def test_bootstrap_test_mean_and_sharpe() -> None:
+    """Test stationary bootstrap inference for mean and Sharpe ratio."""
+    rng = np.random.default_rng(42)
+    null_series = rng.normal(0.0, 1.0, size=1000)
+    res_null = bootstrap_test(null_series, statistic="mean", n_boot=499, seed=42)
+    assert res_null["p_value"] > 0.05
+    assert res_null["ci_lower"] <= res_null["estimate"] <= res_null["ci_upper"]
+
+    alt_series = rng.normal(0.20, 1.0, size=1000)
+    res_alt = bootstrap_test(alt_series, statistic="mean", n_boot=499, seed=42)
+    assert res_alt["p_value"] < 0.01
+
+    res_gt = bootstrap_test(
+        alt_series, statistic="mean", alternative="greater", n_boot=499, seed=42
+    )
+    res_lt = bootstrap_test(alt_series, statistic="mean", alternative="less", n_boot=499, seed=42)
+    assert res_gt["p_value"] < 0.01
+    assert res_lt["p_value"] > 0.90
+
+    # Sharpe ratio estimate parity with pa.sharpe_ratio(..., annualization=252)
+    s_pl = pl.Series("ret", alt_series)
+    res_sr = bootstrap_test(s_pl, statistic="sharpe", n_boot=199, annualization=252.0, seed=42)
+    df_sr = pl.DataFrame({"ret": alt_series}).select(
+        pa.sharpe_ratio("ret", annualization=252.0).alias("sr")
+    )
+    assert math.isclose(res_sr["estimate"], float(df_sr["sr"][0]), rel_tol=1e-12)
+
+
+def test_adjust_pvalues_canonical_and_nan() -> None:
+    """Test Bonferroni, Holm, BH, and BY p-value adjustments against analytical values."""
+    p = [0.01, 0.04, 0.03, 0.005]
+    np.testing.assert_allclose(
+        adjust_pvalues(p, method="bonferroni"), [0.04, 0.16, 0.12, 0.02], rtol=1e-12
+    )
+    np.testing.assert_allclose(
+        adjust_pvalues(p, method="holm"), [0.03, 0.06, 0.06, 0.02], rtol=1e-12
+    )
+    bh = adjust_pvalues(p, method="bh")
+    np.testing.assert_allclose(bh, [0.02, 0.04, 0.04, 0.02], rtol=1e-12)
+
+    harmonic_4 = 1.0 + 0.5 + 1.0 / 3.0 + 0.25
+    np.testing.assert_allclose(
+        adjust_pvalues(p, method="by"), np.minimum(1.0, bh * harmonic_4), rtol=1e-12
+    )
+
+    p_with_nan = pl.Series("p", [0.01, None, 0.04, float("nan"), 0.03, 0.005])
+    adj_nan = adjust_pvalues(p_with_nan, method="bh")
+    assert np.isnan(adj_nan[1]) and np.isnan(adj_nan[3])
+    np.testing.assert_allclose(adj_nan[[0, 2, 4, 5]], bh, rtol=1e-12)
+    assert np.all(np.isnan(adjust_pvalues([float("nan"), float("nan")], method="bh")))
+
+
+def test_inference_input_validation_part1() -> None:
+    """Test input validation errors on bootstrap and p-value adjustment helpers."""
+    with pytest.raises(ValueError, match="n_obs"):
+        stationary_bootstrap_indices(1)
+    with pytest.raises(ValueError, match="n_boot"):
+        stationary_bootstrap_indices(20, n_boot=0)
+    with pytest.raises(ValueError, match="mean_block"):
+        stationary_bootstrap_indices(20, mean_block=0.0)
+    with pytest.raises(ValueError, match="statistic"):
+        bootstrap_test(np.ones(20), statistic="median")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="alternative"):
+        bootstrap_test(np.ones(20), alternative="both")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="ci_level"):
+        bootstrap_test(np.ones(20), ci_level=1.0)
+    with pytest.raises(ValueError, match="annualization"):
+        bootstrap_test(np.ones(20), annualization=0.0)
+    with pytest.raises(ValueError, match="at least 10"):
+        bootstrap_test(np.ones(5))
+    with pytest.raises(ValueError, match="NaN"):
+        _to_1d_array(np.array([1.0] * 10 + [float("nan")]))
+    with pytest.raises(ValueError, match="null"):
+        _to_1d_array(pl.Series("x", [1.0] * 10 + [None]))
+    with pytest.raises(ValueError, match="1-dimensional"):
+        _to_1d_array(np.ones((10, 2)))
+    with pytest.raises(ValueError, match="method"):
+        adjust_pvalues([0.1, 0.2], method="sidak")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match=r"\[0\.0, 1\.0\]"):
+        adjust_pvalues([0.1, 1.2])
+    with pytest.raises(ValueError, match="1-dimensional"):
+        adjust_pvalues(np.ones((2, 2)))
+    with pytest.raises(ValueError, match="No columns"):
+        _to_matrix(pl.DataFrame({"a": range(15)}), exclude=["a"])
+    with pytest.raises(ValueError, match="null values"):
+        _to_matrix(pl.DataFrame({"a": [1.0] * 14 + [None]}))
+
+
+def test_romano_wolf_stepdown_properties() -> None:
+    """Test Romano-Wolf stepdown power, monotonicity, p_rw >= p_raw, constant column, and K=1."""
+    rng = np.random.default_rng(77)
+    t_obs = 1000
+    strong_col = rng.normal(0.15, 1.0, size=(t_obs, 1))
+    null_cols = rng.normal(0.0, 1.0, size=(t_obs, 49))
+    mat = np.hstack([strong_col, null_cols])
+    df = pl.DataFrame({f"s_{i}": mat[:, i] for i in range(50)})
+
+    rw = romano_wolf(df, n_boot=499, seed=77)
+    assert rw.columns == ["name", "mean", "t_stat", "p_raw", "p_rw"]
+    assert rw["name"].to_list() == [f"s_{i}" for i in range(50)]
+    assert float(rw.row(0, named=True)["p_rw"]) < 0.01
+
+    p_raw = rw["p_raw"].to_numpy()
+    p_rw = rw["p_rw"].to_numpy()
+    assert np.all(p_rw + 1e-12 >= p_raw)
+
+    # Monotonicity along |t_stat| descending order
+    t_abs = np.abs(rw["t_stat"].to_numpy())
+    order = np.argsort(-t_abs)
+    p_rw_sorted = p_rw[order]
+    assert np.all(np.diff(p_rw_sorted) >= -1e-12)
+
+    # Constant column => t_stat = 0, p_raw = 1, p_rw = 1; K=1 works
+    df_const = pl.DataFrame({"const": np.zeros(100), "sig": rng.normal(0.2, 1.0, size=100)})
+    rw_const = romano_wolf(df_const, n_boot=199, alternative="greater", seed=77)
+    const_row = rw_const.filter(pl.col("name") == "const").row(0, named=True)
+    assert const_row["t_stat"] == 0.0
+    assert const_row["p_raw"] == 1.0
+    assert const_row["p_rw"] == 1.0
+
+    rw_k1 = romano_wolf(strong_col[:, 0], n_boot=199, seed=77)
+    assert len(rw_k1) == 1
+    assert math.isclose(float(rw_k1["p_raw"][0]), float(rw_k1["p_rw"][0]), rel_tol=1e-12)
+
+
+def test_spa_test_properties() -> None:
+    """Test Hansen SPA / White Reality Check size, power, ordering, and column benchmark."""
+    rng = np.random.default_rng(42)
+    null_mat = rng.normal(0.0, 1.0, size=(1000, 50))
+    res_null = spa_test(null_mat, n_boot=499, seed=42)
+    assert res_null["p_consistent"] > 0.10
+    assert res_null["p_lower"] <= res_null["p_consistent"] <= res_null["p_upper"]
+
+    alt_mat = np.hstack([null_mat, rng.normal(0.15, 1.0, size=(1000, 1))])
+    res_alt = spa_test(alt_mat, n_boot=499, seed=42)
+    assert res_alt["p_consistent"] < 0.05
+    assert res_alt["p_lower"] <= res_alt["p_consistent"] <= res_alt["p_upper"]
+    assert res_alt["best_name"] == "col_50"
+
+    # Benchmark as column name in DataFrame
+    df = pl.DataFrame(
+        {
+            "bench": null_mat[:, 0],
+            "m1": null_mat[:, 1],
+            "m2": null_mat[:, 0] + 0.15 + rng.normal(0.0, 0.5, size=1000),
+        }
+    )
+    res_df = spa_test(df.lazy(), benchmark="bench", n_boot=199, seed=42)
+    assert res_df["n_models"] == 2.0
+    assert res_df["best_name"] == "m2"
+    assert res_df["p_consistent"] < 0.05
+
+
+def test_pbo_cscv_properties() -> None:
+    """Test CSCV PBO under pure noise, dominant strategy, subsampling, and odd n_splits."""
+    rng = np.random.default_rng(123)
+    noise_mat = rng.normal(0.0, 1.0, size=(1605, 20))  # 1605 trims 5 leading rows to 1600
+    res_noise = pbo_cscv(noise_mat, n_splits=16)
+    assert res_noise["n_combinations"] == 12870
+    assert res_noise["n_strategies"] == 20
+    assert 0.30 <= float(res_noise["pbo"]) <= 0.70
+
+    dom_mat = np.hstack([noise_mat, rng.normal(0.15, 1.0, size=(1605, 1))])
+    res_dom = pbo_cscv(dom_mat, n_splits=16)
+    assert float(res_dom["pbo"]) < 0.10
+
+    res_sub = pbo_cscv(noise_mat, n_splits=16, max_combinations=250, seed=42)
+    assert res_sub["n_combinations"] == 250
+    assert isinstance(res_sub["logits"], np.ndarray) and res_sub["logits"].shape == (250,)
+
+    with pytest.raises(ValueError, match="even integer"):
+        pbo_cscv(noise_mat, n_splits=15)
+    with pytest.raises(ValueError, match="at least 2 strategies"):
+        pbo_cscv(noise_mat[:, :1], n_splits=8)
+    with pytest.raises(ValueError, match="max_combinations"):
+        pbo_cscv(noise_mat, n_splits=8, max_combinations=0)
+
+
+def test_empirical_bayes_shrinkage() -> None:
+    """Test EB shrinkage under tau2=0, small SE, grand_mean prior, and grouped priors."""
+    # Case 1: tau2 = 0 (SE larger than dispersion around prior) => full shrinkage to prior
+    eb_zero = empirical_bayes_shrinkage(
+        estimates=[0.01, -0.01, 0.005],
+        std_errors=[0.10, 0.10, 0.10],
+        names=["f1", "f2", "f3"],
+        prior="zero",
+    )
+    assert np.allclose(eb_zero["tau2"].to_numpy(), 0.0)
+    assert np.allclose(eb_zero["shrinkage"].to_numpy(), 1.0)
+    assert np.allclose(eb_zero["posterior_mean"].to_numpy(), 0.0)
+    assert np.allclose(eb_zero["posterior_sd"].to_numpy(), 0.0)
+    assert np.allclose(eb_zero["prob_positive"].to_numpy(), 0.5)
+
+    # Case 2: Tiny SE => posterior_mean ~= estimate
+    est = np.array([0.05, -0.04, 0.08, 0.02])
+    se = np.array([1e-4, 1e-4, 1e-4, 1e-4])
+    eb_prec = empirical_bayes_shrinkage(est, se, prior="grand_mean")
+    np.testing.assert_allclose(eb_prec["posterior_mean"].to_numpy(), est, rtol=1e-4)
+    probs = eb_prec["prob_positive"].to_numpy()
+    assert np.all((probs >= 0.0) & (probs <= 1.0))
+    assert probs[0] > 0.99 and probs[1] < 0.01
+
+    # Case 3: Grouped shrinkage
+    eb_grp = empirical_bayes_shrinkage(
+        estimates=[0.10, 0.12, -0.10, 0.001, -0.001, 0.002],
+        std_errors=[0.01, 0.01, 0.01, 0.05, 0.05, 0.05],
+        groups=["strong", "strong", "strong", "weak", "weak", "weak"],
+        prior="zero",
+    )
+    strong_rows = eb_grp.filter(pl.col("group") == "strong")
+    weak_rows = eb_grp.filter(pl.col("group") == "weak")
+    assert float(strong_rows["tau2"][0]) > 0.0
+    assert float(weak_rows["tau2"][0]) == 0.0
+    assert np.allclose(weak_rows["posterior_mean"].to_numpy(), 0.0)
+
+
+def test_oos_r2_clark_west_and_diebold_mariano() -> None:
+    """Test Campbell-Thompson OOS R2, Clark-West nested test, and Diebold-Mariano symmetry."""
+    rng = np.random.default_rng(55)
+    y = rng.normal(0.01, 0.10, size=200)
+
+    # Perfect forecast => R2_oos == 1.0
+    r2_perf = oos_r2(y, y, min_train=20)
+    assert math.isclose(r2_perf["r2_oos"], 1.0, rel_tol=1e-12)
+    assert r2_perf["n_obs"] == 180.0
+
+    # Forecast equal to expanding mean => R2_oos == 0.0
+    exp_mean = np.zeros_like(y)
+    exp_mean[1:] = np.cumsum(y[:-1]) / np.arange(1, y.size, dtype=np.float64)
+    r2_bench = oos_r2(y, exp_mean, min_train=20)
+    assert math.isclose(r2_bench["r2_oos"], 0.0, abs_tol=1e-12)
+
+    # Clark-West: true predictive signal vs zero benchmark => p < 0.05
+    signal = rng.normal(0.0, 1.0, size=300)
+    y_cw = 0.25 * signal + rng.normal(0.0, 1.0, size=300)
+    pred_r = np.zeros(300)
+    pred_u = 0.25 * signal
+    cw = clark_west_test(y_cw, pred_r, pred_u)
+    assert cw["statistic"] > 2.0
+    assert cw["p_value"] < 0.05
+
+    # Diebold-Mariano: symmetry when swapping pred_1 and pred_2
+    dm_12 = diebold_mariano_test(y_cw, pred_u, pred_r, loss="squared", horizon=1)
+    dm_21 = diebold_mariano_test(y_cw, pred_r, pred_u, loss="squared", horizon=1)
+    assert math.isclose(dm_12["statistic"], -dm_21["statistic"], rel_tol=1e-12)
+    assert math.isclose(dm_12["p_value"], dm_21["p_value"], rel_tol=1e-12)
+    assert dm_12["statistic"] < 0.0 and dm_12["p_value"] < 0.05
+
+    dm_abs = diebold_mariano_test(y_cw, pred_u, pred_r, loss="absolute", horizon=3)
+    assert dm_abs["statistic"] < 0.0
+
+
+def test_cusum_mean_test_and_breakeven_cost() -> None:
+    """Test OLS-CUSUM structural break detection and breakeven transaction cost."""
+    rng = np.random.default_rng(88)
+    stable = rng.normal(0.05, 0.10, size=400)
+    cusum_stable = cusum_mean_test(stable)
+    assert cusum_stable["p_value"] > 0.05
+
+    shifted = np.concatenate([rng.normal(0.10, 0.05, size=200), rng.normal(-0.10, 0.05, size=200)])
+    cusum_shift = cusum_mean_test(shifted)
+    assert cusum_shift["p_value"] < 0.01
+    assert 160.0 <= cusum_shift["break_index"] <= 240.0
+    assert cusum_shift["mean_before"] > 0.05 and cusum_shift["mean_after"] < -0.05
+
+    # Breakeven cost hand-calculable + BacktestResult integration
+    gross = [0.01, 0.02, -0.005, 0.015]  # sum = 0.04
+    to = [1.0, 0.0, 1.0, 0.0]  # sum = 2.0
+    assert math.isclose(breakeven_cost(gross, to), 0.02, rel_tol=1e-12)
+    assert math.isinf(breakeven_cost([0.01, 0.01], [0.0, 0.0]))
+    assert breakeven_cost([-0.01, 0.0], [0.0, 0.0]) == 0.0
+
+    df_bt = pl.DataFrame(
+        {
+            "close": [100.0, 102.0, 105.0, 103.0, 106.0, 108.0],
+            "signal": [1.0, 1.0, -1.0, -1.0, 1.0, 1.0],
+        }
+    )
+    bt_res = df_bt.anta.backtest(signal="signal", fee_rate=0.0)
+    c_star = breakeven_cost_from_backtest(bt_res)
+    expected_c = float(bt_res.data["gross_return"].sum()) / float(bt_res.data["turnover"].sum())
+    assert math.isclose(c_star, expected_c, rel_tol=1e-12)
+
+
+def test_ic_matrix_and_long_short_returns() -> None:
+    """Test ic_matrix parity with information_coefficient and hand-calculable long_short_returns."""
+    # Hand-calculable 2-period x 10-asset panel
+    dates = [1] * 10 + [2] * 10
+    assets = list(range(10)) * 2
+    f1 = [float(i) for i in range(10)] + [float(10 - i) for i in range(10)]
+    ret = [0.01 * float(i) for i in range(10)] + [0.02 * float(i) for i in range(10)]
+    f2 = [float(i % 3) for i in range(20)]
+    df = pl.DataFrame({"date": dates, "asset": assets, "f1": f1, "f2": f2, "ret": ret})
+
+    ic_mat = ic_matrix(df, ["f1", "f2"], "ret", group_by="date", method="spearman")
+    for f_name in ("f1", "f2"):
+        single = pa.information_coefficient(df, f_name, "ret", group_by="date", method="spearman")
+        np.testing.assert_allclose(
+            ic_mat[f_name].to_numpy(), single["ic"].to_numpy(), rtol=1e-12, atol=1e-12
+        )
+
+    ls_df = long_short_returns(df, ["f1"], "ret", group_by="date", quantiles=5, mode="long_short")
+    # Period 1: f1 = 0..9, ret = 0..0.09; Q1=[0.00, 0.01] mean=0.005, Q5=[0.08, 0.09] mean=0.085 => spread=0.08
+    # Period 2: f1 = 10..1, ret = 0..0.18; Q5 has i=0,1 (ret 0.00, 0.02, mean=0.01), Q1 has i=8,9 (ret 0.16, 0.18, mean=0.17) => spread=-0.16
+    np.testing.assert_allclose(ls_df["f1"].to_numpy(), [0.08, -0.16], rtol=1e-12, atol=1e-12)
+
+    tm_df = long_short_returns(
+        df.lazy(), ["f1"], "ret", group_by="date", quantiles=5, mode="top_minus_mean"
+    )
+    # Period 1 mean = 0.045, Q5 mean = 0.085 => 0.04
+    assert math.isclose(float(tm_df["f1"][0]), 0.04, rel_tol=1e-12)
+
+
+def test_falsify_factors_funnel_and_lazyframe_parity() -> None:
+    """Test falsify_factors on 3 true factors + 27 noise factors and verify LazyFrame parity."""
+    rng = np.random.default_rng(2026)
+    n_dates, n_assets = 80, 25
+    total = n_dates * n_assets
+    dates = np.repeat(np.arange(n_dates), n_assets)
+    assets = np.tile(np.arange(n_assets), n_dates)
+    fwd_ret = rng.normal(0.0, 0.02, size=total)
+
+    # 2 persistent true factors + 1 decaying true factor (strong in first half, zero in second half)
+    true_1 = 0.35 * fwd_ret + rng.normal(0.0, 0.02, size=total)
+    true_2 = -0.35 * fwd_ret + rng.normal(0.0, 0.02, size=total)
+    half_rows = (n_dates // 2) * n_assets
+    true_decay = np.concatenate(
+        [
+            0.55 * fwd_ret[:half_rows] + rng.normal(0.0, 0.015, size=half_rows),
+            rng.normal(0.0, 0.02, size=total - half_rows),
+        ]
+    )
+
+    cols: dict[str, np.ndarray] = {
+        "date": dates,
+        "asset": assets,
+        "fwd_ret": fwd_ret,
+        "true_1": true_1,
+        "true_2": true_2,
+        "true_decay": true_decay,
+    }
+    factor_names = ["true_1", "true_2", "true_decay"]
+    for i in range(27):
+        fname = f"noise_{i:02d}"
+        cols[fname] = rng.normal(0.0, 1.0, size=total)
+        factor_names.append(fname)
+
+    df = pl.DataFrame(cols)
+    res = falsify_factors(
+        df,
+        factor_cols=factor_names,
+        return_col="fwd_ret",
+        group_by="date",
+        horizon=1,
+        n_boot=299,
+        seed=42,
+    )
+    assert isinstance(res, FalsificationResult)
+    expected_keys = {
+        "n_tested",
+        "n_periods_used",
+        "n_raw_p05",
+        "expected_false_raw",
+        "n_bh",
+        "n_rw",
+        "n_robust",
+        "n_decaying",
+        "n_noise",
+    }
+    assert expected_keys.issubset(set(res.summary.keys()))
+    assert res.summary["n_tested"] == 30.0
+    assert res.summary["n_periods_used"] == 80.0
+
+    verdict_map = dict(
+        zip(res.table["factor"].to_list(), res.table["verdict"].to_list(), strict=True)
+    )
+    assert verdict_map["true_1"] in ("robust", "decaying")
+    assert verdict_map["true_2"] in ("robust", "decaying")
+    assert verdict_map["true_decay"] in ("robust", "decaying")
+    assert verdict_map["true_decay"] == "decaying"
+
+    noise_robust = sum(
+        1 for k, v in verdict_map.items() if k.startswith("noise_") and v == "robust"
+    )
+    assert noise_robust <= 2
+
+    rep = res.report()
+    assert (
+        isinstance(rep, str)
+        and "true_1" in rep
+        and "POLARS-ANTA FACTOR FALSIFICATION REPORT" in rep
+    )
+
+    # LazyFrame parity
+    res_lazy = falsify_factors(
+        df.lazy(),
+        factor_cols=factor_names,
+        return_col="fwd_ret",
+        group_by="date",
+        horizon=1,
+        n_boot=299,
+        seed=42,
+    )
+    assert res.table.equals(res_lazy.table)
+
+
+def test_sweep_robustness_and_remaining_validations() -> None:
+    """Test sweep_robustness across 4 EMA crossover configs and remaining ValueError guards."""
+    rng = np.random.default_rng(7)
+    n_bars = 320
+    close = 100.0 * np.exp(np.cumsum(rng.normal(0.0005, 0.01, size=n_bars)))
+    df = (
+        pl.DataFrame({"ts": np.arange(n_bars), "close": close})
+        .anta.ema(5, alias="ema_5")
+        .anta.ema(10, alias="ema_10")
+        .anta.ema(20, alias="ema_20")
+        .anta.ema(40, alias="ema_40")
+    )
+    signals = {
+        "ema_5_10": pl.when(pl.col("ema_5") > pl.col("ema_10")).then(1.0).otherwise(-1.0),
+        "ema_5_20": pl.when(pl.col("ema_5") > pl.col("ema_20")).then(1.0).otherwise(-1.0),
+        "ema_10_20": pl.when(pl.col("ema_10") > pl.col("ema_20")).then(1.0).otherwise(-1.0),
+        "ema_10_40": pl.when(pl.col("ema_10") > pl.col("ema_40")).then(1.0).otherwise(-1.0),
+    }
+    out = sweep_robustness(df, signals, time_col="ts", n_splits=8, n_boot=199, seed=7)
+    assert set(out.keys()) == {"returns_matrix", "pbo", "spa", "romano_wolf"}
+    assert isinstance(out["returns_matrix"], pl.DataFrame)
+    assert isinstance(out["romano_wolf"], pl.DataFrame) and len(out["romano_wolf"]) == 4
+
+    out_no_ts = sweep_robustness(df, signals, time_col=None, n_splits=8, n_boot=99, seed=7)
+    assert out_no_ts["returns_matrix"].columns == list(signals.keys())
+
+    # Remaining input validation checks
+    with pytest.raises(ValueError, match="strictly positive"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.0])
+    with pytest.raises(ValueError, match="prior"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.05], prior="flat")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="min_train"):
+        oos_r2(np.ones(30), np.ones(30), min_train=0)
+    with pytest.raises(ValueError, match="nw_lags"):
+        clark_west_test(np.ones(20), np.zeros(20), np.ones(20), nw_lags=-1)
+    with pytest.raises(ValueError, match="loss"):
+        diebold_mariano_test(np.ones(20), np.zeros(20), np.ones(20), loss="huber")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="horizon"):
+        diebold_mariano_test(np.ones(20), np.zeros(20), np.ones(20), horizon=0)
+    with pytest.raises(ValueError, match="non-negative"):
+        breakeven_cost([0.01, 0.02], [0.5, -0.1])
+    with pytest.raises(ValueError, match="BacktestResult"):
+        breakeven_cost_from_backtest("not_a_bt")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="at least 30"):
+        short_df = pl.DataFrame(
+            {
+                "date": np.repeat(np.arange(10), 5),
+                "f1": rng.normal(size=50),
+                "ret": rng.normal(size=50),
+            }
+        )
+        falsify_factors(short_df, ["f1"], "ret", group_by="date")
+    with pytest.raises(ValueError, match="at least 2 signals"):
+        sweep_robustness(df, {"only_one": signals["ema_5_10"]})
+
+
+def test_namespace_and_exports_parity() -> None:
+    """Verify .anta, .ta, LazyFrame, and top-level exports parity for inference functions."""
+    expected_exports = {
+        "stationary_bootstrap_indices",
+        "bootstrap_test",
+        "adjust_pvalues",
+        "romano_wolf",
+        "spa_test",
+        "pbo_cscv",
+        "empirical_bayes_shrinkage",
+        "oos_r2",
+        "clark_west_test",
+        "diebold_mariano_test",
+        "cusum_mean_test",
+        "breakeven_cost",
+        "breakeven_cost_from_backtest",
+        "ic_matrix",
+        "long_short_returns",
+        "falsify_factors",
+        "FalsificationResult",
+        "sweep_robustness",
+    }
+    assert expected_exports.issubset(set(pa.__all__))
+    for name in expected_exports:
+        assert hasattr(pa, name)
+
+    rng = np.random.default_rng(314)
+    n_dates, n_assets = 40, 12
+    total = n_dates * n_assets
+    df = pl.DataFrame(
+        {
+            "date": np.repeat(np.arange(n_dates), n_assets),
+            "asset": np.tile(np.arange(n_assets), n_dates),
+            "ret": rng.normal(0.0, 0.02, size=total),
+            "f1": rng.normal(0.0, 1.0, size=total),
+            "f2": rng.normal(0.0, 1.0, size=total),
+        }
+    )
+    lf = df.lazy()
+
+    ic_top = pa.ic_matrix(df, ["f1", "f2"], "ret", group_by="date")
+    ic_anta = df.anta.ic_matrix(["f1", "f2"], "ret", group_by="date")
+    ic_ta = df.ta.ic_matrix(["f1", "f2"], "ret", group_by="date")
+    ic_lf = lf.anta.ic_matrix(["f1", "f2"], "ret", group_by="date")
+    assert ic_top.equals(ic_anta) and ic_top.equals(ic_ta) and ic_top.equals(ic_lf)
+
+    ls_top = pa.long_short_returns(df, ["f1", "f2"], "ret", group_by="date")
+    ls_anta = df.anta.long_short_returns(["f1", "f2"], "ret", group_by="date")
+    ls_ta = df.ta.long_short_returns(["f1", "f2"], "ret", group_by="date")
+    assert ls_top.equals(ls_anta) and ls_top.equals(ls_ta)
+
+    f_top = pa.falsify_factors(df, ["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    f_anta = df.anta.falsify_factors(["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    f_ta = df.ta.falsify_factors(["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    f_lf = lf.anta.falsify_factors(["f1", "f2"], "ret", group_by="date", n_boot=99, seed=1)
+    assert f_top.table.equals(f_anta.table)
+    assert f_top.table.equals(f_ta.table)
+    assert f_top.table.equals(f_lf.table)
+
+    bt_df = pl.DataFrame(
+        {
+            "ts": np.arange(80),
+            "close": 100.0 + np.cumsum(rng.normal(0.0, 1.0, size=80)),
+            "s1": rng.choice([-1.0, 1.0], size=80),
+            "s2": rng.choice([-1.0, 1.0], size=80),
+        }
+    )
+    sw_anta = bt_df.anta.sweep_robustness(
+        {"s1": "s1", "s2": "s2"}, time_col="ts", n_splits=4, n_boot=49, seed=1
+    )
+    sw_ta = bt_df.ta.sweep_robustness(
+        {"s1": "s1", "s2": "s2"}, time_col="ts", n_splits=4, n_boot=49, seed=1
+    )
+    assert sw_anta["romano_wolf"].equals(sw_ta["romano_wolf"])  # type: ignore[union-attr]
+
+
+def test_inference_edge_cases_and_validation_complete() -> None:
+    """Cover remaining edge cases and validation branches in polars_anta.inference."""
+    assert math.isnan(_normal_cdf(float("nan")))
+    assert math.isnan(_two_sided_normal_p(float("nan")))
+
+    with pytest.raises(ValueError, match="1D or 2D"):
+        _to_matrix(np.ones((10, 2, 2)))
+    with pytest.raises(ValueError, match="at least 10 rows"):
+        _to_matrix(np.ones((5, 2)))
+    with pytest.raises(ValueError, match="1 column"):
+        _to_matrix(np.empty((12, 0)))
+    with pytest.raises(ValueError, match="NaN"):
+        bad = np.ones((12, 2))
+        bad[0, 0] = float("nan")
+        _to_matrix(bad)
+    with pytest.raises(ValueError, match="idx second dimension"):
+        _bootstrap_means(np.ones((10, 2)), np.zeros((5, 8), dtype=np.int64))
+    with pytest.raises(ValueError, match="n_boot"):
+        bootstrap_test(np.ones(15), n_boot=0)
+    with pytest.raises(ValueError, match="alternative"):
+        romano_wolf(np.ones((15, 2)), alternative="less")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="n_boot"):
+        romano_wolf(np.ones((15, 2)), n_boot=0)
+
+    rng = np.random.default_rng(11)
+    mat_15 = rng.normal(size=(15, 2))
+    assert len(romano_wolf(mat_15, n_boot=1, seed=11)) == 2
+    assert spa_test(mat_15, benchmark=0.01, n_boot=1, seed=11)["n_models"] == 2.0
+    assert spa_test(mat_15, benchmark=np.zeros(15), n_boot=5, seed=11)["n_models"] == 2.0
+
+    with pytest.raises(ValueError, match="n_boot"):
+        spa_test(mat_15, n_boot=0)
+    with pytest.raises(ValueError, match="not found"):
+        spa_test(pl.DataFrame({"a": range(15)}), benchmark="missing")
+    with pytest.raises(ValueError, match="benchmark length"):
+        spa_test(mat_15, benchmark=np.zeros(12))
+    with pytest.raises(ValueError, match="at least 32 rows"):
+        pbo_cscv(rng.normal(size=(16, 2)), n_splits=16)
+
+    # Trigger large combination subsampling branch (comb(24, 12) = 2,704,156 > 250_000)
+    res_large_s = pbo_cscv(rng.normal(size=(96, 3)), n_splits=24, max_combinations=15, seed=7)
+    assert res_large_s["n_combinations"] == 15
+
+    with pytest.raises(ValueError, match="same length"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05])
+    with pytest.raises(ValueError, match="names length"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.05], names=["only_one"])
+    with pytest.raises(ValueError, match="groups length"):
+        empirical_bayes_shrinkage([0.1, 0.2], [0.05, 0.05], groups=["only_one"])
+    with pytest.raises(ValueError, match="same length"):
+        oos_r2(np.ones(25), np.ones(26), min_train=10)
+    with pytest.raises(ValueError, match="same length"):
+        clark_west_test(np.ones(15), np.ones(15), np.ones(14))
+    assert clark_west_test(np.ones(15), np.ones(15), np.ones(15))["statistic"] == 0.0
+    with pytest.raises(ValueError, match="same length"):
+        diebold_mariano_test(np.ones(15), np.ones(15), np.ones(14))
+    assert diebold_mariano_test(np.ones(15), np.ones(15), np.ones(15))["statistic"] == 0.0
+    assert cusum_mean_test(np.ones(20))["p_value"] == 1.0
+    assert cusum_mean_test(np.array([1.0, -1.0] * 20), nw_lags=0)["p_value"] == 1.0
+    with pytest.raises(ValueError, match="nw_lags"):
+        cusum_mean_test(np.ones(20), nw_lags=-1)
+    with pytest.raises(ValueError, match="match in length"):
+        breakeven_cost([0.01, 0.02], [1.0])
+
+    df_p = pl.DataFrame(
+        {"date": [1, 1, 2, 2], "f1": [1.0, 2.0, 1.0, 2.0], "r": [0.1, 0.2, 0.1, 0.2]}
+    )
+    assert len(ic_matrix(df_p, ["f1"], "r", group_by=["date"])) == 2
+    with pytest.raises(ValueError, match="group_by"):
+        ic_matrix(df_p, ["f1"], "r", group_by=[])
+    with pytest.raises(ValueError, match="method"):
+        ic_matrix(df_p, ["f1"], "r", group_by="date", method="kendall")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="factor_cols"):
+        ic_matrix(df_p, [], "r", group_by="date")
+    with pytest.raises(ValueError, match="quantiles"):
+        long_short_returns(df_p, ["f1"], "r", group_by="date", quantiles=1)
+    with pytest.raises(ValueError, match="mode"):
+        long_short_returns(df_p, ["f1"], "r", group_by="date", mode="invalid")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="factor_cols"):
+        long_short_returns(df_p, [], "r", group_by="date")
+    with pytest.raises(ValueError, match="horizon"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", horizon=0)
+    with pytest.raises(ValueError, match="n_boot"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", n_boot=0)
+    with pytest.raises(ValueError, match="fdr_q"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", fdr_q=1.0)
+    with pytest.raises(ValueError, match="fwer_alpha"):
+        falsify_factors(df_p, ["f1"], "r", group_by="date", fwer_alpha=0.0)
+    with pytest.raises(ValueError, match="factor_cols"):
+        falsify_factors(df_p, [], "r", group_by="date")
+    with pytest.raises(ValueError, match="time_col"):
+        sweep_robustness(df_p, {"a": "f1", "b": "f1"}, time_col="missing")

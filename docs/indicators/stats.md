@@ -1,6 +1,6 @@
 # Quantitative Statistics, CAPM & Regression Transforms (`polars_anta.stats`)
 
-The `polars_anta.stats` module provides **13 vectorized statistical, econometric, and stationarity primitives** engineered for institutional factor standardization, systematic risk decomposition, rolling Ordinary Least Squares (OLS) regression, and memory-preserving fractional differentiation.
+The `polars_anta.stats` module provides **15 vectorized statistical, econometric, and stationarity primitives** engineered for factor standardization, systematic risk decomposition, rolling Ordinary Least Squares (OLS) regression, and memory-preserving fractional differentiation.
 
 ---
 
@@ -76,10 +76,22 @@ Fitting $y_{t-n+1+i} = \beta_0 + \beta_1 \cdot i + \epsilon_i$ for $i \in \{0, 1
 
 | Function Signature | Closed-Form Identity | Quantitative Use Case |
 | :--- | :--- | :--- |
-| `linear_regression_slope(close, period=14)` | $\hat{\beta}_1 = \frac{6}{n - 1}\left(\text{WMA}_n - \text{SMA}_n\right)$ | Velocity of price change per bar ($112.4\times$ faster than rolling `scipy.stats.linregress`). |
+| `linear_regression_slope(close, period=14)` | $\hat{\beta}_1 = \frac{6}{n - 1}\left(\text{WMA}_n - \text{SMA}_n\right)$ | Velocity of price change per bar ($112.4\times$ faster than a pandas `rolling().apply()` baseline). |
 | `linear_regression_intercept(close, period=14)` | $\hat{\beta}_0 = 4\,\text{SMA}_n - 3\,\text{WMA}_n$ | Fitted value at the start of the rolling window ($i = 0$). |
 | `linear_regression_forecast(close, period=14)` | $\hat{y}_t = \hat{\beta}_0 + \hat{\beta}_1(n - 1) = 3\,\text{WMA}_n - 2\,\text{SMA}_n$ | Zero-lag OLS end-of-window fair value estimate. |
 | `linear_regression_angle(close, period=14)` | $\theta_t = \arctan(\hat{\beta}_1) \cdot \frac{180}{\pi}$ | Trend trajectory angle in degrees $(-90^\circ, +90^\circ)$. |
+| `linear_regression_r2(close, period=14)` | $R^2_t = \text{clip}\left(\hat{\beta}_1^2 \cdot \frac{n(n + 1)}{12\,\text{Var}_s(y)},\, 0,\, 1\right)$ | Rolling OLS goodness-of-fit ($R^2 \in [0, 1]$) measuring trend linearity vs. noise. |
+| `linear_regression_stderr(close, period=14)` | $s_{\hat{y}, t} = \sqrt{\frac{n - 1}{n - 2}\,\text{Var}_s(y)\,(1 - R^2_t)}$ | Rolling OLS standard error of the estimate ($\sqrt{\text{SSR}/(n-2)}$) in price units. |
+
+```python
+import polars as pl
+import polars_anta as pa
+
+df = df.with_columns(
+    pl.col("close").anta.linear_regression_r2(period=14).alias("ols_r2_14"),
+    pl.col("close").anta.linear_regression_stderr(period=14).alias("ols_se_14"),
+)
+```
 
 ---
 

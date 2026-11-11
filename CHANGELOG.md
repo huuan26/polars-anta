@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Volatility (`polars_anta.volatility`)**: Added `rogers_satchell_volatility` (Rogers & Satchell, 1991 drift-independent OHLC estimator) and `yang_zhang_volatility` (Yang & Zhang, 2000 minimum-variance overnight/intraday estimator) (PR #36).
+- **Statistics (`polars_anta.stats`)**: Added closed-form rolling OLS goodness-of-fit `linear_regression_r2` ($R^2 \in [0, 1]$) and residual dispersion `linear_regression_stderr` (PR #37).
+- **Momentum (`polars_anta.momentum`)**: Added Jack Hutson's Triple Exponential Average `trix` (`Struct(trix, signal)`) (PR #33).
+- **Testing**: Added `tests/test_doc_snippets.py` to syntax-check all `python` code blocks in `README.md` and `docs/**/*.md`, and added Python 3.14 to the CI test matrix.
+
+### Fixed
+- **Statistics (`polars_anta.stats`)**: Added `bias: bool = True` parameter to `skewness()` and `kurtosis()` to support unbiased sample moment estimation (PR #34).
+- **Documentation**: Fixed syntax error in the README factor-validation snippet, reconciled public function counts with `__all__` (202 functions), documented the pandas `rolling().apply()` baseline behind the 112.4x OLS benchmark speedup, and replaced unverifiable marketing claims with factual descriptions.
+
+---
+
+## [0.3.1] - 2026-11-01
+
+### Added
+- **Microstructure, Information Bars & Futures (`polars_anta.resample`, `polars_anta.alpha`, `polars_anta.volume`)**:
+  - Information-driven bar sampling: `resample_volume_bars`, `resample_dollar_bars`, and `resample_imbalance_bars`.
+  - Continuous futures contract roll stitching (`stitch_futures_roll` with `"backward"`, `"ratio"`, and `"panama"` methods).
+  - Intraday `session_vwap`, order flow toxicity (`vpin`, `ofi`), `futures_basis`, and 4-state `oi_regime`.
+- **AFML Stationarity & Labeling (`polars_anta.stats`, `polars_anta.evaluation`)**:
+  - Fixed-Window Fractional Differentiation (`frac_diff`).
+  - Dynamic path-dependent `triple_barrier_labels` (with meta-labeling support) and `trend_scanning_labels`.
+- **Cross-Sectional Orthogonalization & Factor Evaluation (`polars_anta.alpha`, `polars_anta.evaluation`)**:
+  - Modified Gram-Schmidt multi-factor OLS residualization (`orthogonalize`).
+  - Newey-West HAC autocorrelation-consistent $t$-statistics in `ic_summary`, multi-horizon `ic_decay` with exponential half-life estimation, `probabilistic_sharpe_ratio` (PSR), and `deflated_sharpe_ratio` (DSR).
+- **Execution-Realistic Backtesting (`polars_anta.backtest`)**:
+  - Next-bar execution prices (`execution_price="open" | "twap" | "vwap" | "close"`), session flatten masks (`flat_mask`), target volatility scaling (`vol_target`), hysteresis no-trade buffers (`no_trade_buffer`), round-trip trade extraction (`extract_trades` / `bt.trades()`) with MAE/MFE, and `parameter_sweep`.
+- **Documentation & Governance**:
+  - Added mathematical and architectural documentation (`docs/architecture.md`, `docs/guides/quant-theory-and-workflows.md`), `AGENTS.md`, and `CODEOWNERS`.
+
+---
+
+## [0.3.0] - 2026-10-28
+
+### Added
+- **Formulaic Alphas (`polars_anta.alpha`)**:
+  - Expanded formulaic alphas with `alpha_002` through `alpha_030` (33 implemented alphas in total: `alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`).
+  - Added cross-sectional outlier clipping (`cs_winsorize`) and standardization (`cs_zscore`), plus liquidity and spread estimators (`amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`).
+- **Trend & Momentum (`polars_anta.trend`, `polars_anta.momentum`)**:
+  - Added vectorized `heikin_ashi` candlestick transform and Schaff Trend Cycle (`stc`).
+- **Factor Evaluation & Vectorized Backtesting (`polars_anta.evaluation`, `polars_anta.backtest`)**:
+  - Added `forward_returns`, `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`, performance metrics (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `drawdown_series`, `profit_factor`, `win_rate`), `crosses_above` / `crosses_below`, `signals_to_positions`, `vectorized_backtest`, `BacktestResult`, and `compare_strategies`.
+  - Added `examples/03_crypto_momentum_scan.ipynb`, `examples/04_backtest_and_alpha_eval.ipynb`, and `examples/04_backtest_showcase.py`.
+
+---
+
 ## [0.2.0] - 2026-10-25
 
 ### Added

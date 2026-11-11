@@ -4,7 +4,7 @@
   </div>
 
   <div class="anta-hero-title">
-    Institutional-Grade Alpha Research, Market Microstructure, Quantitative Feature Engineering &amp; Vectorized Backtesting in Polars
+    Alpha Research, Market Microstructure, Quantitative Feature Engineering &amp; Vectorized Backtesting in Polars
   </div>
 
   <div class="anta-hero-subtitle">
@@ -14,15 +14,15 @@
   <div class="anta-badges">
     <a href="https://github.com/huuan26/polars-anta/actions/workflows/ci.yml"><img src="https://github.com/huuan26/polars-anta/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <a href="https://pypi.org/project/polars-anta/"><img src="https://img.shields.io/pypi/v/polars-anta.svg?label=PyPI&color=1D7AFC" alt="PyPI Version" /></a>
-    <a href="https://pypi.org/project/polars-anta/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-1D7AFC" alt="Python Version" /></a>
+    <a href="https://pypi.org/project/polars-anta/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-1D7AFC" alt="Python Version" /></a>
     <a href="https://pola.rs"><img src="https://img.shields.io/badge/polars-%3E%3D1.0.0-1D7AFC" alt="Polars Version" /></a>
-    <a href="indicators/"><img src="https://img.shields.io/badge/primitives-155%2B%20expressions-10b981" alt="Primitives" /></a>
+    <a href="indicators/"><img src="https://img.shields.io/badge/functions-202%20public%20functions-10b981" alt="Public Functions" /></a>
     <a href="https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" /></a>
   </div>
 
   <div class="anta-cta-group">
     <a href="getting-started/" class="md-button md-button--primary anta-btn-primary">Get Started in 60s</a>
-    <a href="indicators/" class="md-button anta-btn-secondary">Explore 155+ API Catalog</a>
+    <a href="indicators/" class="md-button anta-btn-secondary">Explore 202-Function API Catalog</a>
     <a href="guides/quant-theory-and-workflows/" class="md-button anta-btn-secondary">Mathematical Theory</a>
   </div>
 </div>
@@ -31,11 +31,11 @@
   <div class="anta-metric-card">
     <div class="anta-metric-value">112.4x</div>
     <div class="anta-metric-label">Peak Speedup</div>
-    <div class="anta-metric-desc">1M-row Rolling OLS</div>
+    <div class="anta-metric-desc">Rolling OLS vs. pandas <code>rolling().apply()</code></div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">155+</div>
-    <div class="anta-metric-label">Native Primitives</div>
+    <div class="anta-metric-value">202</div>
+    <div class="anta-metric-label">Public Functions</div>
     <div class="anta-metric-desc">Dual <code>.anta</code> &amp; <code>.ta</code> API</div>
   </div>
   <div class="anta-metric-card">
@@ -54,21 +54,21 @@
 
 ## What is `polars-anta`?
 
-**`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is an institutional-grade quantitative finance engine for **market microstructure estimation, derivatives analytics, machine learning labeling & stationarity (AFML), cross-sectional factor engineering, statistical alpha evaluation, and execution-realistic vectorized backtesting** in Python and [Polars](https://pola.rs/).
+**`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is a quantitative finance library for **market microstructure estimation, derivatives analytics, machine learning labeling & stationarity (AFML), cross-sectional factor engineering, statistical alpha evaluation, and execution-realistic vectorized backtesting** in Python and [Polars](https://pola.rs/).
 
-Purpose-built for **quantitative researchers, proprietary trading desks, index futures strategists (e.g., VN30F1M, CME E-mini, Crypto Perpetuals), and systematic portfolio managers**, `polars-anta` implements technical indicators, closed-form OLS regressions, WorldQuant 101 formulaic alphas, and portfolio evaluation tools directly as native Polars Expressions (`pl.Expr`).
+Purpose-built for **quantitative researchers, proprietary trading desks, index futures strategists (e.g., VN30F1M, CME E-mini, Crypto Perpetuals), and systematic portfolio managers**, `polars-anta` implements technical indicators, closed-form OLS regressions, 33 formulaic alphas from Kakushadze's *101 Formulaic Alphas*, and portfolio evaluation tools directly as native Polars Expressions (`pl.Expr`).
 
 ```mermaid
 flowchart LR
     A["1. Microstructure & Roll<br/>Volume/Dollar/Imbalance Bars<br/>stitch_futures_roll • VPIN • OFI"] --> B["2. Quant ML & Stationarity<br/>Fixed-Window FracDiff (FFD)<br/>Triple-Barrier • Trend-Scanning"]
     B --> C["3. Factor Orthogonalization<br/>cs_winsorize • cs_zscore<br/>neutralize • orthogonalize (OLS)"]
-    C --> D["4. Institutional Validation<br/>Newey-West HAC t-stat<br/>IC Decay Half-Life • PSR & DSR"]
+    C --> D["4. Statistical Validation<br/>Newey-West HAC t-stat<br/>IC Decay Half-Life • PSR & DSR"]
     D --> E["5. Realistic Execution<br/>Next-Open/VWAP • Vol-Targeting<br/>No-Trade Buffer • MAE/MFE Ledger"]
 ```
 
 ---
 
-## The 4 Institutional Quantitative Pillars
+## The 4 Research Pillars
 
 <div class="anta-pillars-grid">
   <div class="anta-pillar-card">
@@ -226,7 +226,7 @@ Rather than iterating row-by-row in Python or opaque Cython loops, `polars-anta`
 
 ### 1. Rolling OLS Slope via Exact WMA–SMA Algebraic Identity
 
-By exploiting the exact linear identity between the Linearly Weighted Moving Average ($\text{WMA}_n$) and Simple Moving Average ($\text{SMA}_n$), rolling Ordinary Least Squares slope ($\beta_{1,t}$) and intercept ($\beta_{0,t}$) are evaluated in $O(1)$ complexity per bar (**112.4x faster** than Pandas):
+By exploiting the exact linear identity between the Linearly Weighted Moving Average ($\text{WMA}_n$) and Simple Moving Average ($\text{SMA}_n$), rolling Ordinary Least Squares slope ($\beta_{1,t}$) and intercept ($\beta_{0,t}$) are evaluated in $O(1)$ complexity per bar (**112.4x faster** than a pandas `rolling().apply()` baseline):
 
 $$
 \beta_{1,t} = \frac{6}{n - 1}\left(\text{WMA}_n(y)_t - \text{SMA}_n(y)_t\right), \qquad \beta_{0,t} = \text{SMA}_n(y)_t - \beta_{1,t}\frac{n - 1}{2}
@@ -273,15 +273,17 @@ Measured across **1,000,000 bars** (single-asset random walk) and a **500 ticker
 | **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
 | **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
 
+> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS). A fully vectorized pandas/NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
+
 ---
 
 ## Documentation and Learning Resources
 
 | Resource | Description |
 | :--- | :--- |
-| [**Quantitative Theory & Institutional Workflows**](guides/quant-theory-and-workflows.md) | Deep-dive into the mathematics and theory of AFML labeling, FFD, microstructure bars, Gram-Schmidt orthogonalization, Newey-West HAC, and PSR/DSR |
+| [**Quantitative Theory & Workflows**](guides/quant-theory-and-workflows.md) | Deep-dive into the mathematics and theory of AFML labeling, FFD, microstructure bars, Gram-Schmidt orthogonalization, Newey-West HAC, and PSR/DSR |
 | [**Architecture & Mathematical Proofs**](architecture.md) | Step-by-step algebraic proofs of the WMA–SMA OLS identity, Wilder RMA recurrences, and zero-copy `sliding_window_view` vectorization |
-| [**API Reference & Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 155+ primitives |
+| [**API Reference & Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 202 public functions |
 | [**Getting Started Guide**](getting-started.md) | Installation, expression syntax, `pl.Struct` unnesting, and fluent DataFrame chaining |
 | [**Multi-Asset Universe Guide**](guides/multi-asset.md) | Scaling indicators and cross-sectional factors across hundreds of symbols with `.over("ticker")` |
 | [**Information Bars, Roll & Resampling**](guides/resampling-and-dataframe-api.md) | Calendar/Volume/Dollar/Imbalance bars, continuous futures stitching (`stitch_futures_roll`), and OHLCV validation |

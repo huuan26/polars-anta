@@ -1,10 +1,10 @@
-# Institutional Quantitative Theory & End-to-End Workflows
+# Quantitative Theory & End-to-End Workflows
 
-This guide presents the **quantitative finance theory**, **mathematical formulations**, and **production Polars implementations** across the four core pillars of institutional alpha research in `polars-anta`:
+This guide presents the **quantitative finance theory**, **mathematical formulations**, and **production Polars implementations** across the four core pillars of alpha research in `polars-anta`:
 
 1. **Pillar 1 — Derivatives & Intraday Market Microstructure**: Information-driven bar sampling, adverse selection & order flow toxicity (VPIN, OFI), session-anchored VWAP, index futures cost-of-carry basis, open interest regime classification, and continuous contract roll stitching.
 2. **Pillar 2 — Quantitative Machine Learning (AFML Primitives)**: Memory-preserving stationarity via Fixed-Window Fractional Differentiation (FFD), dynamic Triple-Barrier labeling, Meta-Labeling, and multi-horizon OLS Trend-Scanning.
-3. **Pillar 3 — Institutional Factor Validation & Risk Orthogonalization**: Cross-sectional preprocessing, Frisch-Waugh-Lovell multi-factor orthogonalization, Newey-West HAC $t$-statistics, Information Coefficient (IC) decay & Alpha Half-Life, and multiple-testing adjustments (Probabilistic & Deflated Sharpe Ratio).
+3. **Pillar 3 — Factor Validation & Risk Orthogonalization**: Cross-sectional preprocessing, Frisch-Waugh-Lovell multi-factor orthogonalization, Newey-West HAC $t$-statistics, Information Coefficient (IC) decay & Alpha Half-Life, and multiple-testing adjustments (Probabilistic & Deflated Sharpe Ratio).
 4. **Pillar 4 — Execution-Realistic Backtesting & Excursion Analytics**: Next-Open / TWAP / VWAP execution models, intraday EOD session flattening, dynamic Volatility Targeting, no-trade turnover buffers, and Round-Trip Trade Ledgers with Maximum Adverse/Favorable Excursion (MAE/MFE).
 
 ---
@@ -90,13 +90,13 @@ $$
 along with the rolling standardized anomaly score $\text{ZScore}(\text{Basis}_t, N)$ for index arbitrage and cash-and-carry strategies.
 
 #### Open Interest 4-Phase Regime Classification (`oi_regime`)
-Combining price change $\Delta P_t = P_t - P_{t-k}$ and Open Interest change $\Delta \text{OI}_t = \text{OI}_t - \text{OI}_{t-k}$ classifies futures market participation into four institutional regimes:
+Combining price change $\Delta P_t = P_t - P_{t-k}$ and Open Interest change $\Delta \text{OI}_t = \text{OI}_t - \text{OI}_{t-k}$ classifies futures market participation into four regimes:
 
-| Price $\Delta P_t$ | Open Interest $\Delta \text{OI}_t$ | Regime Code | Institutional Interpretation |
+| Price $\Delta P_t$ | Open Interest $\Delta \text{OI}_t$ | Regime Code | Interpretation |
 | :---: | :---: | :---: | :--- |
-| $> 0$ | $> 0$ | **`+2.0`** | **Long Buildup**: Fresh institutional long capital entering; strong bullish trend conviction. |
+| $> 0$ | $> 0$ | **`+2.0`** | **Long Buildup**: Fresh long positions opening; strong bullish trend conviction. |
 | $> 0$ | $< 0$ | **`+1.0`** | **Short Covering**: Rally driven by shorts buying back to close; weaker follow-through. |
-| $< 0$ | $> 0$ | **`-2.0`** | **Short Buildup**: Fresh institutional short positions opening; strong bearish conviction. |
+| $< 0$ | $> 0$ | **`-2.0`** | **Short Buildup**: Fresh short positions opening; strong bearish conviction. |
 | $< 0$ | $< 0$ | **`-1.0`** | **Long Liquidation**: Decline driven by existing longs forced to exit/deleverage. |
 
 #### Continuous Futures Roll Stitching (`stitch_futures_roll`)
@@ -169,7 +169,7 @@ $$
 
 ---
 
-## Pillar 3: Institutional Factor Validation & Risk Orthogonalization
+## Pillar 3: Factor Validation & Risk Orthogonalization
 
 ### 3.1 Newey-West HAC $t$-Statistics & Multi-Horizon IC Decay (`ic_summary`, `ic_decay`)
 
@@ -213,13 +213,13 @@ $$
 \text{SR}^{\ast}_{\text{ann}}(N) = \sigma_{\{SR\}} \left[ (1 - \gamma) \Phi^{-1}\left(1 - \frac{1}{N}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{N \cdot e}\right) \right]
 $$
 
-where $\gamma \approx 0.5772156649$ is the Euler-Mascheroni constant. Plugging $\text{SR}^{\ast}_{\text{ann}}(N)$ into $\text{PSR}(\text{SR}^{\ast})$ yields the **Deflated Sharpe Ratio (DSR)**. Institutional desks typically require $\text{DSR} \ge 0.95$ before allocating capital.
+where $\gamma \approx 0.5772156649$ is the Euler-Mascheroni constant. Plugging $\text{SR}^{\ast}_{\text{ann}}(N)$ into $\text{PSR}(\text{SR}^{\ast})$ yields the **Deflated Sharpe Ratio (DSR)**. A common threshold is $\text{DSR} \ge 0.95$.
 
 ---
 
 ## Pillar 4: Execution-Realistic Backtesting & Excursion Analytics
 
-[`vectorized_backtest`](../indicators/evaluation-and-backtest.md) (`df.anta.backtest`) extends vectorized simulation with four institutional execution controls and a full Round-Trip Trade Ledger:
+[`vectorized_backtest`](../indicators/evaluation-and-backtest.md) (`df.anta.backtest`) extends vectorized simulation with four execution controls and a full Round-Trip Trade Ledger:
 
 ```python
 bt = df.anta.backtest(

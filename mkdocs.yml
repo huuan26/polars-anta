@@ -87,4 +87,6 @@ nav:
       - Information Bars, Roll & Resampling: guides/resampling-and-dataframe-api.md
       - Architecture & Mathematical Proofs: architecture.md
       - Benchmarks: benchmarks.md
+  - Research:
+      - Factor Zoo Study: research/factor-zoo.md
   - Contributing: contributing.md

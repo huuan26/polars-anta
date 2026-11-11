@@ -1,0 +1,15 @@
+sample,round_trip_cost_bps,l1_cost_bps,n_candidates,n_positive_net,n_raw_p05,n_bh_q10
+discovery,0,0.0,80,55,33,32
+discovery,10,5.0,80,37,23,20
+discovery,20,10.0,80,31,17,11
+discovery,30,15.0,80,25,11,0
+discovery,40,20.0,80,19,7,0
+discovery,50,25.0,80,15,4,0
+discovery,60,30.0,80,12,2,0
+holdout,0,0.0,80,61,18,9
+holdout,10,5.0,80,47,7,0
+holdout,20,10.0,80,24,0,0
+holdout,30,15.0,80,11,0,0
+holdout,40,20.0,80,6,0,0
+holdout,50,25.0,80,3,0,0
+holdout,60,30.0,80,3,0,0

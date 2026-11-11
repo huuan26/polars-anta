@@ -2,11 +2,10 @@
 
 <img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/assets/banner.png" alt="polars-anta banner" width="100%" />
 
-### Alpha Research, Market Microstructure, Feature Engineering & Vectorized Backtesting in Polars
+# polars-anta
+### Build alpha signals in Polars — then try to falsify them.
 
-**Auditable mathematical expressions. Cross-sectional factor analytics and microstructure modeling. An intuitive dual `.anta` / `.ta` interface. Zero-C deployment with Rust-accelerated performance.**
-
-An open-source quantitative research engine for market microstructure estimation, cross-sectional alpha discovery, statistical factor evaluation, technical feature engineering, and loop-free vectorized backtesting. Purpose-built for **quantitative researchers, prop trading desks, index futures & derivatives strategists, and systematic portfolio managers** who demand both sub-second execution speed and 100% mathematical transparency.
+On Vietnamese equities, **150** technical signals collapse to **~6** independent dimensions ($N_{\text{eff}} = 6.00$); the dominant one replicates out of sample (**38** of **64** `robust` signals) but does not survive long-only trading costs (**0** survivors). `polars-anta` ships **219** signal and evaluation primitives **and** the statistical machinery — stationary block bootstrap, Benjamini–Hochberg FDR, Romano–Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting and empirical-Bayes shrinkage — to separate genuine structure from noise.
 
 [![CI](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml/badge.svg)](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml)
 [![PyPI Version](https://img.shields.io/pypi/v/polars-anta.svg?label=PyPI&color=0077b6)](https://pypi.org/project/polars-anta/)
@@ -18,75 +17,140 @@ An open-source quantitative research engine for market microstructure estimation
 [![License](https://img.shields.io/badge/license-Apache%202.0-555.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/huuan26/polars-anta?style=flat&color=e0a526)](https://github.com/huuan26/polars-anta/stargazers)
 
-[**Documentation**](https://huuan26.github.io/polars-anta/) • [**Quick start**](#quick-start) • [**API Reference**](#api-reference--indicator-catalog) • [**Learning Resources**](#documentation-and-learning-resources) • [**Examples**](https://github.com/huuan26/polars-anta/tree/master/examples) • [**Report an issue**](https://github.com/huuan26/polars-anta/issues)
+[**Factor Zoo Study**](research/factor_zoo/REPORT.md) • [**Documentation**](https://huuan26.github.io/polars-anta/) • [**Quick start**](#quick-start) • [**API Reference**](#api-reference--indicator-catalog) • [**Examples**](https://github.com/huuan26/polars-anta/tree/master/examples) • [**Report an issue**](https://github.com/huuan26/polars-anta/issues)
 
 </div>
 
 ---
 
-## What is `polars-anta`?
+## Evidence: the factor zoo inside this library
 
-**`polars-anta`** (**A**lpha & **N**umerical **T**echnical **A**nalysis) is a Python library for **quantitative feature engineering, market microstructure analysis, cross-sectional alpha research, statistical signal validation, and vectorized portfolio backtesting** powered natively by [Polars](https://pola.rs/).
+To demonstrate why multiple-testing correction and transaction-cost accounting are mandatory in quantitative research, we executed a pre-specified analysis plan ([`PREREGISTRATION.md`](research/factor_zoo/PREREGISTRATION.md), commit `4c1a4b559d22a1367ce46b513ab7ff1079fff360`, registry SHA-256 `8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c`; see [Deviations & Timeline](research/factor_zoo/REPORT.md#31-deviations-from-the-analysis-plan--timeline)) testing all **150** daily-OHLCV-compatible signals (**146** unique after accounting for **4** exact duplicate pairs) in `polars-anta` at their **default parameters** on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (`HOSE`) equity universe (`2014-01-01`–`2021-12-31` discovery, `2022-01-01`–`2026-11-10` locked holdout, confirmatory horizon $h = 5$ open-to-open trading days):
 
-Unlike traditional technical analysis packages designed around single-asset retail charting, `polars-anta` is architected from the ground up for **buy-side research workflows**: unifying 33 formulaic alphas from Kakushadze's *101 Formulaic Alphas*, liquidity and price-impact estimators (Amihud, Kyle's $\lambda$, Roll, Corwin-Schultz), closed-form rolling OLS regressions, cross-sectional standardization/neutralization, Alphalens-style Rank IC evaluation, and transaction-cost-aware vectorized backtesting inside Polars' multi-threaded Rust query engine.
+#### Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, $h = 5$ Days)
 
-### Key properties
+| Stage | Signals | Share of Registry | Notes |
+| :--- | ---: | ---: | :--- |
+| **A1. Tested in Registry** | **150** | `100.0%` | 146 unique signals + 4 exact duplicate pairs ($N_{\text{eff}} = 6.00$) |
+| **A2. Benjamini–Hochberg FDR $q \le 0.10$** | **94** | `62.7%` | Raw Stationary Bootstrap $p \le 0.05$: **91** (NW $|t| \ge 1.96$: **95**; $\approx 7.5$ under i.i.d. noise) |
+| **A3. Romano–Wolf Stepdown FWER $p_{\text{RW}} \le 0.05$** | **71** | `47.3%` | Joint studentized $\max$-$t$ bootstrap across all 150 IC series |
+| **A4. Structurally Stable (`robust` Verdict)** | **64** | `42.7%` | RW $p \le 0.05$ and non-decaying (+ **16** `fdr_only`, **14** `decaying`, **56** `noise`) |
+| **A5. Replicate in Locked Holdout (`2022-01-01`–`2026-11-10`)** | **38** | `25.3%` | **38** of **64** (`59.4%`) pass Holdout RW $p \le 0.05$ (**49** or `76.6%` pass BH $q \le 0.10$; **54** or `84.4%` retain sign) |
 
-- **End-to-end alpha research lifecycle** — move seamlessly from raw OHLCV integrity auditing and multi-timeframe resampling to microstructure extraction, cross-sectional factor neutralization, IC/quantile decay analysis, and vectorized backtesting in one unified Arrow/Polars pipeline.
-- **100% Auditable white-box mathematics** — every formula is a readable, closed-form Polars expression (`pl.Expr`) you can inspect in Python rather than an opaque C/Cython binary.
-- **Rust-accelerated panel execution** — expressions compile into Polars' multi-threaded query engine. In our benchmark, rolling OLS slope is 112.4x faster than a pandas `rolling().apply()` baseline (see [Benchmarks](docs/benchmarks.md) for methodology).
-- **No C compiler required** — a pure-Python wheel depending only on `polars` and `numpy`; installs with `pip` on Linux, macOS and Windows.
-- **Built for Index Futures & Multi-Asset Universes** — evaluate intraday signals on single-instrument futures (e.g., **VN30F1M**, CME E-mini, Crypto Perpetuals) or scale cross-sectional alphas across thousands of equities simultaneously via `.over("symbol")` and `.over("timestamp")`.
+#### Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)
 
-> **Research pipeline:**
-> <p align="center"><strong>Raw Market Data &rarr; Data Validation & Resampling &rarr; Microstructure & Alpha Expressions (<code>.anta</code> / <code>.ta</code>) &rarr; Cross-Sectional Neutralization &rarr; Rank IC & Quantile Validation &rarr; Cost-Aware Vectorized Backtest</strong></p>
+| Stage | Signals | Share of Registry | Share of 80 Candidates |
+| :--- | ---: | ---: | ---: |
+| **B1. Non-Decaying Discovery Survivors Evaluated** | **80** | `53.3%` | `100.0%` (**64** `robust` + **16** `fdr_only`) |
+| **B2. Positive Net Excess Return After HOSE Costs (`60 bps` RT)** | **12** | `8.0%` | `15.0%` |
+| **B3. Unadjusted One-Sided Bootstrap $p \le 0.05$ on Net Excess** | **2** | `1.3%` | `2.5%` (`trix_15`, `tsi`) |
+| **B4. Survive Benjamini–Hochberg FDR $q \le 0.10$ Across Cost Stage** | **0** | `0.0%` | `0.0%` |
+| **B5. Confirmed Post-Cost Survivors in Locked Holdout** | **0** | `0.0%` | `0.0%` |
 
-| Capability | TA-Lib | pandas-ta | Alphalens (pandas) | `polars-anta` |
-| :--- | :---: | :---: | :---: | :---: |
-| **Deployment & C Dependencies** | External C library & MSVC / GCC | Pure Python / NumPy | Pandas-based | **Zero C compilation** (pure Polars & NumPy) |
-| **Execution Engine** | Single-threaded C loops | Single-threaded Pandas / GIL | Single-threaded Pandas | **Multi-threaded Rust** query engine + SIMD |
-| **Multi-Asset Panel Scaling** | Manual sequential loops | Slow `.groupby().apply()` | Pandas MultiIndex | **Native `.over("symbol")`** parallelization |
-| **Dual Namespace API** | Unsupported | Single `.ta` accessor | Standalone functions only | **Both `.anta` & `.ta`** on `Expr`, `DataFrame`, `LazyFrame` |
-| **Cross-Sectional & Orthogonalization** | Unsupported | Unsupported | Basic quantile bucketing | **Built-in `cs_winsorize`, `cs_zscore`, `neutralize`, `orthogonalize`** |
-| **Microstructure & Derivatives** | Unsupported | Unsupported | Unsupported | **Volume/Dollar/Imbalance Bars, Futures Roll, VPIN, OFI, Kyle's $\lambda$** |
-| **Quant ML (AFML Primitives)** | Unsupported | Unsupported | Unsupported | **Fixed-Window FracDiff (`frac_diff`), Triple-Barrier & Trend-Scanning** |
-| **Evaluation & Backtesting** | Unsupported | Unsupported | IC only (no backtester) | **Newey-West HAC IC, `ic_decay`, PSR/DSR, Realistic Backtest & MAE/MFE** |
-| **Lazy & Streaming Execution** | Unsupported | Unsupported | Unsupported | **Full `pl.LazyFrame`** query optimization & Arrow zero-copy |
+<div align="center">
 
-### Example use cases
+<img src="research/factor_zoo/results/figures/01_falsification_funnel.png" alt="Factor Zoo Falsification Funnel on HOSE" width="860" />
 
-1. **Index Futures & Intraday Derivatives Desks (VN30F1M, CME E-Mini, Perpetual Futures)**
-   Aggregate tick/minute feeds into information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`), stitch continuous roll series (`stitch_futures_roll`), track intraday `session_vwap` z-scores, measure order flow toxicity (`vpin`, `ofi`) and carry (`futures_basis`, `oi_regime`), and backtest with next-bar open/VWAP execution (`execution_price="open"`), session flatten masks (`flat_mask`), and round-trip MAE/MFE excursion ledgers (`bt.trades()`).
-2. **Cross-Sectional Statistical Arbitrage & Equity Factor Research**
-   Construct, winsorize (`cs_winsorize` via Quantile/Z-Score/MAD), standardize (`cs_zscore`), sector-neutralize (`neutralize`), and Gram-Schmidt OLS residualize (`orthogonalize`) the 33 implemented formulaic alphas across thousands of tickers, then validate with Newey-West HAC *t*-statistics (`ic_summary`), multi-horizon Alpha Half-Life (`ic_decay`), and Deflated Sharpe Ratios (`deflated_sharpe_ratio`).
-3. **Quantitative Machine Learning (AFML) Feature Stores**
-   Transform non-stationary prices via Fixed-Window Fractional Differentiation (`frac_diff`), generate dynamic path-dependent labels (`triple_barrier_labels` with Meta-Labeling and `trend_scanning_labels`), and feed zero-copy Apache Arrow tensors directly into **LightGBM, XGBoost, CatBoost, or PyTorch**.
+</div>
+
+- **Why 91 of 150 pass raw $p \le 0.05$**: Spectral decomposition of the $150 \times 150$ daily Spearman IC correlation matrix shows an eigenvalue participation ratio of **$N_{\text{eff}} = 6.00$** effective independent tests ($\lambda_1 = 55.21$; the top 5 principal components explain **66.6%** of cross-signal IC variance).
+- **Predictability vs. Standalone Implementability**: In the locked `2022–2026` holdout, **38 of the 64** non-decaying `robust` discovery signals (`59.4%`) replicate their cross-sectional Rank IC under Romano–Wolf FWER control ($p_{\text{RW}} \le 0.05$, with **97.6%** median IC retention and $r = 0.77$ discovery-vs-holdout IC correlation across all 150 signals). However, when traded as standalone 5-day rebalanced long-only top-quintile (Q5) portfolios against the equal-weight universe under retail `HOSE` execution frictions (`60 bps` round-trip brokerage, slippage & sell tax), the top-6 $|t_{\text{NW}}|$ fast reversal signals face `63.8%–87.2%` one-way turnover every 5 days (`-6.7–20.5 bps` breakeven cost, or `5.7–20.5 bps` across the 5 with positive gross Q5 excess), while the only 2 slower momentum signals passing unadjusted $p \le 0.05$ (`trix_15`, `tsi`) fail BH correction ($q = 1.00$) and decay in holdout (illustrative, $n = 2$).
+- **Exploratory Post-Holdout Diagnostics ([`REPORT.md` §8.3](research/factor_zoo/REPORT.md#83-exploratory-post-holdout-analyses))**: Orthogonalizing all 150 signals against 5-day return reversal (`rev_5_rank`) raises $N_{\text{eff}}$ from **6.00** to **9.37** and leaves **91** `robust` discovery signals (**40** replicating in Holdout under RW $p \le 0.05$); Q1–Q5 decomposition shows that **65.5%** of the top-10 signals' $\text{Q5} - \text{Q1}$ spread in Discovery (**90.0%** in Holdout) originates in Q1 short-leg underperformance; and **0** standalone 5-day Q5 strategies survive BH $q \le 0.10$ at any cost $\ge 30\text{ bps}$ round-trip in Discovery or $\ge 10\text{ bps}$ in Holdout. Read the full study in [**`research/factor_zoo/REPORT.md`**](research/factor_zoo/REPORT.md).
+
+---
+
+## Falsify your own signals in 10 lines
+
+Pass any multi-asset Polars panel to `df.anta.falsify_factors(...)` to run the complete 7-stage statistical sieve (Rank IC $\to$ Newey–West HAC $\to$ Politis–Romano Stationary Bootstrap $\to$ Benjamini–Hochberg FDR & Romano–Wolf Stepdown FWER $\to$ Empirical-Bayes Shrinkage $\to$ OLS-CUSUM Structural Stability $\to$ Verdict):
+
+```python
+import numpy as np
+import polars as pl
+import polars_anta as pa
+
+rng = np.random.default_rng(42)
+n_dates, n_tickers = 250, 40
+panel = pl.DataFrame(
+    {
+        "date": np.repeat(np.arange(n_dates), n_tickers),
+        "ticker": np.tile(np.arange(n_tickers), n_dates),
+        "sig_true": rng.standard_normal(n_dates * n_tickers),
+        "sig_noise_1": rng.standard_normal(n_dates * n_tickers),
+        "sig_noise_2": rng.standard_normal(n_dates * n_tickers),
+    }
+).with_columns(
+    (0.08 * pl.col("sig_true") + rng.standard_normal(n_dates * n_tickers)).alias("fwd_ret_5")
+)
+
+result = panel.anta.falsify_factors(
+    factor_cols=["sig_true", "sig_noise_1", "sig_noise_2"],
+    return_col="fwd_ret_5",
+    group_by="date",
+    horizon=5,
+    n_boot=500,
+    seed=42,
+)
+print(result.report())
+```
+
+---
+
+## Research workflow
+
+```mermaid
+flowchart LR
+    A["1. Signals<br/>.anta / .ta Expressions<br/>150+ Indicators & Alphas"] --> B["2. Cross-Sectional Prep<br/>cs_winsorize • cs_zscore<br/>neutralize • orthogonalize"]
+    B --> C["3. IC & Newey–West HAC<br/>ic_matrix • ic_summary<br/>Auto-Lag Bartlett Kernel"]
+    C --> D["4. Stationary Bootstrap<br/>Politis–Romano (1994)<br/>Time-Dependence Preserving"]
+    D --> E["5. FDR / Romano–Wolf<br/>Benjamini–Hochberg q<br/>Joint Stepdown FWER"]
+    E --> F["6. EB Shrinkage & CUSUM<br/>Efron–Morris Posterior IC<br/>Structural Break Test"]
+    F --> G["7. Transaction Costs<br/>df.anta.backtest<br/>breakeven_cost"]
+    G --> H["8. Locked Holdout<br/>Out-of-Sample Replication<br/>PBO & SPA Diagnostics"]
+```
+
+---
+
+## What's inside
+
+`polars-anta` (**A**lpha & **N**umerical **T**echnical **A**nalysis) is a pure-Python/Polars library for **feature engineering, market microstructure analysis, cross-sectional alpha research, statistical signal falsification, and vectorized backtesting** powered natively by [Polars](https://pola.rs/):
+
+- **Auditable white-box mathematics** — every indicator, closed-form rolling OLS identity, and cross-sectional projection is an inspectable Polars expression (`pl.Expr`) or NumPy kernel rather than an opaque C/Cython binary.
+- **Zero C compiler required** — runtime dependencies are strictly `polars>=1.0.0` and `numpy>=1.24.0`; installs cleanly via `pip` or `uv` across Linux, macOS, and Windows.
+- **Built for both single-instrument futures & cross-sectional equity panels** — sample intraday Volume/Dollar/Imbalance bars and stitch futures rolls (e.g., **VN30F1M**, CME E-mini, Crypto Perpetuals), or scale cross-sectional expressions across hundreds of tickers via `.over("symbol")` and `.over("date")`.
+
+| Area | Examples of functionality | API Docs |
+| :--- | :--- | :---: |
+| **Statistical Inference & Falsification** | Stationary Bootstrap (`stationary_bootstrap_indices`, `bootstrap_test`), multiple testing (`adjust_pvalues`, `romano_wolf`, `spa_test`), backtest overfitting (`pbo_cscv`), Empirical-Bayes shrinkage (`empirical_bayes_shrinkage`), OOS & stability tests (`oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `breakeven_cost_from_backtest`), panel falsification (`ic_matrix`, `long_short_returns`, `falsify_factors`, `sweep_robustness`) | [Inference Docs](https://huuan26.github.io/polars-anta/indicators/inference/) |
+| **AFML Labeling, Factor Eval & Backtesting** | `triple_barrier_labels`, `trend_scanning_labels`, `forward_returns`, `information_coefficient`, Newey-West HAC `ic_summary`, `ic_decay`, `quantile_analysis`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `extract_trades` (MAE/MFE), `parameter_sweep` | [Eval & Backtest Docs](https://huuan26.github.io/polars-anta/indicators/evaluation-and-backtest/) |
+| **Alpha Factors, Microstructure & Futures** | Cross-sectional ops (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`), liquidity & order flow (`amihud_illiquidity`, `kyle_lambda`, `roll_spread`, `corwin_schultz_spread`, `vpin`, `ofi`), index futures (`futures_basis`, `oi_regime`), regime complexity (`hurst_exponent`, `fractal_dimension`, `entropy`), and 33 formulaic alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`) | [Alpha Docs](https://huuan26.github.io/polars-anta/indicators/alpha/) |
+| **Statistics, OLS & Stationarity** | Rolling `zscore`, `percentile_rank`, `skewness`, `kurtosis`, CAPM `rolling_beta`/`rolling_alpha`, closed-form `linear_regression_*` (`slope`, `intercept`, `angle`, `forecast`, `r2`, `stderr`), Fixed-Window Fractional Differentiation (`frac_diff`) | [Stats Docs](https://huuan26.github.io/polars-anta/indicators/stats/) |
+| **Trend, Momentum, Volatility & Volume** | Adaptive moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `rsi`, `macd`, `trix`, `squeeze_momentum`, `tsi`, `atr`, `bollinger_bands`, `rogers_satchell_volatility`, `yang_zhang_volatility`, `vwap_bands`, `session_vwap`, `cmf`, `mfi` | [Catalog](https://huuan26.github.io/polars-anta/indicators/) |
+| **Data Engineering & Information Bars** | Multi-timeframe OHLCV aggregation (`resample_ohlcv`), information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`), continuous futures roll stitching (`stitch_futures_roll`), schema & price integrity checks (`validate_ohlcv`), batch feature generator (`df.anta.add_all()`) | [Resampling Docs](https://huuan26.github.io/polars-anta/guides/resampling-and-dataframe-api/) |
+
+```text
+polars_anta/
+├── inference.py    # Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, Empirical Bayes & falsify_factors
+├── evaluation.py   # AFML labeling, Newey-West Rank IC, IC decay, quantiles & PSR/DSR metrics
+├── backtest.py     # Realistic vectorized backtester, vol-targeting, MAE/MFE ledger & sweeps
+├── alpha.py        # Cross-sectional orthogonalization, microstructure, futures & 33 formulaic alphas
+├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & Fractional Diff (FFD)
+├── resample.py     # Calendar/Volume/Dollar/Imbalance bars, futures roll stitching & validation
+├── trend.py        # Moving averages, trend overlays, candlestick transforms & pivot systems
+├── momentum.py     # Momentum oscillators, cycle detectors & divergence indicators
+├── volatility.py   # OHLC volatility estimators, ATR trailing stops & price channels
+├── volume.py       # Session/rolling VWAP bands, money flow & volume accumulation metrics
+└── namespace.py    # Dual .anta and .ta registration across Expr, DataFrame & LazyFrame
+```
 
 ---
 
 ## Quick start
 
-### 1. Install
-
-`polars-anta` is available on PyPI with zero C compiler requirements:
-
 ```bash
 python -m pip install polars-anta
-```
-
-To upgrade to the latest release:
-
-```bash
-python -m pip install --upgrade polars-anta
-```
-
-Or using [`uv`](https://github.com/astral-sh/uv):
-
-```bash
+# or with uv:
 uv add polars-anta
 ```
-
-### 2. Verify your installation
 
 Importing `polars_anta` automatically registers both `.anta` and `.ta` namespaces on Polars `Expr`, `DataFrame`, and `LazyFrame` objects:
 
@@ -100,21 +164,13 @@ out = df.with_columns(
     pl.col("close").anta.rsi(period=3).round(2).alias("rsi_3"),
 )
 print(out.tail(3))
-# shape: (3, 3)
-# ┌───────┬────────┬───────┐
-# │ close ┆ ema_3  ┆ rsi_3 │
-# │ ---   ┆ ---    ┆ ---   │
-# │ f64   ┆ f64    ┆ f64   │
-# ╞═══════╪════════╪═══════╡
-# │ 106.5 ┆ 104.59 ┆ 88.14 │
-# │ 105.0 ┆ 104.80 ┆ 62.61 │
-# │ 108.0 ┆ 106.40 ┆ 80.52 │
-# └───────┴────────┴───────┘
 ```
 
-### 3. Explore quantitative workflows
+---
 
-Start with our ready-to-run [example scripts](examples/) or [1-click Google Colab notebooks](#interactive-jupyter--colab-notebooks), or explore the five workflows below:
+## Quantitative workflows
+
+Start with our ready-to-run [example scripts](examples/) or [Google Colab notebooks](#interactive-jupyter--colab-notebooks), or explore the five core workflows below:
 
 #### A. Intraday Derivatives, Information Bars, Roll Stitching & Microstructure
 
@@ -218,102 +274,6 @@ bt = (
 print(bt.report())
 print(bt.trades())  # Round-trip trade ledger with PnL, holding_bars, MAE & MFE!
 ```
-
----
-
-## What can you model and compute?
-
-| Area | Examples of functionality | API Docs |
-| :--- | :--- | :---: |
-| **Trend & Overlays** | Adaptive moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `pivot_points` | [Trend Docs](https://huuan26.github.io/polars-anta/indicators/trend/) |
-| **Momentum Oscillators** | `rsi`, `macd`, `ppo`, `trix`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | [Momentum Docs](https://huuan26.github.io/polars-anta/indicators/momentum/) |
-| **Volatility & Channels** | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `rogers_satchell_volatility`, `yang_zhang_volatility`, `ulcer_index` | [Volatility Docs](https://huuan26.github.io/polars-anta/indicators/volatility/) |
-| **Volume & Money Flow** | `vwap`, `vwap_bands`, `session_vwap`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `nvi`, `pvi`, `vpci`, `vr` | [Volume Docs](https://huuan26.github.io/polars-anta/indicators/volume/) |
-| **Statistics, OLS & Stationarity** | Rolling `zscore`, `percentile_rank`, `skewness`, `kurtosis`, CAPM `rolling_beta`/`rolling_alpha`, closed-form `linear_regression_*` (`slope`, `intercept`, `angle`, `forecast`, `r2`, `stderr`), Fixed-Window Fractional Differentiation (`frac_diff`) | [Stats Docs](https://huuan26.github.io/polars-anta/indicators/stats/) |
-| **Alpha Factors, Microstructure & Futures** | Cross-sectional ops (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`), liquidity & order flow (`amihud_illiquidity`, `kyle_lambda`, `roll_spread`, `corwin_schultz_spread`, `vpin`, `ofi`), index futures (`futures_basis`, `oi_regime`), regime complexity (`hurst_exponent`, `fractal_dimension`, `entropy`), and 33 formulaic alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`) | [Alpha Docs](https://huuan26.github.io/polars-anta/indicators/alpha/) |
-| **AFML Labeling, Factor Eval & Backtesting** | `triple_barrier_labels`, `trend_scanning_labels`, `forward_returns`, `information_coefficient`, Newey-West HAC `ic_summary`, `ic_decay`, `quantile_analysis`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `extract_trades` (MAE/MFE), `parameter_sweep` | [Eval & Backtest Docs](https://huuan26.github.io/polars-anta/indicators/evaluation-and-backtest/) |
-| **Data Engineering & Information Bars** | Multi-timeframe OHLCV aggregation (`resample_ohlcv`), information-driven bars (`resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`), continuous futures roll stitching (`stitch_futures_roll`), schema & price integrity checks (`validate_ohlcv`), batch feature generator (`df.anta.add_all()`) | [Resampling Docs](https://huuan26.github.io/polars-anta/guides/resampling-and-dataframe-api/) |
-| **Statistical Inference & Falsification** | Stationary Bootstrap (`stationary_bootstrap_indices`, `bootstrap_test`), multiple testing (`adjust_pvalues`, `romano_wolf`, `spa_test`), backtest overfitting (`pbo_cscv`), Empirical-Bayes shrinkage (`empirical_bayes_shrinkage`), OOS & stability tests (`oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `breakeven_cost_from_backtest`), panel falsification (`ic_matrix`, `long_short_returns`, `falsify_factors`, `sweep_robustness`) | [Inference Docs](https://huuan26.github.io/polars-anta/indicators/inference/) |
-
----
-
-## How `polars-anta` is organized
-
-The library separates *data engineering*, *domain-specific indicator & alpha expressions*, *factor evaluation*, and *vectorized backtesting* into clean, self-contained modules so that each layer can be inspected and extended independently:
-
-```text
-polars_anta/
-├── trend.py        # Moving averages, trend overlays, candlestick transforms & pivot systems
-├── momentum.py     # Momentum oscillators, cycle detectors & divergence indicators
-├── volatility.py   # OHLC volatility estimators, ATR trailing stops & price channels
-├── volume.py       # Session/rolling VWAP bands, money flow & volume accumulation metrics
-├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & Fractional Diff (FFD)
-├── alpha.py        # Cross-sectional orthogonalization, microstructure, futures & 33 formulaic alphas
-├── evaluation.py   # AFML labeling, Newey-West Rank IC, IC decay, quantiles & PSR/DSR metrics
-├── inference.py    # Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, Empirical Bayes & falsify_factors
-├── backtest.py     # Realistic vectorized backtester, vol-targeting, MAE/MFE ledger & sweeps
-├── resample.py     # Calendar/Volume/Dollar/Imbalance bars, futures roll stitching & validation
-└── namespace.py    # Dual .anta and .ta registration across Expr, DataFrame & LazyFrame
-```
-
-```mermaid
-flowchart LR
-    A["1. Microstructure & Roll<br/>Volume/Dollar/Imbalance Bars<br/>stitch_futures_roll • VPIN • OFI"] --> B["2. Quant ML & Stationarity<br/>Fixed-Window FracDiff (FFD)<br/>Triple-Barrier • Trend-Scanning"]
-    B --> C["3. Factor Orthogonalization<br/>cs_winsorize • cs_zscore<br/>neutralize • orthogonalize (OLS)"]
-    C --> D["4. Statistical Validation<br/>Newey-West HAC t-stat<br/>IC Decay Half-Life • PSR & DSR"]
-    D --> E["5. Realistic Execution<br/>Next-Open/VWAP • Vol-Targeting<br/>No-Trade Buffer • MAE/MFE Ledger"]
-```
-
----
-
-## Documentation and learning resources
-
-| Resource | Description |
-| :--- | :--- |
-| [**Online Documentation**](https://huuan26.github.io/polars-anta/) | Full documentation website with search, mathematical formulas, and usage guides |
-| [**Quantitative Theory & Workflows**](docs/guides/quant-theory-and-workflows.md) | Deep-dive guide into AFML labeling, fractional differentiation, microstructure bars, Newey-West HAC, and PSR/DSR |
-| [**API Reference Overview**](docs/indicators/index.md) | Complete index of all supported functions, input arguments, and `pl.Struct` output schemas |
-| [**Getting Started Guide**](docs/getting-started.md) | Introduction to Polars expressions, `.unnest()`, and fluent `.anta` / `.ta` chaining |
-| [**Multi-Asset Universe Guide**](docs/guides/multi-asset.md) | Best practices for partitioning indicators and cross-sectional factors with `.over("ticker")` |
-| [**Factor Evaluation & Backtesting Guide**](docs/indicators/evaluation-and-backtest.md) | Evaluating factor Rank IC / Quantiles and running `df.anta.backtest()` with transaction costs |
-| [**Architecture & Vectorization**](docs/architecture.md) | Deep dive into closed-form OLS identities, Wilder smoothing recurrences, and stride kernels |
-| [**Example Scripts**](examples/) | Standalone runnable Python scripts ([`quickstart.py`](examples/quickstart.py), [`04_backtest_showcase.py`](examples/04_backtest_showcase.py)) |
-| [**Interactive Jupyter Notebooks**](#interactive-jupyter--colab-notebooks) | Hands-on tutorials runnable with 1 click in Google Colab |
-| [**Benchmarks & Reproducibility**](docs/benchmarks.md) | 1,000,000-row benchmark methodology and reproduction script ([`benchmark_speed.py`](benchmarks/benchmark_speed.py)) |
-| [**Roadmap**](ROADMAP.md) & [**Changelog**](CHANGELOG.md) | Release history, upcoming milestones, and version changes |
-
-### Interactive Jupyter & Colab Notebooks
-
-| Notebook | Topic & Workflow Covered | Launch in Browser |
-| :--- | :--- | :---: |
-| **[`quickstart_colab.ipynb`](examples/quickstart_colab.ipynb)** | 1-minute interactive demo covering expression syntax, 500-ticker scans, and live 112x speed benchmarks | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
-| **[`01_quickstart.ipynb`](examples/01_quickstart.ipynb)** | Step-by-step introduction to `.anta` / `.ta` expressions, `pl.Struct` unnesting, and indicator plotting | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/01_quickstart.ipynb) |
-| **[`02_multi_asset_portfolio_scan.ipynb`](examples/02_multi_asset_portfolio_scan.ipynb)** | Screening a 500-ticker equity universe in ~50 ms using parallel `.over("ticker")` expressions | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/02_multi_asset_portfolio_scan.ipynb) |
-| **[`03_crypto_momentum_scan.ipynb`](examples/03_crypto_momentum_scan.ipynb)** | Cross-sectional cryptocurrency momentum, volatility filtering, and composite ranking workflow | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
-| **[`04_backtest_and_alpha_eval.ipynb`](examples/04_backtest_and_alpha_eval.ipynb)** | 1-line entry/exit crossovers, formatted tearsheets, 5-quantile IC analysis, and dollar-neutral portfolio backtesting | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_backtest_and_alpha_eval.ipynb) |
-
----
-
-## Performance benchmark (1,000,000 rows)
-
-<div align="center">
-
-<img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/benchmarks/benchmark_speed.png" alt="polars-anta Performance Benchmark" width="900"/>
-
-</div>
-
-Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a **500 tickers × 2,000 bars universe** (1,000,000 rows) on Polars' multi-threaded Rust engine vs. single-threaded Pandas:
-
-| Operation / Indicator | Dataset Scale | Pandas Execution | `polars-anta` Execution | Measured Speedup |
-| :--- | :--- | :---: | :---: | :---: |
-| **Linear Regression Slope (OLS)** | 1,000,000 bars | 2.3529 s | **0.0209 s** | **112.4x Faster** |
-| **Multi-Asset RSI (14)** | 500 tickers × 2k bars | 0.4398 s | **0.0545 s** | **8.1x Faster** |
-| **Multi-Asset SMA (20)** | 500 tickers × 2k bars | 0.1345 s | **0.0168 s** | **8.0x Faster** |
-| **Z-Score Normalization** | 1,000,000 bars | 0.0450 s | **0.0267 s** | **1.7x Faster** |
-| **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
-| **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
-
-> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS). A fully vectorized pandas/NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
 
 ---
 
@@ -484,8 +444,8 @@ All 219 public functions (221 exports in `__all__`, including `BacktestResult` a
 | `cs_winsorize(expr, over=None, method="quantile", lower=0.01, upper=0.99, threshold=3.0)` | Cross-Sectional | Cross-sectional outlier clipping via `"quantile"`, `"zscore"`, or robust `"mad"` |
 | `neutralize(expr, by, over=None, standardize=False)` | Cross-Sectional | Sector/industry/group demeaning & standardization |
 | `orthogonalize(expr, factors, over=None, standardize=True, ridge=0.0)` | Cross-Sectional | Multi-factor OLS Gram-Schmidt residualization & standardization |
-| `ts_scale(expr, a=1.0, over=None)` | Cross-Sectional | L1 book-size normalization (∑ |w_i| = a) |
-| `amihud_illiquidity(close, volume, period=20, scale=1e6)` | Microstructure | Amihud (2002) Illiquidity Ratio: (1/N) ∑ (|r_t| / DollarVolume_t) × scale |
+| `ts_scale(expr, a=1.0, over=None)` | Cross-Sectional | L1 book-size normalization (∑ \|w_i\| = a) |
+| `amihud_illiquidity(close, volume, period=20, scale=1e6)` | Microstructure | Amihud (2002) Illiquidity Ratio: (1/N) ∑ (\|r_t\| / DollarVolume_t) × scale |
 | `roll_spread(close, period=20)` | Microstructure | Roll (1984) Serial Price-Change Covariance Effective Bid-Ask Spread: 2 × sqrt(max(0, -Cov(ΔP_t, ΔP_{t-1}))) |
 | `corwin_schultz_spread(high, low, period=20)` | Microstructure | Corwin & Schultz (2012) Two-Bar High-Low Range Effective Bid-Ask Spread Estimator |
 | `kyle_lambda(close, volume, period=20, scale=1e6)` | Microstructure | Kyle (1985) Price-Impact Coefficient λ via Rolling OLS on Signed Dollar Volume |
@@ -505,7 +465,7 @@ All 219 public functions (221 exports in `__all__`, including `BacktestResult` a
 | `decay_linear(close, period=10)` | Time-Series | Linearly decaying weighted moving average |
 | `ts_delta(expr, period=1)` | Time-Series | Difference operator x_t - x_{t-d} |
 | `ts_delay(expr, period=1)` | Time-Series | Lag operator x_{t-d} |
-| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power sign(x) × |x|<sup>a</sup> |
+| `signed_power(expr, exponent=2.0)` | Time-Series | Sign-preserving power sign(x) × \|x\|<sup>a</sup> |
 | `ts_min(expr, period=10)` | Time-Series | Rolling window minimum |
 | `ts_max(expr, period=10)` | Time-Series | Rolling window maximum |
 | `ts_sum(expr, period=10)` | Time-Series | Rolling window sum |
@@ -543,8 +503,8 @@ All 219 public functions (221 exports in `__all__`, including `BacktestResult` a
 | `max_drawdown(returns_or_equity, is_returns=True)` | Performance Metric | Scalar Maximum Drawdown (MDD) |
 | `sharpe_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sharpe Ratio scalar expression |
 | `sortino_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Annualized Sortino Ratio using downside deviation |
-| `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by |MDD| |
-| `profit_factor(returns)` | Performance Metric | Gross Profit divided by |Gross Loss| |
+| `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by \|MDD\| |
+| `profit_factor(returns)` | Performance Metric | Gross Profit divided by \|Gross Loss\| |
 | `win_rate(returns, include_zeros=False)` | Performance Metric | Proportion of active periods with positive returns |
 | `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Skewness- & Kurtosis-adjusted Probabilistic Sharpe Ratio (PSR ∈ [0, 1]) |
 | `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | Performance Metric | Multiple-Testing Deflated Sharpe Ratio (DSR ∈ [0, 1], Bailey & López de Prado 2014) |
@@ -567,7 +527,7 @@ All 219 public functions (221 exports in `__all__`, including `BacktestResult` a
 | `resample_ohlcv(df, every, ...)` / `df.anta.resample(every, ...)` | Time Bar Aggregation | Multi-timeframe calendar aggregation (`"5m"`, `"15m"`, `"1h"`, `"1d"`) via `group_by_dynamic` |
 | `resample_volume_bars(df, volume_threshold, ...)` | Information Bars | Cumulative Volume Bar sampling (∑ V_i ≥ Θ_V) restoring return Gaussianity |
 | `resample_dollar_bars(df, dollar_threshold, ...)` | Information Bars | Cumulative Dollar/Notional Bar sampling (∑ P_i V_i ≥ Θ_D) invariant to price inflation |
-| `resample_imbalance_bars(df, expected_imbalance, ...)` | Information Bars | López de Prado (2018) Tick/Volume Imbalance Bars (|∑ b_i v_i| ≥ Θ_imbalance) |
+| `resample_imbalance_bars(df, expected_imbalance, ...)` | Information Bars | López de Prado (2018) Tick/Volume Imbalance Bars (\|∑ b_i v_i\| ≥ Θ_imbalance) |
 | `stitch_futures_roll(df, method="backward", ...)` | Continuous Futures | Non-leaky continuous futures stitching (`"backward"`, `"ratio"`, `"panama"`) across contract expiries |
 
 </details>
@@ -597,6 +557,57 @@ All 219 public functions (221 exports in `__all__`, including `BacktestResult` a
 | `sweep_robustness(df, signals, ...)` | Sweep Diagnostics | Audits `parameter_sweep` grids automatically with CSCV PBO, Hansen SPA, and Romano–Wolf FWER |
 
 </details>
+
+---
+
+## Performance benchmark (1,000,000 rows)
+
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/benchmarks/benchmark_speed.png" alt="polars-anta Performance Benchmark" width="900"/>
+
+</div>
+
+Benchmarks measured across **1,000,000 bars** (single-asset random walk) and a **500 tickers × 2,000 bars universe** (1,000,000 rows) on Polars' multi-threaded Rust engine vs. single-threaded Pandas:
+
+| Operation / Indicator | Dataset Scale | Pandas Execution | `polars-anta` Execution | Measured Speedup |
+| :--- | :--- | :---: | :---: | :---: |
+| **Linear Regression Slope (OLS)** | 1,000,000 bars | 2.3529 s | **0.0209 s** | **112.4x Faster** |
+| **Multi-Asset RSI (14)** | 500 tickers × 2k bars | 0.4398 s | **0.0545 s** | **8.1x Faster** |
+| **Multi-Asset SMA (20)** | 500 tickers × 2k bars | 0.1345 s | **0.0168 s** | **8.0x Faster** |
+| **Z-Score Normalization** | 1,000,000 bars | 0.0450 s | **0.0267 s** | **1.7x Faster** |
+| **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
+| **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
+
+> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS). A fully vectorized pandas/NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
+
+---
+
+## Documentation and learning resources
+
+| Resource | Description |
+| :--- | :--- |
+| [**Factor Zoo Empirical Study**](research/factor_zoo/REPORT.md) | Pre-registered falsification of 150 technical & formulaic signals on Vietnamese equities (`HOSE`, 2014–2026) |
+| [**Statistical Inference & Falsification**](docs/indicators/inference.md) | Stationary bootstrap, Romano–Wolf stepdown, Hansen SPA, CSCV PBO, Empirical-Bayes shrinkage & Monte Carlo size/power validation |
+| [**Online Documentation**](https://huuan26.github.io/polars-anta/) | Full documentation website with search, mathematical formulas, and usage guides |
+| [**Quantitative Theory & Workflows**](docs/guides/quant-theory-and-workflows.md) | Deep-dive guide into AFML labeling, fractional differentiation, microstructure bars, Newey-West HAC, and PSR/DSR |
+| [**API Reference Overview**](docs/indicators/index.md) | Complete index of all supported functions, input arguments, and `pl.Struct` output schemas |
+| [**Getting Started Guide**](docs/getting-started.md) | Introduction to Polars expressions, `.unnest()`, and fluent `.anta` / `.ta` chaining |
+| [**Multi-Asset Universe Guide**](docs/guides/multi-asset.md) | Best practices for partitioning indicators and cross-sectional factors with `.over("ticker")` |
+| [**Factor Evaluation & Backtesting Guide**](docs/indicators/evaluation-and-backtest.md) | Evaluating factor Rank IC / Quantiles and running `df.anta.backtest()` with transaction costs |
+| [**Architecture & Vectorization**](docs/architecture.md) | Deep dive into closed-form OLS identities, Wilder smoothing recurrences, and stride kernels |
+| [**Benchmarks & Reproducibility**](docs/benchmarks.md) | 1,000,000-row benchmark methodology and reproduction script ([`benchmark_speed.py`](benchmarks/benchmark_speed.py)) |
+| [**Roadmap**](ROADMAP.md) & [**Changelog**](CHANGELOG.md) | Release history, upcoming milestones, and version changes |
+
+### Interactive Jupyter & Colab Notebooks
+
+| Notebook | Topic & Workflow Covered | Launch in Browser |
+| :--- | :--- | :---: |
+| **[`quickstart_colab.ipynb`](examples/quickstart_colab.ipynb)** | 1-minute interactive demo covering expression syntax, 500-ticker scans, and live 112x speed benchmarks | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
+| **[`01_quickstart.ipynb`](examples/01_quickstart.ipynb)** | Step-by-step introduction to `.anta` / `.ta` expressions, `pl.Struct` unnesting, and indicator plotting | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/01_quickstart.ipynb) |
+| **[`02_multi_asset_portfolio_scan.ipynb`](examples/02_multi_asset_portfolio_scan.ipynb)** | Screening a 500-ticker equity universe in ~50 ms using parallel `.over("ticker")` expressions | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/02_multi_asset_portfolio_scan.ipynb) |
+| **[`03_crypto_momentum_scan.ipynb`](examples/03_crypto_momentum_scan.ipynb)** | Cross-sectional cryptocurrency momentum, volatility filtering, and composite ranking workflow | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
+| **[`04_backtest_and_alpha_eval.ipynb`](examples/04_backtest_and_alpha_eval.ipynb)** | 1-line entry/exit crossovers, formatted tearsheets, 5-quantile IC analysis, and dollar-neutral portfolio backtesting | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_backtest_and_alpha_eval.ipynb) |
 
 ---
 
@@ -668,13 +679,13 @@ $$
 
 ## Design philosophy
 
-`polars-anta` aims to balance **mathematical clarity**, **cross-sectional expressiveness**, and **execution speed**:
+`polars-anta` aims to balance **mathematical clarity**, **statistical rigor**, and **execution speed**:
 
 1. **Keep quantitative formulas inspectable** — write indicators using closed-form algebraic identities and native Polars expressions (`pl.Expr`) rather than hiding logic behind compiled C extensions.
-2. **Eliminate Python loops** — express recursive smoothing (Wilder's RMA, Heikin-Ashi) via exact `ewm_mean` recurrences and path-dependent rolling operators via zero-copy `sliding_window_view` kernels.
-3. **Treat single-asset and multi-asset panels uniformly** — every expression composes naturally with `.over("ticker")` for time-series operations and `.over("date")` for cross-sectional ranking and neutralization.
-4. **Prevent look-ahead bias by default** — backtesting utilities shift signals by `signal_lag=1` bar out of the box and account for proportional transaction fees and slippage.
-5. **Provide reproducible examples and parity tests** — verify mathematical accuracy through comprehensive unit test suites and self-contained notebooks.
+2. **Falsify before deploying** — treat multiple-testing adjustments (BH FDR, Romano–Wolf stepdown, Hansen SPA, CSCV PBO), Empirical-Bayes shrinkage, structural break tests (OLS-CUSUM), and transaction-cost hurdles as first-class primitives.
+3. **Eliminate Python loops** — express recursive smoothing (Wilder's RMA, Heikin-Ashi) via exact `ewm_mean` recurrences and path-dependent rolling operators via zero-copy `sliding_window_view` kernels.
+4. **Treat single-asset and multi-asset panels uniformly** — every expression composes naturally with `.over("ticker")` for time-series operations and `.over("date")` for cross-sectional ranking and neutralization.
+5. **Prevent look-ahead bias by default** — backtesting utilities shift signals by `signal_lag=1` bar out of the box and account for proportional transaction fees and slippage.
 
 ---
 
@@ -705,8 +716,8 @@ Contributions from quantitative researchers, developers, and finance students ar
 
 <div align="center">
 
-**Explore the indicators • Run the Colab notebooks • Contribute to open quantitative finance**
+**Build signals • Falsify the Factor Zoo • Contribute to open quantitative finance**
 
-[Documentation](https://huuan26.github.io/polars-anta/) • [API Reference](docs/indicators/index.md) • [Examples](examples/) • [GitHub Issues](https://github.com/huuan26/polars-anta/issues)
+[Factor Zoo Study](research/factor_zoo/REPORT.md) • [Documentation](https://huuan26.github.io/polars-anta/) • [API Reference](docs/indicators/index.md) • [Examples](examples/) • [GitHub Issues](https://github.com/huuan26/polars-anta/issues)
 
 </div>

@@ -4,11 +4,11 @@
   </div>
 
   <div class="anta-hero-title">
-    Alpha Research, Market Microstructure, Quantitative Feature Engineering &amp; Vectorized Backtesting in Polars
+    Build Alpha Signals in Polars &mdash; Then Try to Falsify Them
   </div>
 
   <div class="anta-hero-subtitle">
-    <strong>Auditable white-box mathematical expressions.</strong> Cross-sectional factor orthogonalization and microstructure modeling. An intuitive dual <code>.anta</code> / <code>.ta</code> interface. <strong>Zero-C deployment</strong> with Rust-accelerated performance.
+    On Vietnamese equities, <strong>150</strong> technical signals collapse to <strong>~6</strong> independent dimensions (<code>N_eff = 6.00</code>); the dominant one replicates out of sample (<strong>38</strong> of <strong>64</strong> <code>robust</code> signals) but does not survive long-only trading costs (<strong>0</strong> survivors). <strong>polars-anta</strong> ships <strong>219</strong> signal and evaluation primitives <strong>and</strong> the statistical machinery &mdash; stationary block bootstrap, Benjamini&ndash;Hochberg FDR, Romano&ndash;Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting and empirical-Bayes shrinkage &mdash; to separate genuine structure from noise.
   </div>
 
   <div class="anta-badges">
@@ -21,34 +21,62 @@
   </div>
 
   <div class="anta-cta-group">
-    <a href="getting-started/" class="md-button md-button--primary anta-btn-primary">Get Started in 60s</a>
+    <a href="research/factor-zoo/" class="md-button md-button--primary anta-btn-primary">Read the Factor Zoo Study</a>
+    <a href="getting-started/" class="md-button anta-btn-secondary">Get Started in 60s</a>
     <a href="indicators/" class="md-button anta-btn-secondary">Explore 219-Function API Catalog</a>
-    <a href="guides/quant-theory-and-workflows/" class="md-button anta-btn-secondary">Mathematical Theory</a>
   </div>
 </div>
 
 <div class="anta-metrics-grid">
   <div class="anta-metric-card">
-    <div class="anta-metric-value">112.4x</div>
-    <div class="anta-metric-label">Peak Speedup</div>
-    <div class="anta-metric-desc">Rolling OLS vs. pandas <code>rolling().apply()</code></div>
+    <div class="anta-metric-value">150 &middot; N<sub>eff</sub> &approx; 6</div>
+    <div class="anta-metric-label">150 Signals Tested &middot; N_eff &approx; 6</div>
+    <div class="anta-metric-desc">146 unique signals collapse to 6.00 independent dimensions</div>
+  </div>
+  <div class="anta-metric-card">
+    <div class="anta-metric-value">38</div>
+    <div class="anta-metric-label">38 Replicate Out-of-Sample (Statistical)</div>
+    <div class="anta-metric-desc">38 of 64 <code>robust</code> signals pass Holdout RW &le; 0.05 (97.6% retention)</div>
+  </div>
+  <div class="anta-metric-card">
+    <div class="anta-metric-value">0</div>
+    <div class="anta-metric-label">0 Survive Long-Only Costs</div>
+    <div class="anta-metric-desc">0 standalone Q5 strategies survive retail HOSE costs (60 bps RT) &amp; BH</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">219</div>
     <div class="anta-metric-label">Public Functions</div>
-    <div class="anta-metric-desc">Dual <code>.anta</code> &amp; <code>.ta</code> API</div>
-  </div>
-  <div class="anta-metric-card">
-    <div class="anta-metric-value">Zero-C</div>
-    <div class="anta-metric-label">Pure Polars Engine</div>
-    <div class="anta-metric-desc">No C/Cython compiler</div>
-  </div>
-  <div class="anta-metric-card">
-    <div class="anta-metric-value">O(1)</div>
-    <div class="anta-metric-label">Per-Bar Complexity</div>
-    <div class="anta-metric-desc">Rust SIMD execution</div>
+    <div class="anta-metric-desc">Zero-C Polars &amp; NumPy dual <code>.anta</code> / <code>.ta</code> API</div>
   </div>
 </div>
+
+---
+
+## Evidence: The Factor Zoo Inside This Library
+
+In our pre-specified empirical study ([**Factor Zoo Study**](research/factor-zoo.md), commit `4c1a4b559d22a1367ce46b513ab7ff1079fff360`; see [Deviations & Timeline](research/factor-zoo.md#31-deviations-from-the-analysis-plan-timeline)), we tested all **150** daily-OHLCV-compatible signals (**146** unique after accounting for **4** exact duplicate pairs) in `polars-anta` at their default parameters on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (`HOSE`) universe (`2014-01-01`–`2021-12-31` discovery, `2022-01-01`–`2026-11-10` locked holdout, $h = 5$ open-to-open days):
+
+#### Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, $h = 5$ Days)
+
+| Stage | Signals | Share of Registry | Notes |
+| :--- | ---: | ---: | :--- |
+| **A1. Tested in Registry** | **150** | `100.0%` | 146 unique signals + 4 exact duplicate pairs ($N_{\text{eff}} = 6.00$) |
+| **A2. Benjamini–Hochberg FDR $q \le 0.10$** | **94** | `62.7%` | Raw Stationary Bootstrap $p \le 0.05$: **91** (NW $|t| \ge 1.96$: **95**; $\approx 7.5$ under i.i.d. noise) |
+| **A3. Romano–Wolf Stepdown FWER $p_{\text{RW}} \le 0.05$** | **71** | `47.3%` | Joint studentized $\max$-$t$ bootstrap across all 150 IC series |
+| **A4. Structurally Stable (`robust` Verdict)** | **64** | `42.7%` | RW $p \le 0.05$ and non-decaying (+ **16** `fdr_only`, **14** `decaying`, **56** `noise`) |
+| **A5. Replicate in Locked Holdout (`2022-01-01`–`2026-11-10`)** | **38** | `25.3%` | **38** of **64** (`59.4%`) pass Holdout RW $p \le 0.05$ (**49** or `76.6%` pass BH $q \le 0.10$; **54** or `84.4%` retain sign) |
+
+#### Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)
+
+| Stage | Signals | Share of Registry | Share of 80 Candidates |
+| :--- | ---: | ---: | ---: |
+| **B1. Non-Decaying Discovery Survivors Evaluated** | **80** | `53.3%` | `100.0%` (**64** `robust` + **16** `fdr_only`) |
+| **B2. Positive Net Excess Return After HOSE Costs (`60 bps` RT)** | **12** | `8.0%` | `15.0%` |
+| **B3. Unadjusted One-Sided Bootstrap $p \le 0.05$ on Net Excess** | **2** | `1.3%` | `2.5%` (`trix_15`, `tsi`) |
+| **B4. Survive Benjamini–Hochberg FDR $q \le 0.10$ Across Cost Stage** | **0** | `0.0%` | `0.0%` |
+| **B5. Confirmed Post-Cost Survivors in Locked Holdout** | **0** | `0.0%` | `0.0%` |
+
+![Factor Zoo Falsification Funnel](assets/research/01_falsification_funnel.png)
 
 ---
 
@@ -281,6 +309,7 @@ Measured across **1,000,000 bars** (single-asset random walk) and a **500 ticker
 
 | Resource | Description |
 | :--- | :--- |
+| [**Factor Zoo Empirical Study**](research/factor-zoo.md) | Pre-registered falsification of 150 technical & formulaic signals on Vietnamese equities (`HOSE`, 2014–2026) |
 | [**Quantitative Theory & Workflows**](guides/quant-theory-and-workflows.md) | Deep-dive into the mathematics and theory of AFML labeling, FFD, microstructure bars, Gram-Schmidt orthogonalization, Newey-West HAC, and PSR/DSR |
 | [**Architecture & Mathematical Proofs**](architecture.md) | Step-by-step algebraic proofs of the WMA–SMA OLS identity, Wilder RMA recurrences, and zero-copy `sliding_window_view` vectorization |
 | [**API Reference & Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 219 public functions |

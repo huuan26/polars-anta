@@ -651,6 +651,7 @@ Benchmarks are measured on **1,000,000 bars** (single-asset random walk) and on 
 | [`02_multi_asset_portfolio_scan.ipynb`](examples/02_multi_asset_portfolio_scan.ipynb) | Screening a 500-ticker equity universe with parallel `.over("ticker")` expressions | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/02_multi_asset_portfolio_scan.ipynb) |
 | [`03_crypto_momentum_scan.ipynb`](examples/03_crypto_momentum_scan.ipynb) | Cross-sectional cryptocurrency momentum, volatility filtering and composite ranking | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
 | [`04_backtest_and_alpha_eval.ipynb`](examples/04_backtest_and_alpha_eval.ipynb) | Entry and exit crossovers, tearsheets, 5-quantile IC analysis and dollar-neutral portfolio backtesting | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_backtest_and_alpha_eval.ipynb) |
+| [`04_statistical_arbitrage_pairs_trading.ipynb`](examples/04_statistical_arbitrage_pairs_trading.ipynb) | Statistical arbitrage and pairs trading: log-spread z-scores, rolling correlation and mean-reversion entry/exit signals | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_statistical_arbitrage_pairs_trading.ipynb) |
 
 ---
 

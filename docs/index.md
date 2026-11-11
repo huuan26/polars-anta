@@ -11,15 +11,6 @@
     An open-source Python library for quantitative research, built on Polars. Combine 219 high-performance primitives for technical indicators, formulaic alphas, microstructure and backtesting with statistical falsification tools: stationary block bootstrap, Benjamini-Hochberg FDR, Romano-Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting, and transaction-cost accounting.
   </div>
 
-  <div class="anta-badges">
-    <a href="https://github.com/huuan26/polars-anta/actions/workflows/ci.yml"><img src="https://github.com/huuan26/polars-anta/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-    <a href="https://pypi.org/project/polars-anta/"><img src="https://img.shields.io/pypi/v/polars-anta.svg?label=PyPI&color=1D7AFC" alt="PyPI Version" /></a>
-    <a href="https://pypi.org/project/polars-anta/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-1D7AFC" alt="Python Version" /></a>
-    <a href="https://pola.rs"><img src="https://img.shields.io/badge/polars-%3E%3D1.0.0-1D7AFC" alt="Polars Version" /></a>
-    <a href="indicators/"><img src="https://img.shields.io/badge/functions-219%20public%20functions-10b981" alt="Public Functions" /></a>
-    <a href="https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" /></a>
-  </div>
-
   <div class="anta-cta-group">
     <a href="research/factor-zoo/" class="md-button md-button--primary anta-btn-primary">Read the Factor Zoo Case Study</a>
     <a href="getting-started/" class="md-button anta-btn-secondary">Get Started in 60s</a>
@@ -29,26 +20,36 @@
 
 <div class="anta-metrics-grid">
   <div class="anta-metric-card">
-    <div class="anta-metric-value">150 | N<sub>eff</sub> = 6.00</div>
-    <div class="anta-metric-label">150 Signals Tested - N_eff = 6.00</div>
-    <div class="anta-metric-desc">146 unique signals collapse to 6.00 independent dimensions</div>
+    <div class="anta-metric-value">150</div>
+    <div class="anta-metric-label">Signals Tested</div>
+    <div class="anta-metric-desc">146 unique signals collapse to N_eff = 6.00 dimensions</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">38</div>
-    <div class="anta-metric-label">38 Replicate Out-of-Sample (Statistical)</div>
-    <div class="anta-metric-desc">38 of 64 <code>robust</code> signals pass Holdout RW &le; 0.05 (97.6% retention)</div>
+    <div class="anta-metric-label">Holdout Replications</div>
+    <div class="anta-metric-desc">38 of 64 robust signals pass Romano-Wolf (59.4%)</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">0</div>
-    <div class="anta-metric-label">0 Survive Long-Only Costs</div>
-    <div class="anta-metric-desc">0 standalone Q5 strategies survive retail HOSE costs (60 bps RT) &amp; BH</div>
+    <div class="anta-metric-label">Post-Cost Survivors</div>
+    <div class="anta-metric-desc">0 long-only Q5 strategies survive 60 bps execution costs</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">219</div>
     <div class="anta-metric-label">Public Functions</div>
-    <div class="anta-metric-desc">Zero-C Polars &amp; NumPy dual <code>.anta</code> / <code>.ta</code> API</div>
+    <div class="anta-metric-desc">Pure Polars expressions with zero C compiler dependencies</div>
   </div>
 </div>
+
+| Project facts | |
+| :--- | :--- |
+| Install | `pip install polars-anta` or `uv add polars-anta` |
+| Python | 3.10, 3.11, 3.12, 3.13, 3.14 |
+| Runtime dependencies | `polars>=1.0.0`, `numpy>=1.24.0` (no C compiler required) |
+| Engine | Native Polars expressions on the multi-threaded Rust engine |
+| Status | [CI workflow](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml), [Docs workflow](https://github.com/huuan26/polars-anta/actions/workflows/docs.yml), [PyPI release](https://pypi.org/project/polars-anta/) |
+| Try online | [Quickstart notebook on Google Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
+| License | [Apache License 2.0](https://github.com/huuan26/polars-anta/blob/master/LICENSE) |
 
 ---
 

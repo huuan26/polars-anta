@@ -27,6 +27,13 @@
 
 | Factor | Verdict | Gross Excess (5d) | L1 Turnover (5d) | Net Excess (% Ann.) | Net IR (Ann.) | Raw Bootstrap p | BH q | Breakeven Cost (Round-Trip bps) |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+
+### Cost-Stage Descriptive Ranges (Auto-derived from `cost_stage.csv`)
+
+- **Top-6 $|t_{\text{NW}}|$ fast reversal signals** (`returns_divergence_14, hma_10, tema_10, zlema_10, true_range_norm, alpha_018`): 5-day L1 turnover `1.28–1.74` (`63.8%–87.2%` one-way replacement), annualized cost drag `19.3%–26.4%/yr`, breakeven round-trip cost `-6.7–20.5 bps` (`5.7–20.5 bps` across the 5 positive-gross-excess signals; `alpha_018` has negative long-only Q5 gross excess `-0.0005` and breakeven `-6.7 bps`).
+- **All 68 negative-net-excess candidates**: 5-day L1 turnover `0.27–1.83` (`13.5%–91.4%` one-way), annualized cost drag `4.1%–27.6%/yr`, breakeven round-trip cost `-23.8–53.1 bps`.
+- **All 12 positive-net-excess candidates**: 5-day L1 turnover `0.28–0.79` (`14.1%–39.5%` one-way), annualized cost drag `4.3%–11.9%/yr`, breakeven round-trip cost `68.1–129.8 bps`.
+
 | `trix_15` | `robust` | 0.0031 | 0.48 | +8.37% | 0.71 | 0.0170 | 1.00 | 129.8 |
 | `tsi` | `robust` | 0.0032 | 0.58 | +7.65% | 0.70 | 0.0320 | 1.00 | 112.7 |
 | `kst` | `robust` | 0.0026 | 0.49 | +5.84% | 0.51 | 0.0555 | 1.00 | 107.1 |

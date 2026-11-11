@@ -1,0 +1,63 @@
+{
+  "top6_abs_t_signals": [
+    "returns_divergence_14",
+    "hma_10",
+    "tema_10",
+    "zlema_10",
+    "true_range_norm",
+    "alpha_018"
+  ],
+  "top6_abs_t": {
+    "n_signals": 6,
+    "l1_turnover_min": 1.276429700699962,
+    "l1_turnover_max": 1.7433786959953141,
+    "one_way_turnover_min": 0.638214850349981,
+    "one_way_turnover_max": 0.8716893479976571,
+    "one_way_turnover_pct_min": 63.821485034998105,
+    "one_way_turnover_pct_max": 87.16893479976571,
+    "cost_drag_ann_min": 0.19299617074583428,
+    "cost_drag_ann_max": 0.26359885883449147,
+    "cost_drag_ann_pct_min": 19.299617074583427,
+    "cost_drag_ann_pct_max": 26.359885883449145,
+    "breakeven_rt_bps_min": -6.672087880962006,
+    "breakeven_rt_bps_max": 20.48744739980808,
+    "breakeven_rt_bps_pos_min": 5.705089807483085,
+    "breakeven_rt_bps_pos_max": 20.48744739980808
+  },
+  "negative_net": {
+    "n_signals": 68,
+    "l1_turnover_min": 0.26923445647072647,
+    "l1_turnover_max": 1.828658011023564,
+    "one_way_turnover_min": 0.13461722823536323,
+    "one_way_turnover_max": 0.914329005511782,
+    "one_way_turnover_pct_min": 13.461722823536324,
+    "one_way_turnover_pct_max": 91.4329005511782,
+    "cost_drag_ann_min": 0.04070824981837384,
+    "cost_drag_ann_max": 0.27649309126676286,
+    "cost_drag_ann_pct_min": 4.070824981837385,
+    "cost_drag_ann_pct_max": 27.649309126676286,
+    "breakeven_rt_bps_min": -23.763203320436425,
+    "breakeven_rt_bps_max": 53.117852630813495,
+    "breakeven_rt_bps_pos_min": 0.23594404297023822,
+    "breakeven_rt_bps_pos_max": 53.117852630813495
+  },
+  "positive_net": {
+    "n_signals": 12,
+    "l1_turnover_min": 0.2823446101247885,
+    "l1_turnover_max": 0.7897417578943993,
+    "one_way_turnover_min": 0.14117230506239425,
+    "one_way_turnover_max": 0.39487087894719963,
+    "one_way_turnover_pct_min": 14.117230506239425,
+    "one_way_turnover_pct_max": 39.48708789471996,
+    "cost_drag_ann_min": 0.04269050505086802,
+    "cost_drag_ann_max": 0.11940895379363317,
+    "cost_drag_ann_pct_min": 4.269050505086803,
+    "cost_drag_ann_pct_max": 11.940895379363317,
+    "breakeven_rt_bps_min": 68.0863926913048,
+    "breakeven_rt_bps_max": 129.82145924217878,
+    "breakeven_rt_bps_pos_min": 68.0863926913048,
+    "breakeven_rt_bps_pos_max": 129.82145924217878
+  },
+  "alpha_018_gross_excess_5d": -0.0005279154269145194,
+  "alpha_018_breakeven_rt_bps": -6.672087880962006
+}

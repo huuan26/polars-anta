@@ -18,6 +18,32 @@ from research.factor_zoo.config import DEFAULT_CONFIG, REPO_ROOT, RESULTS_DIR
 from research.factor_zoo.registry import EXCLUDED_SIGNALS
 
 
+def _summarize_cost_subset(df: pl.DataFrame) -> dict[str, float | int]:
+    """Compute descriptive statistics for a subset of cost_stage.csv."""
+    l1 = df["l1_turnover_mean_5d"]
+    ow = df["one_way_turnover_mean_5d"]
+    be_rt = df["breakeven_bps_roundtrip"]
+    drag_rate = DEFAULT_CONFIG.round_trip_cost_rate * l1 * (252.0 / DEFAULT_CONFIG.primary_horizon)
+    pos_be = df.filter(pl.col("breakeven_bps_roundtrip") > 0.0)["breakeven_bps_roundtrip"]
+    return {
+        "n_signals": int(df.height),
+        "l1_turnover_min": float(l1.min()),
+        "l1_turnover_max": float(l1.max()),
+        "one_way_turnover_min": float(ow.min()),
+        "one_way_turnover_max": float(ow.max()),
+        "one_way_turnover_pct_min": float(ow.min()) * 100.0,
+        "one_way_turnover_pct_max": float(ow.max()) * 100.0,
+        "cost_drag_ann_min": float(drag_rate.min()),
+        "cost_drag_ann_max": float(drag_rate.max()),
+        "cost_drag_ann_pct_min": float(drag_rate.min()) * 100.0,
+        "cost_drag_ann_pct_max": float(drag_rate.max()) * 100.0,
+        "breakeven_rt_bps_min": float(be_rt.min()),
+        "breakeven_rt_bps_max": float(be_rt.max()),
+        "breakeven_rt_bps_pos_min": float(pos_be.min()) if pos_be.len() > 0 else 0.0,
+        "breakeven_rt_bps_pos_max": float(pos_be.max()) if pos_be.len() > 0 else 0.0,
+    }
+
+
 def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     """Render all 5 Factor Zoo figures and copy them to docs/assets/research/."""
     disc_dir = results_dir / "discovery"
@@ -375,6 +401,55 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     )
     pos_cost = cost_table.filter(pl.col("net_excess_mean_5d") > 0.0).sort(
         "net_excess_ann_pct", descending=True
+    )
+    neg_cost = cost_table.filter(pl.col("net_excess_mean_5d") <= 0.0)
+    top6_names = (
+        disc_table.with_columns(pl.col("nw_t").abs().alias("_abs_t"))
+        .sort("_abs_t", descending=True)
+        .head(6)["factor"]
+        .to_list()
+    )
+    top6_cost = cost_table.filter(pl.col("factor").is_in(top6_names))
+    alpha018_row = cost_table.filter(pl.col("factor") == "alpha_018").row(0, named=True)
+
+    cost_stage_summary = {
+        "top6_abs_t_signals": top6_names,
+        "top6_abs_t": _summarize_cost_subset(top6_cost),
+        "negative_net": _summarize_cost_subset(neg_cost),
+        "positive_net": _summarize_cost_subset(pos_cost),
+        "alpha_018_gross_excess_5d": float(alpha018_row["gross_excess_mean_5d"]),
+        "alpha_018_breakeven_rt_bps": float(alpha018_row["breakeven_bps_roundtrip"]),
+    }
+    (disc_dir / "cost_stage_summary.json").write_text(
+        json.dumps(cost_stage_summary, indent=2), encoding="utf-8"
+    )
+    t6 = cost_stage_summary["top6_abs_t"]
+    neg_s = cost_stage_summary["negative_net"]
+    pos_s = cost_stage_summary["positive_net"]
+    md_lines.extend(
+        [
+            "",
+            "### Cost-Stage Descriptive Ranges (Auto-derived from `cost_stage.csv`)",
+            "",
+            f"- **Top-6 $|t_{{\\text{{NW}}}}|$ fast reversal signals** (`{', '.join(top6_names)}`): "
+            f"5-day L1 turnover `{t6['l1_turnover_min']:.2f}–{t6['l1_turnover_max']:.2f}` "
+            f"(`{t6['one_way_turnover_pct_min']:.1f}%–{t6['one_way_turnover_pct_max']:.1f}%` one-way replacement), "
+            f"annualized cost drag `{t6['cost_drag_ann_pct_min']:.1f}%–{t6['cost_drag_ann_pct_max']:.1f}%/yr`, "
+            f"breakeven round-trip cost `{t6['breakeven_rt_bps_min']:.1f}–{t6['breakeven_rt_bps_max']:.1f} bps` "
+            f"(`{t6['breakeven_rt_bps_pos_min']:.1f}–{t6['breakeven_rt_bps_pos_max']:.1f} bps` across the 5 positive-gross-excess signals; "
+            f"`alpha_018` has negative long-only Q5 gross excess `{cost_stage_summary['alpha_018_gross_excess_5d']:.4f}` and breakeven `{cost_stage_summary['alpha_018_breakeven_rt_bps']:.1f} bps`).",
+            f"- **All {neg_s['n_signals']} negative-net-excess candidates**: "
+            f"5-day L1 turnover `{neg_s['l1_turnover_min']:.2f}–{neg_s['l1_turnover_max']:.2f}` "
+            f"(`{neg_s['one_way_turnover_pct_min']:.1f}%–{neg_s['one_way_turnover_pct_max']:.1f}%` one-way), "
+            f"annualized cost drag `{neg_s['cost_drag_ann_pct_min']:.1f}%–{neg_s['cost_drag_ann_pct_max']:.1f}%/yr`, "
+            f"breakeven round-trip cost `{neg_s['breakeven_rt_bps_min']:.1f}–{neg_s['breakeven_rt_bps_max']:.1f} bps`.",
+            f"- **All {pos_s['n_signals']} positive-net-excess candidates**: "
+            f"5-day L1 turnover `{pos_s['l1_turnover_min']:.2f}–{pos_s['l1_turnover_max']:.2f}` "
+            f"(`{pos_s['one_way_turnover_pct_min']:.1f}%–{pos_s['one_way_turnover_pct_max']:.1f}%` one-way), "
+            f"annualized cost drag `{pos_s['cost_drag_ann_pct_min']:.1f}%–{pos_s['cost_drag_ann_pct_max']:.1f}%/yr`, "
+            f"breakeven round-trip cost `{pos_s['breakeven_rt_bps_min']:.1f}–{pos_s['breakeven_rt_bps_max']:.1f} bps`.",
+            "",
+        ]
     )
     for r in pos_cost.iter_rows(named=True):
         md_lines.append(

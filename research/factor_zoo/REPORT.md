@@ -93,19 +93,29 @@ Full mathematical formulations and Monte Carlo size/power validations of the inf
 
 ## 7. Confirmatory Empirical Results ($h = 5$)
 
-### 7.1 The Falsification Funnel
+### 7.1 The Two-Track Falsification Funnel
 
-| Stage | Signals | Share of Registry |
-| :--- | ---: | ---: |
-| **1. Tested (Pre-Registered Registry)** | **150** | `100.0%` |
-| **2. Raw Stationary Bootstrap $p \le 0.05$** *(Newey–West $|t| \ge 1.96$: 95)* | **91** *(≈ 7.5 expected by chance)* | `60.7%` |
-| **3. Benjamini–Hochberg FDR $q \le 0.10$** | **94** | `62.7%` |
-| **4. Romano–Wolf Stepdown FWER $p_{\text{RW}} \le 0.05$** | **71** | `47.3%` |
-| **4a. Structurally Stable `robust` Verdict** *(RW $p \le 0.05$ & non-decaying)* | **64** *(+ 16 `fdr_only`, 14 `decaying`, 56 `noise`)* | `42.7%` |
-| **5. Positive Net Excess Return After HOSE Costs & Tax** *(Long-Only Q5, 60 bps RT)* | **12** *(out of 80 `robust ∪ fdr_only` candidates)* | `8.0%` |
-| **5a. Statistically Significant Net Excess Return (Raw Bootstrap $p \le 0.05$)** | **2** (`trix_15`, `tsi`) | `1.3%` |
-| **5b. Survive Costs After BH Adjustment ($q \le 0.10$ Across Cost Stage)** | **0** | `0.0%` |
-| **6. Confirmed in Locked Holdout (`2022-01-01`–`2026-11-10`, Post-Cost)** | **0** *(**38** replicate statistical Rank IC at RW $p \le 0.05$)* | `0.0%` |
+Rather than conflating frictionless statistical rank predictability with long-only transaction-cost survival in a single non-monotonic table, the empirical funnel is separated into two monotonic tracks:
+
+#### Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, $h = 5$ Days)
+
+| Stage | Signals | Share of Registry | Notes |
+| :--- | ---: | ---: | :--- |
+| **A1. Tested in Registry** | **150** | `100.0%` | 146 unique signals + 4 exact duplicate pairs ($N_{\text{eff}} = 6.00$) |
+| **A2. Benjamini–Hochberg FDR $q \le 0.10$** | **94** | `62.7%` | Raw Stationary Bootstrap $p \le 0.05$: **91** (NW $|t| \ge 1.96$: **95**; $\approx 7.5$ under i.i.d. noise) |
+| **A3. Romano–Wolf Stepdown FWER $p_{\text{RW}} \le 0.05$** | **71** | `47.3%` | Joint studentized $\max$-$t$ bootstrap across all 150 IC series |
+| **A4. Structurally Stable (`robust` Verdict)** | **64** | `42.7%` | RW $p \le 0.05$ and non-decaying (+ **16** `fdr_only`, **14** `decaying`, **56** `noise`) |
+| **A5. Replicate in Locked Holdout (`2022-01-01`–`2026-11-10`)** | **38** | `25.3%` | **38** of **64** (`59.4%`) pass Holdout RW $p \le 0.05$ (**49** or `76.6%` pass BH $q \le 0.10$; **54** or `84.4%` retain sign) |
+
+#### Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)
+
+| Stage | Signals | Share of Registry | Share of 80 Candidates |
+| :--- | ---: | ---: | ---: |
+| **B1. Non-Decaying Discovery Survivors Evaluated** | **80** | `53.3%` | `100.0%` (**64** `robust` + **16** `fdr_only`) |
+| **B2. Positive Net Excess Return After HOSE Costs (`60 bps` RT)** | **12** | `8.0%` | `15.0%` |
+| **B3. Unadjusted One-Sided Bootstrap $p \le 0.05$ on Net Excess** | **2** | `1.3%` | `2.5%` (`trix_15`, `tsi`) |
+| **B4. Survive Benjamini–Hochberg FDR $q \le 0.10$ Across Cost Stage** | **0** | `0.0%` | `0.0%` |
+| **B5. Confirmed Post-Cost Survivors in Locked Holdout** | **0** | `0.0%` | `0.0%` |
 
 ![Falsification Funnel](results/figures/01_falsification_funnel.png)
 

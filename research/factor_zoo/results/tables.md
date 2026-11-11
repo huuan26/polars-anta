@@ -1,15 +1,26 @@
 # Generated Factor Zoo Tables (Auto-rendered from JSON/CSV)
 
-## Funnel Table
+## Funnel Table (Two-Track Falsification)
 
-| Stage | Signals |
-| :--- | ---: |
-| Tested (pre-registered registry) | 150 |
-| Raw p < 0.05 (Stationary Bootstrap / Newey–West) | 91 *(≈ 7.5 expected by chance)* |
-| Benjamini–Hochberg q ≤ 0.10 | 94 |
-| Romano–Wolf FWER ≤ 0.05 | 71 (64 non-decaying `robust`) |
-| Survive costs (long-only, VN fees & tax, BH q ≤ 0.10) | 0 (2 at raw p ≤ 0.05) |
-| Confirmed in locked holdout (2022-01-01–2026-11-10) | 0 (38 statistical IC survivors) |
+### Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, $h = 5$ Days)
+
+| Stage | Signals | Share of Registry | Notes |
+| :--- | ---: | ---: | :--- |
+| **A1. Tested in Registry** | **150** | `100.0%` | 146 unique signals + 4 exact duplicate pairs ($N_{\text{eff}} = 6.00$) |
+| **A2. Benjamini–Hochberg FDR $q \le 0.10$** | **94** | `62.7%` | Raw Stationary Bootstrap $p \le 0.05$: **91** (NW $|t| \ge 1.96$: **95**; $\approx 7.5$ under i.i.d. noise) |
+| **A3. Romano–Wolf Stepdown FWER $p_{\text{RW}} \le 0.05$** | **71** | `47.3%` | Joint studentized $\max$-$t$ bootstrap across all 150 IC series |
+| **A4. Structurally Stable (`robust` Verdict)** | **64** | `42.7%` | RW $p \le 0.05$ and non-decaying (+ **16** `fdr_only`, **14** `decaying`, **56** `noise`) |
+| **A5. Replicate in Locked Holdout (`2022-01-01`–`2026-11-10`)** | **38** | `25.3%` | **38** of **64** (`59.4%`) pass Holdout RW $p \le 0.05$ (**49** or `76.6%` pass BH $q \le 0.10$; **54** or `84.4%` retain sign) |
+
+### Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)
+
+| Stage | Signals | Share of Registry | Share of 80 Candidates |
+| :--- | ---: | ---: | ---: |
+| **B1. Non-Decaying Discovery Survivors Evaluated** | **80** | `53.3%` | `100.0%` (**64** `robust` + **16** `fdr_only`) |
+| **B2. Positive Net Excess Return After HOSE Costs (`60 bps` RT)** | **12** | `8.0%` | `15.0%` |
+| **B3. Unadjusted One-Sided Bootstrap $p \le 0.05$ on Net Excess** | **2** | `1.3%` | `2.5%` (`trix_15`, `tsi`) |
+| **B4. Survive Benjamini–Hochberg FDR $q \le 0.10$ Across Cost Stage** | **0** | `0.0%` | `0.0%` |
+| **B5. Confirmed Post-Cost Survivors in Locked Holdout** | **0** | `0.0%` | `0.0%` |
 
 ## Family Breakdown (Discovery 2014–2021, h = 5)
 

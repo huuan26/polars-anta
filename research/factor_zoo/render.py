@@ -72,61 +72,110 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     funnel = hold_summary["funnel_final"]
 
     # ------------------------------------------------------------------
-    # Figure 1: Falsification Funnel
+    # Figure 1: Two-Track Falsification Funnel (Statistical vs Economic)
     # ------------------------------------------------------------------
-    stages = [
-        "1. Pre-Registered\nRegistry",
-        "2. Raw Bootstrap\np < 0.05",
-        "3. Benjamini–Hochberg\nFDR q ≤ 0.10",
-        "4. Romano–Wolf\nFWER p ≤ 0.05",
-        "5. Survive HOSE\nCosts & Tax (RW)",
-        "6. Confirmed in\nHoldout (2022–2026)",
+    stat_stages = [
+        "1. Registered Signals\n(146 Unique / 150 Total)",
+        "2. Benjamini–Hochberg\nFDR q ≤ 0.10 (Discovery)",
+        "3. Romano–Wolf Stepdown\nFWER p ≤ 0.05 (Discovery)",
+        "4. Non-Decaying `robust`\n(CUSUM Stability Screen)",
+        "5. Replicate in Holdout\n(2022–2026, RW p ≤ 0.05)",
     ]
-    counts = [
+    stat_counts = [
         int(funnel["n_tested"]),
-        int(funnel["n_raw_p05"]),
         int(funnel["n_bh_q10"]),
         int(funnel["n_rw_p05"]),
-        int(funnel["n_survive_costs_rw"]),
+        int(funnel["n_verdict_robust"]),
+        int(funnel["n_holdout_rw_stat_only"]),
+    ]
+    stat_colors = ["#475569", "#3b82f6", "#6366f1", "#0ea5e9", "#10b981"]
+
+    econ_stages = [
+        "1. Non-Decaying Candidates\n(64 robust + 16 fdr_only)",
+        "2. Positive Net Excess\n(Long-Only Q5, 60 bps RT)",
+        "3. Unadjusted Bootstrap\np ≤ 0.05 (trix_15, tsi)",
+        "4. Survive BH FDR q ≤ 0.10\nAcross 80 Cost Candidates",
+        "5. Confirmed in Holdout\n(2022–2026, Post-Cost)",
+    ]
+    econ_counts = [
+        int(funnel["n_cost_candidates_evaluated"]),
+        int(funnel["n_positive_net_excess"]),
+        int(funnel["n_survive_costs_raw_p05"]),
+        int(funnel["n_survive_costs_fdr"]),
         int(funnel["n_confirmed_holdout_rw"]),
     ]
-    colors = ["#475569", "#f59e0b", "#3b82f6", "#6366f1", "#0ea5e9", "#10b981"]
+    econ_colors = ["#475569", "#f59e0b", "#fb7185", "#ef4444", "#dc2626"]
 
-    fig, ax = plt.subplots(figsize=(9.5, 4.8), dpi=160)
-    y_pos = np.arange(len(stages))[::-1]
-    bars = ax.barh(y_pos, counts, color=colors, height=0.62, edgecolor="#0f172a", linewidth=0.7)
+    fig, (ax_stat, ax_econ) = plt.subplots(1, 2, figsize=(13.2, 5.0), dpi=160)
+    y_stat = np.arange(len(stat_stages))[::-1]
+    bars_stat = ax_stat.barh(
+        y_stat, stat_counts, color=stat_colors, height=0.60, edgecolor="#0f172a", linewidth=0.7
+    )
     exp_fp = float(funnel["expected_false_positives_at_5pct"])
-    ax.axvline(
+    ax_stat.axvline(
         exp_fp,
         color="#ef4444",
         linestyle="--",
-        linewidth=1.5,
-        label=f"Expected False Positives if All Noise (0.05 × {funnel['n_tested']} = {exp_fp:.1f})",
+        linewidth=1.4,
+        label=(f"i.i.d. Noise Benchmark: {exp_fp:.1f} (Raw p ≤ 0.05: {funnel['n_raw_p05']})"),
     )
-    for bar, val in zip(bars, counts, strict=True):
+    for bar, val in zip(bars_stat, stat_counts, strict=True):
         pct = 100.0 * val / float(funnel["n_tested"])
-        ax.text(
-            bar.get_width() + 2.2,
+        ax_stat.text(
+            bar.get_width() + 2.5,
             bar.get_y() + bar.get_height() / 2.0,
-            f"{val}  ({pct:.1f}%)",
+            f"{val} ({pct:.1f}%)",
             va="center",
             ha="left",
-            fontsize=9.5,
+            fontsize=9.0,
             fontweight="bold",
             color="#0f172a",
         )
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(stages, fontsize=9.5)
-    ax.set_xlim(0, max(counts) * 1.18)
-    ax.set_xlabel("Number of Signals Surviving Stage", fontsize=10)
-    ax.set_title(
-        "The Factor Zoo Falsification Funnel on Vietnamese Equities (HOSE, h = 5 Days)",
-        fontsize=11.5,
+    ax_stat.set_yticks(y_stat)
+    ax_stat.set_yticklabels(stat_stages, fontsize=8.8)
+    ax_stat.set_xlim(0, max(stat_counts) * 1.24)
+    ax_stat.set_xlabel("Signals Passing Stage", fontsize=9.5)
+    ax_stat.set_title(
+        "Track A — Statistical Predictability (Rank IC, h = 5d)",
+        fontsize=10.5,
         fontweight="bold",
-        pad=12,
     )
-    ax.grid(axis="x", linestyle=":")
-    ax.legend(loc="lower right", frameon=True, fontsize=9)
+    ax_stat.grid(axis="x", linestyle=":")
+    ax_stat.legend(loc="lower right", frameon=True, fontsize=8.0)
+
+    y_econ = np.arange(len(econ_stages))[::-1]
+    bars_econ = ax_econ.barh(
+        y_econ, econ_counts, color=econ_colors, height=0.60, edgecolor="#0f172a", linewidth=0.7
+    )
+    for bar, val in zip(bars_econ, econ_counts, strict=True):
+        pct_cand = 100.0 * val / float(funnel["n_cost_candidates_evaluated"])
+        ax_econ.text(
+            bar.get_width() + 1.5,
+            bar.get_y() + bar.get_height() / 2.0,
+            f"{val} ({pct_cand:.1f}%)",
+            va="center",
+            ha="left",
+            fontsize=9.0,
+            fontweight="bold",
+            color="#0f172a",
+        )
+    ax_econ.set_yticks(y_econ)
+    ax_econ.set_yticklabels(econ_stages, fontsize=8.8)
+    ax_econ.set_xlim(0, max(econ_counts) * 1.28)
+    ax_econ.set_xlabel("Signals Passing Stage", fontsize=9.5)
+    ax_econ.set_title(
+        "Track B — Economic Implementability (Long-Only Q5, HOSE Costs)",
+        fontsize=10.5,
+        fontweight="bold",
+    )
+    ax_econ.grid(axis="x", linestyle=":")
+
+    fig.suptitle(
+        "Two-Track Factor Falsification Funnel on Vietnamese Equities (HOSE, 2014–2026)",
+        fontsize=12.0,
+        fontweight="bold",
+        y=0.99,
+    )
     fig.tight_layout()
     fig.savefig(fig_dir / "01_falsification_funnel.png")
     plt.close(fig)
@@ -364,19 +413,32 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
         shutil.copy2(png_file, docs_fig_dir / png_file.name)
 
     # Generate Markdown tables fragment from JSON/CSV results
+    n_test = float(funnel["n_tested"])
+    n_cand = float(funnel["n_cost_candidates_evaluated"])
     md_lines = [
         "# Generated Factor Zoo Tables (Auto-rendered from JSON/CSV)",
         "",
-        "## Funnel Table",
+        "## Funnel Table (Two-Track Falsification)",
         "",
-        "| Stage | Signals |",
-        "| :--- | ---: |",
-        f"| Tested (pre-registered registry) | {funnel['n_tested']} |",
-        f"| Raw p < 0.05 (Stationary Bootstrap / Newey–West) | {funnel['n_raw_p05']} *(≈ {funnel['expected_false_positives_at_5pct']} expected by chance)* |",
-        f"| Benjamini–Hochberg q ≤ 0.10 | {funnel['n_bh_q10']} |",
-        f"| Romano–Wolf FWER ≤ 0.05 | {funnel['n_rw_p05']} ({funnel['n_verdict_robust']} non-decaying `robust`) |",
-        f"| Survive costs (long-only, VN fees & tax, BH q ≤ 0.10) | {funnel['n_survive_costs_rw']} ({funnel['n_survive_costs_raw_p05']} at raw p ≤ 0.05) |",
-        f"| Confirmed in locked holdout ({hold_summary['holdout_start']}–{hold_summary['holdout_end']}) | {funnel['n_confirmed_holdout_rw']} ({funnel['n_holdout_rw_stat_only']} statistical IC survivors) |",
+        "### Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, $h = 5$ Days)",
+        "",
+        "| Stage | Signals | Share of Registry | Notes |",
+        "| :--- | ---: | ---: | :--- |",
+        f"| **A1. Tested in Registry** | **{funnel['n_tested']}** | `{100.0 * funnel['n_tested'] / n_test:.1f}%` | 146 unique signals + 4 exact duplicate pairs ($N_{{\\text{{eff}}}} = {disc_summary['effective_independent_tests']['n_eff']:.2f}$) |",
+        f"| **A2. Benjamini–Hochberg FDR $q \\le 0.10$** | **{funnel['n_bh_q10']}** | `{100.0 * funnel['n_bh_q10'] / n_test:.1f}%` | Raw Stationary Bootstrap $p \\le 0.05$: **{funnel['n_raw_p05']}** (NW $|t| \\ge 1.96$: **{funnel['n_nw_t196']}**; $\\approx {funnel['expected_false_positives_at_5pct']:.1f}$ under i.i.d. noise) |",
+        f"| **A3. Romano–Wolf Stepdown FWER $p_{{\\text{{RW}}}} \\le 0.05$** | **{funnel['n_rw_p05']}** | `{100.0 * funnel['n_rw_p05'] / n_test:.1f}%` | Joint studentized $\\max$-$t$ bootstrap across all {funnel['n_tested']} IC series |",
+        f"| **A4. Structurally Stable (`robust` Verdict)** | **{funnel['n_verdict_robust']}** | `{100.0 * funnel['n_verdict_robust'] / n_test:.1f}%` | RW $p \\le 0.05$ and non-decaying (+ **{funnel['n_verdict_fdr_only']}** `fdr_only`, **{funnel['n_verdict_decaying']}** `decaying`, **{funnel['n_verdict_noise']}** `noise`) |",
+        f"| **A5. Replicate in Locked Holdout (`{hold_summary['holdout_start']}`–`{hold_summary['holdout_end']}`)** | **{funnel['n_holdout_rw_stat_only']}** | `{100.0 * funnel['n_holdout_rw_stat_only'] / n_test:.1f}%` | **{funnel['n_holdout_rw_stat_only']}** of **{funnel['n_verdict_robust']}** (`{100.0 * funnel['n_holdout_rw_stat_only'] / funnel['n_verdict_robust']:.1f}%`) pass Holdout RW $p \\le 0.05$ (**{funnel['n_holdout_bh_stat_only']}** or `{100.0 * funnel['n_holdout_bh_stat_only'] / funnel['n_verdict_robust']:.1f}%` pass BH $q \\le 0.10$; **{funnel['n_holdout_same_sign_robust']}** or `{100.0 * funnel['n_holdout_same_sign_robust'] / funnel['n_verdict_robust']:.1f}%` retain sign) |",
+        "",
+        "### Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)",
+        "",
+        "| Stage | Signals | Share of Registry | Share of 80 Candidates |",
+        "| :--- | ---: | ---: | ---: |",
+        f"| **B1. Non-Decaying Discovery Survivors Evaluated** | **{funnel['n_cost_candidates_evaluated']}** | `{100.0 * funnel['n_cost_candidates_evaluated'] / n_test:.1f}%` | `100.0%` (**{funnel['n_verdict_robust']}** `robust` + **{funnel['n_verdict_fdr_only']}** `fdr_only`) |",
+        f"| **B2. Positive Net Excess Return After HOSE Costs (`60 bps` RT)** | **{funnel['n_positive_net_excess']}** | `{100.0 * funnel['n_positive_net_excess'] / n_test:.1f}%` | `{100.0 * funnel['n_positive_net_excess'] / n_cand:.1f}%` |",
+        f"| **B3. Unadjusted One-Sided Bootstrap $p \\le 0.05$ on Net Excess** | **{funnel['n_survive_costs_raw_p05']}** | `{100.0 * funnel['n_survive_costs_raw_p05'] / n_test:.1f}%` | `{100.0 * funnel['n_survive_costs_raw_p05'] / n_cand:.1f}%` (`trix_15`, `tsi`) |",
+        f"| **B4. Survive Benjamini–Hochberg FDR $q \\le 0.10$ Across Cost Stage** | **{funnel['n_survive_costs_fdr']}** | `{100.0 * funnel['n_survive_costs_fdr'] / n_test:.1f}%` | `{100.0 * funnel['n_survive_costs_fdr'] / n_cand:.1f}%` |",
+        f"| **B5. Confirmed Post-Cost Survivors in Locked Holdout** | **{funnel['n_confirmed_holdout_rw']}** | `{100.0 * funnel['n_confirmed_holdout_rw'] / n_test:.1f}%` | `{100.0 * funnel['n_confirmed_holdout_rw'] / n_cand:.1f}%` |",
         "",
         "## Family Breakdown (Discovery 2014–2021, h = 5)",
         "",

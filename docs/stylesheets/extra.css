@@ -359,3 +359,64 @@ div.arithmatex {
   background: rgba(22, 27, 34, 0.85);
   border-left: 3px solid #388BFD;
 }
+
+/* ==========================================================================
+   Details / Summary Custom Styling (No Icons, Responsive, Institutional)
+   ========================================================================== */
+.md-typeset details > summary::before {
+  display: none !important;
+}
+
+[dir=ltr] .md-typeset details > summary {
+  padding-left: 1rem !important;
+}
+
+.md-typeset details {
+  border: 1px solid rgba(48, 54, 61, 0.7) !important;
+  border-radius: 8px !important;
+  background-color: rgba(22, 27, 34, 0.4) !important;
+  margin: 1.4rem 0 !important;
+  font-size: 0.82rem !important;
+  overflow-x: auto;
+}
+
+[data-md-color-scheme="slate"] .md-typeset details {
+  border-color: rgba(48, 54, 61, 0.85) !important;
+  background-color: rgba(22, 27, 34, 0.5) !important;
+}
+
+.md-typeset details > summary {
+  background-color: rgba(29, 122, 252, 0.06) !important;
+  font-size: 0.86rem !important;
+  font-weight: 600 !important;
+  border-radius: 7px 7px 0 0 !important;
+  color: #1D7AFC !important;
+  padding-top: 0.6rem !important;
+  padding-bottom: 0.6rem !important;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+[data-md-color-scheme="slate"] .md-typeset details > summary {
+  background-color: rgba(56, 139, 253, 0.08) !important;
+  color: #58A6FF !important;
+}
+
+.md-typeset details > summary:hover {
+  background-color: rgba(29, 122, 252, 0.12) !important;
+  color: #1D7AFC !important;
+}
+
+[data-md-color-scheme="slate"] .md-typeset details > summary:hover {
+  background-color: rgba(56, 139, 253, 0.15) !important;
+  color: #79C0FF !important;
+}
+
+.md-typeset details[open] {
+  padding-bottom: 0.9rem !important;
+}
+
+.md-typeset details table {
+  margin: 0.85rem 0 !important;
+  font-size: 0.82rem !important;
+}

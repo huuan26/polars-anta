@@ -76,10 +76,10 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     # ------------------------------------------------------------------
     stat_stages = [
         "1. Registered Signals\n(146 Unique / 150 Total)",
-        "2. Benjamini–Hochberg\nFDR q ≤ 0.10 (Discovery)",
-        "3. Romano–Wolf Stepdown\nFWER p ≤ 0.05 (Discovery)",
+        "2. Benjamini-Hochberg\nFDR q ≤ 0.10 (Discovery)",
+        "3. Romano-Wolf Stepdown\nFWER p ≤ 0.05 (Discovery)",
         "4. Non-Decaying `robust`\n(CUSUM Stability Screen)",
-        "5. Replicate in Holdout\n(2022–2026, RW p ≤ 0.05)",
+        "5. Replicate in Holdout\n(2022-2026, RW p ≤ 0.05)",
     ]
     stat_counts = [
         int(funnel["n_tested"]),
@@ -95,7 +95,7 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
         "2. Positive Net Excess\n(Long-Only Q5, 60 bps RT)",
         "3. Unadjusted Bootstrap\np ≤ 0.05 (trix_15, tsi)",
         "4. Survive BH FDR q ≤ 0.10\nAcross 80 Cost Candidates",
-        "5. Confirmed in Holdout\n(2022–2026, Post-Cost)",
+        "5. Confirmed in Holdout\n(2022-2026, Post-Cost)",
     ]
     econ_counts = [
         int(funnel["n_cost_candidates_evaluated"]),
@@ -106,7 +106,7 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     ]
     econ_colors = ["#475569", "#f59e0b", "#fb7185", "#ef4444", "#dc2626"]
 
-    fig, (ax_stat, ax_econ) = plt.subplots(1, 2, figsize=(13.2, 5.0), dpi=160)
+    fig, (ax_stat, ax_econ) = plt.subplots(1, 2, figsize=(13.6, 5.2), dpi=160)
     y_stat = np.arange(len(stat_stages))[::-1]
     bars_stat = ax_stat.barh(
         y_stat, stat_counts, color=stat_colors, height=0.60, edgecolor="#0f172a", linewidth=0.7
@@ -136,8 +136,8 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
     ax_stat.set_xlim(0, max(stat_counts) * 1.24)
     ax_stat.set_xlabel("Signals Passing Stage", fontsize=9.5)
     ax_stat.set_title(
-        "Track A — Statistical Predictability (Rank IC, h = 5d)",
-        fontsize=10.5,
+        "Track A - Statistical Predictability\n(Rank IC, h = 5d)",
+        fontsize=10.2,
         fontweight="bold",
     )
     ax_stat.grid(axis="x", linestyle=":")
@@ -161,23 +161,23 @@ def render_all(results_dir: Path = RESULTS_DIR) -> dict[str, str]:
         )
     ax_econ.set_yticks(y_econ)
     ax_econ.set_yticklabels(econ_stages, fontsize=8.8)
-    ax_econ.set_xlim(0, max(econ_counts) * 1.28)
+    ax_econ.set_xlim(0, max(econ_counts) * 1.30)
     ax_econ.set_xlabel("Signals Passing Stage", fontsize=9.5)
     ax_econ.set_title(
-        "Track B — Economic Implementability (Long-Only Q5, HOSE Costs)",
-        fontsize=10.5,
+        "Track B - Economic Implementability\n(Long-Only Q5, HOSE Costs)",
+        fontsize=10.2,
         fontweight="bold",
     )
     ax_econ.grid(axis="x", linestyle=":")
 
     fig.suptitle(
-        "Two-Track Factor Falsification Funnel on Vietnamese Equities (HOSE, 2014–2026)",
+        "Two-Track Factor Falsification Funnel on Vietnamese Equities (HOSE, 2014-2026)",
         fontsize=12.0,
         fontweight="bold",
         y=0.99,
     )
-    fig.tight_layout()
-    fig.savefig(fig_dir / "01_falsification_funnel.png")
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.savefig(fig_dir / "01_falsification_funnel.png", bbox_inches="tight")
     plt.close(fig)
 
     # ------------------------------------------------------------------

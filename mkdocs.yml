@@ -80,10 +80,13 @@ nav:
       - Statistics & OLS Regression: indicators/stats.md
       - Alpha & Microstructure: indicators/alpha.md
       - Factor Evaluation & Backtesting: indicators/evaluation-and-backtest.md
+      - Statistical Inference & Falsification: indicators/inference.md
   - Guides & Quantitative Theory:
       - Quantitative Theory & Workflows: guides/quant-theory-and-workflows.md
       - Multi-Asset & Cross-Sectional Scaling: guides/multi-asset.md
       - Information Bars, Roll & Resampling: guides/resampling-and-dataframe-api.md
       - Architecture & Mathematical Proofs: architecture.md
       - Benchmarks: benchmarks.md
+  - Research:
+      - Factor Zoo Study: research/factor-zoo.md
   - Contributing: contributing.md

@@ -10,7 +10,7 @@ from typing import Any, Literal
 import numpy as np
 import polars as pl
 
-from .core import IntoExpr, parse_expr
+from .core import IntoExpr, check_period, check_positive, parse_expr
 from .evaluation import (
     calmar_ratio,
     deflated_sharpe_ratio,
@@ -23,12 +23,53 @@ from .evaluation import (
     win_rate,
 )
 
+__all__ = [
+    "BacktestResult",
+    "vectorized_backtest",
+    "extract_trades",
+    "parameter_sweep",
+    "crosses_above",
+    "crosses_below",
+    "signals_to_positions",
+    "compare_strategies",
+]
+
+_EMPTY_TRADE_SCHEMA: dict[str, pl.DataType] = {
+    "trade_id": pl.Int64(),
+    "side": pl.String(),
+    "entry_index": pl.Int64(),
+    "exit_index": pl.Int64(),
+    "holding_bars": pl.Int64(),
+    "avg_position": pl.Float64(),
+    "entry_price": pl.Float64(),
+    "exit_price": pl.Float64(),
+    "gross_return": pl.Float64(),
+    "cost": pl.Float64(),
+    "net_return": pl.Float64(),
+    "mae": pl.Float64(),
+    "mfe": pl.Float64(),
+}
+
 
 def _parse_expr_or_scalar(val: IntoExpr | float | int) -> pl.Expr:
     """Convert column name, Polars expression, or numeric threshold into a Polars expression."""
     if isinstance(val, (int, float)) and not isinstance(val, bool):
         return pl.lit(float(val))
     return parse_expr(val)
+
+
+def _cross_pair(
+    a: IntoExpr,
+    b: IntoExpr | float | int,
+    over: str | Sequence[str] | None,
+) -> tuple[pl.Expr, pl.Expr, pl.Expr, pl.Expr]:
+    """Build current and 1-bar lagged expressions for crossing detection."""
+    ea = parse_expr(a).cast(pl.Float64)
+    eb = _parse_expr_or_scalar(b).cast(pl.Float64)
+    prev_a = ea.shift(1).over(over) if over is not None else ea.shift(1)
+    is_scalar = isinstance(b, (int, float)) and not isinstance(b, bool)
+    prev_b = eb if is_scalar else (eb.shift(1).over(over) if over is not None else eb.shift(1))
+    return ea, eb, prev_a, prev_b
 
 
 def crosses_above(
@@ -46,14 +87,7 @@ def crosses_above(
     :param over: Optional grouping column(s) for multi-asset panels.
     :return: Boolean Polars expression.
     """
-    ea = parse_expr(a).cast(pl.Float64)
-    eb = _parse_expr_or_scalar(b).cast(pl.Float64)
-    prev_a = ea.shift(1).over(over) if over is not None else ea.shift(1)
-    prev_b = (
-        eb.shift(1).over(over)
-        if (over is not None and not isinstance(b, (int, float)))
-        else (eb if isinstance(b, (int, float)) else eb.shift(1))
-    )
+    ea, eb, prev_a, prev_b = _cross_pair(a, b, over)
     return ((ea > eb) & (prev_a <= prev_b)).fill_null(False)
 
 
@@ -72,14 +106,7 @@ def crosses_below(
     :param over: Optional grouping column(s) for multi-asset panels.
     :return: Boolean Polars expression.
     """
-    ea = parse_expr(a).cast(pl.Float64)
-    eb = _parse_expr_or_scalar(b).cast(pl.Float64)
-    prev_a = ea.shift(1).over(over) if over is not None else ea.shift(1)
-    prev_b = (
-        eb.shift(1).over(over)
-        if (over is not None and not isinstance(b, (int, float)))
-        else (eb if isinstance(b, (int, float)) else eb.shift(1))
-    )
+    ea, eb, prev_a, prev_b = _cross_pair(a, b, over)
     return ((ea < eb) & (prev_a >= prev_b)).fill_null(False)
 
 
@@ -161,39 +188,8 @@ def extract_trades(
     :param group_by: Optional symbol/ticker column(s) when ``bt_df`` is an unaggregated multi-asset panel.
     :return: Polars DataFrame with one row per round-trip trade.
     """
-    schema_cols = [
-        "trade_id",
-        "side",
-        "entry_index",
-        "exit_index",
-        "holding_bars",
-        "avg_position",
-        "entry_price",
-        "exit_price",
-        "gross_return",
-        "cost",
-        "net_return",
-        "mae",
-        "mfe",
-    ]
     if len(bt_df) == 0 or "position" not in bt_df.columns:
-        return pl.DataFrame(
-            schema={
-                "trade_id": pl.Int64,
-                "side": pl.String,
-                "entry_index": pl.Int64,
-                "exit_index": pl.Int64,
-                "holding_bars": pl.Int64,
-                "avg_position": pl.Float64,
-                "entry_price": pl.Float64,
-                "exit_price": pl.Float64,
-                "gross_return": pl.Float64,
-                "cost": pl.Float64,
-                "net_return": pl.Float64,
-                "mae": pl.Float64,
-                "mfe": pl.Float64,
-            }
-        )
+        return pl.DataFrame(schema=_EMPTY_TRADE_SCHEMA)
 
     gb_cols: list[str] | None = None
     if group_by is not None:
@@ -223,24 +219,18 @@ def extract_trades(
             if gb_cols is not None
             else p_expr.shift(1).fill_null(p_expr)
         )
-        prep_exprs.append(prev_p.alias("_entry_ref_price"))
-        prep_exprs.append(p_expr.alias("_bar_price"))
+        prep_exprs.extend([prev_p.alias("_entry_ref_price"), p_expr.alias("_bar_price")])
     else:
-        prep_exprs.append(pl.lit(None, dtype=pl.Float64).alias("_entry_ref_price"))
-        prep_exprs.append(pl.lit(None, dtype=pl.Float64).alias("_bar_price"))
+        prep_exprs.extend(
+            [
+                pl.lit(None, dtype=pl.Float64).alias("_entry_ref_price"),
+                pl.lit(None, dtype=pl.Float64).alias("_bar_price"),
+            ]
+        )
 
     active = bt_df.with_columns(prep_exprs).filter(pl.col("_pos_sign") != 0.0)
     if len(active) == 0:
-        return pl.DataFrame(
-            schema={
-                col_name: (
-                    pl.Int64
-                    if col_name in ("trade_id", "entry_index", "exit_index", "holding_bars")
-                    else (pl.String if col_name == "side" else pl.Float64)
-                )
-                for col_name in schema_cols
-            }
-        )
+        return pl.DataFrame(schema=_EMPTY_TRADE_SCHEMA)
 
     seg_keys = [*gb_cols, "_raw_seg"] if gb_cols is not None else ["_raw_seg"]
     active = active.with_columns(
@@ -502,10 +492,8 @@ def vectorized_backtest(
         raise ValueError("fee_rate and slippage_rate must be non-negative")
     if signal_lag < 0:
         raise ValueError("signal_lag must be a non-negative integer")
-    if initial_capital <= 0.0:
-        raise ValueError("initial_capital must be a positive number greater than zero")
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(initial_capital, "initial_capital")
+    check_positive(annualization, "annualization")
     if weight_scheme not in ("raw", "dollar_neutral", "long_only", "equal_weight"):
         raise ValueError(
             "weight_scheme must be one of 'raw', 'dollar_neutral', 'long_only', 'equal_weight'"
@@ -515,12 +503,9 @@ def vectorized_backtest(
     if (entries is not None) ^ (exits is not None):
         raise ValueError("both entries and exits must be provided together")
     if vol_target is not None:
-        if vol_target <= 0.0:
-            raise ValueError("vol_target must be a positive number greater than zero")
-        if vol_lookback < 2:
-            raise ValueError("vol_lookback must be an integer greater than or equal to 2")
-        if max_leverage <= 0.0:
-            raise ValueError("max_leverage must be a positive number greater than zero")
+        check_positive(vol_target, "vol_target")
+        check_period(vol_lookback, 2, "vol_lookback", inclusive=True)
+        check_positive(max_leverage, "max_leverage")
     if no_trade_buffer < 0.0:
         raise ValueError("no_trade_buffer must be non-negative")
 
@@ -881,36 +866,33 @@ def parameter_sweep(
         raise ValueError("signals mapping must contain at least one strategy expression")
 
     eager_df = df.collect() if isinstance(df, pl.LazyFrame) else df
-    results: dict[str, BacktestResult] = {}
-    sharpes: list[float] = []
-
-    for name, sig_expr in signals.items():
-        bt_res = vectorized_backtest(
-            eager_df,
-            signal=sig_expr,
-            close_col=close_col,
-            return_col=return_col,
-            group_by=group_by,
-            time_col=time_col,
-            fee_rate=fee_rate,
-            slippage_rate=slippage_rate,
-            signal_lag=signal_lag,
-            initial_capital=initial_capital,
-            annualization=annualization,
-            risk_free_rate=risk_free_rate,
-            weight_scheme=weight_scheme,
-            execution_price=execution_price,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            flat_mask=flat_mask,
-            vol_target=vol_target,
-            vol_lookback=vol_lookback,
-            max_leverage=max_leverage,
-            no_trade_buffer=no_trade_buffer,
-        )
-        results[name] = bt_res
-        sharpes.append(bt_res.summary["sharpe_ratio"])
+    bt_kwargs: dict[str, Any] = {
+        "close_col": close_col,
+        "return_col": return_col,
+        "group_by": group_by,
+        "time_col": time_col,
+        "fee_rate": fee_rate,
+        "slippage_rate": slippage_rate,
+        "signal_lag": signal_lag,
+        "initial_capital": initial_capital,
+        "annualization": annualization,
+        "risk_free_rate": risk_free_rate,
+        "weight_scheme": weight_scheme,
+        "execution_price": execution_price,
+        "open_col": open_col,
+        "high_col": high_col,
+        "low_col": low_col,
+        "flat_mask": flat_mask,
+        "vol_target": vol_target,
+        "vol_lookback": vol_lookback,
+        "max_leverage": max_leverage,
+        "no_trade_buffer": no_trade_buffer,
+    }
+    results = {
+        name: vectorized_backtest(eager_df, signal=sig_expr, **bt_kwargs)
+        for name, sig_expr in signals.items()
+    }
+    sharpes = [res.summary["sharpe_ratio"] for res in results.values()]
 
     n_trials = len(signals)
     sr_std = float(np.std(sharpes, ddof=1)) if n_trials > 1 else 0.5

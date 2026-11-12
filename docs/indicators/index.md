@@ -1,17 +1,18 @@
 # API Reference & Indicator Catalog
 
-`polars-anta` provides **185+ high-performance technical indicators, market microstructure estimators, AFML machine learning primitives, institutional factor evaluation tools, and execution-realistic backtesting utilities** organized across eight specialized modules:
+`polars-anta` provides **219 public functions** (221 exports in `__all__`, including `BacktestResult` and `FalsificationResult`) covering technical indicators, market microstructure estimators, AFML machine learning primitives, factor evaluation tools, statistical inference & multiple-testing falsification, and execution-realistic backtesting utilities organized across nine specialized modules:
 
 | Domain / Module | Count | Key Functionality | API Reference |
 | :--- | :---: | :--- | :--- |
 | **1. Trend & Overlays** (`polars_anta.trend`) | 28 | Moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `ssl_channel`, `pivot_points` | [Trend API →](trend.md) |
-| **2. Momentum Oscillators** (`polars_anta.momentum`) | 21 | `rsi`, `macd`, `ppo`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | [Momentum API →](momentum.md) |
-| **3. Volatility & Channels** (`polars_anta.volatility`) | 18 | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `ulcer_index` | [Volatility API →](volatility.md) |
+| **2. Momentum Oscillators** (`polars_anta.momentum`) | 22 | `rsi`, `macd`, `ppo`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | [Momentum API →](momentum.md) |
+| **3. Volatility & Channels** (`polars_anta.volatility`) | 20 | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `rogers_satchell_volatility`, `yang_zhang_volatility`, `ulcer_index` | [Volatility API →](volatility.md) |
 | **4. Volume, Session VWAP & Flow** (`polars_anta.volume`) | 16 | `vwap`, `vwap_bands`, `session_vwap`, `obv`, `cmf`, `mfi`, `adl`, `klinger`, `force_index`, `nvi`, `pvi`, `vpci`, `vr` | [Volume API →](volume.md) |
-| **5. Quantitative Statistics & FFD** (`polars_anta.stats`) | 13 | `frac_diff` (Fixed-Window Fractional Differentiation), `zscore`, `percentile_rank`, `skewness`, `kurtosis`, `rolling_cov`, `rolling_corr`, `rolling_beta`, `rolling_alpha`, closed-form OLS `linear_regression_*` | [Statistics API →](stats.md) |
-| **6. Alpha, Microstructure & Futures** (`polars_anta.alpha`) | 67 | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`, `vpin`, `ofi`, `futures_basis`, `oi_regime`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, 33 WorldQuant Alphas | [Alpha & Microstructure API →](alpha.md) |
-| **7. AFML Labeling, Evaluation & Backtest** (`evaluation`, `backtest`) | 25 | `triple_barrier_labels`, `trend_scanning_labels`, `ic_summary` (Newey-West HAC), `ic_decay`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `BacktestResult.trades` (MAE/MFE), `parameter_sweep` | [Evaluation & Backtest API →](evaluation-and-backtest.md) |
+| **5. Quantitative Statistics & FFD** (`polars_anta.stats`) | 15 | `frac_diff` (Fixed-Window Fractional Differentiation), `zscore`, `percentile_rank`, `skewness`, `kurtosis`, `rolling_cov`, `rolling_corr`, `rolling_beta`, `rolling_alpha`, closed-form OLS `linear_regression_*` (`slope`, `intercept`, `angle`, `forecast`, `r2`, `stderr`) | [Statistics API →](stats.md) |
+| **6. Alpha, Microstructure & Futures** (`polars_anta.alpha`) | 71 | `cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`, `vpin`, `ofi`, `futures_basis`, `oi_regime`, `amihud_illiquidity`, `roll_spread`, `corwin_schultz_spread`, `kyle_lambda`, `hurst_exponent`, 33 formulaic alphas | [Alpha & Microstructure API →](alpha.md) |
+| **7. AFML Labeling, Evaluation & Backtest** (`evaluation`, `backtest`) | 24 | `triple_barrier_labels`, `trend_scanning_labels`, `ic_summary` (Newey-West HAC), `ic_decay`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `BacktestResult.trades` (MAE/MFE), `parameter_sweep` | [Evaluation & Backtest API →](evaluation-and-backtest.md) |
 | **8. Information Bars & Roll Stitching** (`polars_anta.resample`) | 6 | `resample_ohlcv`, `resample_volume_bars`, `resample_dollar_bars`, `resample_imbalance_bars`, `stitch_futures_roll`, `validate_ohlcv` | [Resampling & Bars Guide →](../guides/resampling-and-dataframe-api.md) |
+| **9. Statistical Inference & Falsification** (`polars_anta.inference`) | 17 | `stationary_bootstrap_indices`, `bootstrap_test`, `adjust_pvalues`, `romano_wolf`, `spa_test`, `pbo_cscv`, `empirical_bayes_shrinkage`, `oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `falsify_factors`, `sweep_robustness` | [Inference API →](inference.md) |
 
 ---
 
@@ -21,11 +22,12 @@
 polars_anta/
 ├── trend.py        # Moving averages, adaptive filters, Heikin-Ashi & structural pivots
 ├── momentum.py     # Velocity oscillators, Gaussian Fisher transform & squeeze detectors
-├── volatility.py   # Parkinson/Garman-Klass variance, Wilder ATR stops & price channels
-├── volume.py       # Session-anchored VWAP, VWAP bands & institutional money flow
+├── volatility.py   # Parkinson/Garman-Klass/Rogers-Satchell/Yang-Zhang variance, Wilder ATR stops & price channels
+├── volume.py       # Session-anchored VWAP, VWAP bands & money flow
 ├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & FFD (frac_diff)
-├── alpha.py        # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 101 Alphas
+├── alpha.py        # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 33 formulaic alphas
 ├── evaluation.py   # Triple-Barrier, Trend-Scanning, Rank IC/ICIR, Newey-West HAC, IC decay & PSR/DSR
+├── inference.py    # Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, Empirical Bayes & falsify_factors
 ├── backtest.py     # Execution-realistic vectorized backtester, MAE/MFE trade ledger & parameter_sweep
 ├── resample.py     # Time bars, Volume/Dollar/Imbalance bars, continuous futures roll & validation
 └── namespace.py    # Dual .anta and .ta registration across pl.Expr, pl.DataFrame & pl.LazyFrame

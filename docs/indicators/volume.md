@@ -1,10 +1,10 @@
-# Volume, Institutional VWAP & Money Flow (`polars_anta.volume`)
+# Volume, Session VWAP & Money Flow (`polars_anta.volume`)
 
-The `polars_anta.volume` module provides **16 volume-weighted price benchmarks, institutional execution bands, and money-flow oscillators** designed to track institutional accumulation/distribution and intraday fair value.
+The `polars_anta.volume` module provides **16 volume-weighted price benchmarks, execution bands, and money-flow oscillators** designed to track accumulation/distribution and intraday fair value.
 
 ---
 
-## 1. Institutional VWAP Benchmarks & Session Anchoring
+## 1. VWAP Benchmarks & Session Anchoring
 
 ### `vwap(high, low, close, volume, period=None)`
 **Mathematical Formulation:**
@@ -40,8 +40,8 @@ Returns a `pl.Struct` with fields `("vwap", "upper_1", "lower_1", "upper_2", "lo
 ---
 
 ### `session_vwap(high, low, close, volume, session_by=None, time_col="timestamp", mult1=1.0, mult2=2.0)`
-**Session-Anchored Institutional VWAP with Deviation Z-Score:**
-In intraday equity and index futures trading (such as **VN30F1M**), institutional execution algorithms benchmark fills against the **Session VWAP** that resets at the start of every trading day (`pl.col(time_col).dt.date()` when `session_by=None`, or custom session identifiers such as morning/afternoon sessions).
+**Session-Anchored VWAP with Deviation Z-Score:**
+In intraday equity and index futures trading (such as **VN30F1M**), execution algorithms benchmark fills against the **Session VWAP** that resets at the start of every trading day (`pl.col(time_col).dt.date()` when `session_by=None`, or custom session identifiers such as morning/afternoon sessions).
 
 $$
 \text{VWAP}_{t \in S} = \frac{\sum_{\tau \in S, \tau \le t} \text{TP}_\tau V_\tau}{\sum_{\tau \in S, \tau \le t} V_\tau}, \qquad Z_{\text{VWAP}, t} = \frac{\text{TP}_t - \text{VWAP}_{t \in S}}{\sigma_{\text{VWAP}, t \in S}}
@@ -60,7 +60,7 @@ $$
 \text{VWMA}_t(n) = \frac{\sum_{i=0}^{n-1} C_{t-i} \cdot V_{t-i}}{\sum_{i=0}^{n-1} V_{t-i}}
 $$
 
-Comparing $\text{VWMA}_t(n) - \text{SMA}_t(n)$ reveals whether volume is concentrated on high-price bars (bullish institutional participation) or low-price bars.
+Comparing $\text{VWMA}_t(n) - \text{SMA}_t(n)$ reveals whether volume is concentrated on high-price bars (bullish volume participation) or low-price bars.
 
 ---
 

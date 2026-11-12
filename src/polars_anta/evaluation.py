@@ -10,10 +10,34 @@ from typing import Literal, TypeVar
 import numpy as np
 import polars as pl
 
-from .core import IntoExpr, parse_expr
+from .core import IntoExpr, check_period, check_positive, parse_expr
 from .trend import wma as _wma
 
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
+
+__all__ = [
+    "drawdown_series",
+    "max_drawdown",
+    "sharpe_ratio",
+    "sortino_ratio",
+    "calmar_ratio",
+    "profit_factor",
+    "win_rate",
+    "value_at_risk",
+    "conditional_var",
+    "omega_ratio",
+    "tail_ratio",
+    "probabilistic_sharpe_ratio",
+    "deflated_sharpe_ratio",
+    "forward_returns",
+    "information_coefficient",
+    "ic_summary",
+    "ic_decay",
+    "quantile_analysis",
+    "factor_turnover",
+    "triple_barrier_labels",
+    "trend_scanning_labels",
+]
 
 
 # =============================================================================
@@ -69,12 +93,9 @@ def sharpe_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
-    r = parse_expr(returns)
-    rf_per_bar = float(risk_free_rate) / float(annualization)
-    excess = r - rf_per_bar
+    excess = parse_expr(returns) - float(risk_free_rate) / float(annualization)
     mean_ex = excess.mean()
     std_ex = excess.std()
     return (
@@ -96,15 +117,11 @@ def sortino_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
-    r = parse_expr(returns)
-    rf_per_bar = float(risk_free_rate) / float(annualization)
-    excess = r - rf_per_bar
+    excess = parse_expr(returns) - float(risk_free_rate) / float(annualization)
     mean_ex = excess.mean()
-    downside_sq = pl.when(excess < 0.0).then(excess**2).otherwise(0.0)
-    downside_dev = downside_sq.mean().sqrt()
+    downside_dev = pl.when(excess < 0.0).then(excess**2).otherwise(0.0).mean().sqrt()
     return (
         pl.when(downside_dev.is_null() | (downside_dev == 0.0) | mean_ex.is_null())
         .then(0.0)
@@ -122,8 +139,7 @@ def calmar_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
     r = parse_expr(returns)
     ann_return = r.mean() * float(annualization)
@@ -259,8 +275,7 @@ def omega_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression, non-negative (or ``inf``).
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
     r = parse_expr(returns)
     theta = float(risk_free_rate) / float(annualization)
@@ -284,7 +299,7 @@ def tail_ratio(
         TailRatio = |Quantile(r, 1 - alpha)| / |Quantile(r, alpha)|
 
     A value above ``1.0`` means the best ``alpha`` of periods are larger in
-    magnitude than the worst ``alpha`` — a right-skewed return distribution.
+    magnitude than the worst ``alpha`` - a right-skewed return distribution.
     Absolute values are used so the ratio is positive for a symmetric series
     even though the left quantile itself is negative.
 
@@ -338,13 +353,9 @@ def probabilistic_sharpe_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression in ``[0.0, 1.0]``.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
-    r = parse_expr(returns).cast(pl.Float64)
-    rf_per_bar = float(risk_free_rate) / float(annualization)
-    excess = r - rf_per_bar
-
+    excess = parse_expr(returns).cast(pl.Float64) - float(risk_free_rate) / float(annualization)
     t_obs = excess.count().cast(pl.Float64)
     mean_ex = excess.mean()
     std_ex = excess.std()
@@ -357,8 +368,7 @@ def probabilistic_sharpe_ratio(
     var_num = (1.0 - skew_hat * sr_hat + ((kurt_pearson - 1.0) / 4.0) * (sr_hat * sr_hat)).clip(
         lower_bound=1e-12
     )
-    se_sr = (var_num / (t_obs - 1.0)).sqrt()
-    z_stat = (sr_hat - sr_star) / se_sr
+    z_stat = (sr_hat - sr_star) / (var_num / (t_obs - 1.0)).sqrt()
 
     return (
         pl.when(
@@ -395,8 +405,7 @@ def deflated_sharpe_ratio(
         raise ValueError("n_trials must be a positive integer greater than or equal to 1")
     if trials_sr_std < 0.0:
         raise ValueError("trials_sr_std must be non-negative")
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
     if n_trials == 1 or trials_sr_std == 0.0:
         hurdle_sr = 0.0
@@ -495,6 +504,40 @@ def information_coefficient(
     return res.collect() if isinstance(res, pl.LazyFrame) else res
 
 
+def _nw_auto_lag(n_obs: int) -> int:
+    """Newey–West (1994) plug-in bandwidth: max(1, floor(4 * (T/100)^(2/9))), capped at T-1."""
+    if n_obs <= 1:
+        return 0
+    return min(max(1, int(4.0 * ((float(n_obs) / 100.0) ** (2.0 / 9.0)))), n_obs - 1)
+
+
+def _newey_west_lrv(u: np.ndarray, max_lag: int) -> np.ndarray | float:
+    """Bartlett-kernel long-run variance of DEMEANED series.
+
+    :param u: Demeaned array of shape ``(T,)`` or ``(T, K)``.
+    :param max_lag: Maximum Bartlett kernel lag $L \\ge 0$.
+    :return: ``float`` for 1-D input, or ``np.ndarray`` of shape ``(K,)`` for 2-D input, floored at ``1e-24``.
+    """
+    n_obs = u.shape[0]
+    effective_lag = min(max(0, int(max_lag)), max(0, n_obs - 1))
+    if u.ndim == 1:
+        gamma_0 = float(np.dot(u, u)) / float(n_obs)
+        lrv = gamma_0
+        for lag_j in range(1, effective_lag + 1):
+            weight = 1.0 - float(lag_j) / float(effective_lag + 1)
+            gamma_j = float(np.dot(u[lag_j:], u[:-lag_j])) / float(n_obs)
+            lrv += 2.0 * weight * gamma_j
+        return max(lrv, 1e-24)
+
+    gamma_0_vec = (u * u).sum(axis=0) / float(n_obs)
+    lrv_vec = gamma_0_vec.copy()
+    for lag_j in range(1, effective_lag + 1):
+        weight = 1.0 - float(lag_j) / float(effective_lag + 1)
+        gamma_j_vec = (u[lag_j:] * u[:-lag_j]).sum(axis=0) / float(n_obs)
+        lrv_vec = lrv_vec + 2.0 * weight * gamma_j_vec
+    return np.maximum(lrv_vec, 1e-24)
+
+
 def ic_summary(
     df: pl.DataFrame | pl.LazyFrame,
     factor_col: str,
@@ -555,19 +598,8 @@ def ic_summary(
 
     if n > 1 and std_val > 1e-12:
         u = ic_series.to_numpy().astype(np.float64, copy=False) - mean_val
-        max_lag = (
-            min(int(nw_lags), n - 1)
-            if nw_lags is not None
-            else min(max(1, int(4.0 * ((n / 100.0) ** (2.0 / 9.0)))), n - 1)
-        )
-        gamma_0 = float(np.dot(u, u)) / float(n)
-        lrv = gamma_0
-        for lag_j in range(1, max_lag + 1):
-            weight = 1.0 - float(lag_j) / float(max_lag + 1)
-            gamma_j = float(np.dot(u[lag_j:], u[:-lag_j])) / float(n)
-            lrv += 2.0 * weight * gamma_j
-        # Guard against negative Bartlett variance in tiny/degenerate samples
-        lrv = max(lrv, 1e-24)
+        max_lag = min(int(nw_lags), n - 1) if nw_lags is not None else _nw_auto_lag(n)
+        lrv = float(_newey_west_lrv(u, max_lag))
         nw_se = math.sqrt(lrv / float(n))
         nw_t_stat_val = mean_val / nw_se
     else:
@@ -824,14 +856,12 @@ def triple_barrier_labels(
     :param side: Optional primary model directional signal ($\\in \\{-1, +1\\}$) for Meta-Labeling.
     :return: Polars Struct expression.
     """
-    if horizon <= 0:
-        raise ValueError("horizon must be a positive integer greater than zero")
+    check_period(horizon, 1, "horizon")
     if pt_mult < 0.0 or sl_mult < 0.0:
         raise ValueError("pt_mult and sl_mult must be non-negative")
     if min_ret < 0.0:
         raise ValueError("min_ret must be non-negative")
-    if vol_period <= 1:
-        raise ValueError("vol_period must be an integer greater than 1")
+    check_period(vol_period, 2, "vol_period")
 
     c = parse_expr(close).cast(pl.Float64)
 

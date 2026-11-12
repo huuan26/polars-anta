@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "polars-anta"
 version = "0.3.1"
-description = "ANTA (Alpha & Numerical Technical Analysis): Institutional-grade alpha research, market microstructure, quantitative feature engineering, and vectorized backtesting engine for Polars."
+description = "Build alpha signals in Polars and falsify them: bootstrap, FDR, Romano–Wolf, SPA, PBO and empirical-Bayes shrinkage on top of 219 vectorized indicators."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -24,6 +24,10 @@ keywords = [
     "backtesting",
     "technical-analysis",
     "algorithmic-trading",
+    "multiple-testing",
+    "bootstrap",
+    "factor-zoo",
+    "research-reproducibility",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

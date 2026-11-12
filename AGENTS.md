@@ -14,6 +14,7 @@ This is the canonical instruction file for coding agents (Cursor, Claude, Copilo
   - `volume.py`: Volume & money flow analytics (VWAP, VWAP Bands, OBV, CMF, MFI, ADL, Klinger, Force Index).
   - `stats.py`: Vectorized OLS regression (`slope`, `intercept`, `forecast`, `angle`) and rolling distribution statistics (`beta`, `alpha`, `skewness`, `kurtosis`).
   - `evaluation.py`: Alphalens-style factor evaluation (`forward_returns`, `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`) and strategy performance metrics (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`, `win_rate`).
+  - `inference.py`: Econometric inference and factor falsification engine (`stationary_bootstrap_indices`, `bootstrap_test`, `adjust_pvalues`, `romano_wolf`, `spa_test`, `pbo_cscv`, `empirical_bayes_shrinkage`, `oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `breakeven_cost_from_backtest`, `ic_matrix`, `long_short_returns`, `FalsificationResult`, `falsify_factors`, `sweep_robustness`).
   - `backtest.py`: Lightweight loop-free vectorized backtesting engine, crossover expressions (`crosses_above`, `crosses_below`), entry/exit state machine (`signals_to_positions`), portfolio weight schemes (`dollar_neutral`, `long_only`, `equal_weight`), tearsheets (`report()`), and `compare_strategies()`.
   - `resample.py`: Multi-timeframe OHLCV resampling (`resample_ohlcv`) and structural data integrity validation (`validate_ohlcv`).
   - `namespace.py`: Fluent Polars Expression (`pl.Expr.anta` / `.ta`), DataFrame, and LazyFrame namespaces.
@@ -34,6 +35,7 @@ Every agent generating or modifying code in this repository **MUST** adhere to t
 
 ### 2. Zero Row-by-Row Python Loops
 - **NEVER** use Python `for` loops, `.iter_rows()`, `.apply()`, or `map_elements()` to iterate across price bars or timestamps.
+- Loops over bootstrap replicates, factors/strategies, Newey–West lags, or CSCV combinations are permitted; loops over bars/timestamps are not.
 - Use closed-form algebraic expressions, native Polars scan/cumulative operators (`cum_prod()`, `cum_sum()`, `cum_max()`), exponential smoothing (`ewm_mean()`), or `.forward_fill()` state propagation.
 
 ### 3. Window & Multi-Asset Invariant (`.over()`)

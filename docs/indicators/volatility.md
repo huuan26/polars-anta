@@ -1,6 +1,6 @@
 # Volatility Estimators, ATR Stops & Price Channels (`polars_anta.volatility`)
 
-The `polars_anta.volatility` module provides **18 volatility estimators, range-based efficient variance models, and dynamic price channels** used for position sizing, volatility targeting, breakout detection, and stop-loss placement.
+The `polars_anta.volatility` module provides **20 volatility estimators, range-based efficient variance models, and dynamic price channels** used for position sizing, volatility targeting, breakout detection, and stop-loss placement.
 
 ---
 
@@ -8,13 +8,25 @@ The `polars_anta.volatility` module provides **18 volatility estimators, range-b
 
 In continuous-time finance ($d\ln P_t = \sigma\,dW_t$), the standard Close-to-Close volatility estimator uses only two snapshots per bar ($C_{t-1}$ and $C_t$), discarding all intraday path information (a stock that surges $+5\%$ intraday and closes unchanged has zero close-to-close return).
 
-`polars-anta` implements three classical annualized volatility estimators with increasing **statistical asymptotic efficiency** $\text{Eff}(\hat{\sigma}^2) = \frac{\text{Var}(\hat{\sigma}_{\text{CC}}^2)}{\text{Var}(\hat{\sigma}^2)}$:
+`polars-anta` implements five classical annualized volatility estimators with increasing **statistical asymptotic efficiency** $\text{Eff}(\hat{\sigma}^2) = \frac{\text{Var}(\hat{\sigma}_{\text{CC}}^2)}{\text{Var}(\hat{\sigma}^2)}$:
 
 | Estimator | Function Signature | Mathematical Formula (Annualized by $\sqrt{A}$, default $A = 252$) | Statistical Efficiency |
 | :--- | :--- | :--- | :---: |
-| **Close-to-Close** | `historical_volatility(close, period=20, annualization=252)` | $\hat{\sigma}_{\text{CC}, t} = \sqrt{A} \cdot \sqrt{\frac{1}{n - 1}\sum_{i=0}^{n-1} \left(r_{t-i} - \bar{r}_t\right)^2}, \quad r_t = \ln\frac{C_t}{C_{t-1}}$ | **$1.0\times$** (Baseline) |
-| **Parkinson (1980)** | `parkinson_volatility(high, low, period=20, annualization=252)` | $\hat{\sigma}_{\text{P}, t} = \sqrt{A} \cdot \sqrt{\frac{1}{4 n \ln 2} \sum_{i=0}^{n-1} \left(\ln\frac{H_{t-i}}{L_{t-i}}\right)^2}$ | **$4.9\times$** |
-| **Garman-Klass (1980)** | `garman_klass_volatility(open, high, low, close, period=20, annualization=252)` | $\hat{\sigma}_{\text{GK}, t} = \sqrt{A} \cdot \sqrt{\frac{1}{n}\sum_{i=0}^{n-1} \left[\frac{1}{2}\left(\ln\frac{H_{t-i}}{L_{t-i}}\right)^2 - (2\ln 2 - 1)\left(\ln\frac{C_{t-i}}{O_{t-i}}\right)^2\right]}$ | **$7.4\times$** |
+| **Close-to-Close** | `historical_volatility(close, period=20, trading_periods=252)` | $\hat{\sigma}_{\text{CC}, t} = \sqrt{A} \cdot \sqrt{\frac{1}{n - 1}\sum_{i=0}^{n-1} \left(r_{t-i} - \bar{r}_t\right)^2}, \quad r_t = \ln\frac{C_t}{C_{t-1}}$ | **$1.0\times$** (Baseline) |
+| **Parkinson (1980)** | `parkinson_volatility(high, low, period=20, trading_periods=252)` | $\hat{\sigma}_{\text{P}, t} = \sqrt{A} \cdot \sqrt{\frac{1}{4 n \ln 2} \sum_{i=0}^{n-1} \left(\ln\frac{H_{t-i}}{L_{t-i}}\right)^2}$ | **$4.9\times$** |
+| **Garman-Klass (1980)** | `garman_klass_volatility(open, high, low, close, period=20, trading_periods=252)` | $\hat{\sigma}_{\text{GK}, t} = \sqrt{A} \cdot \sqrt{\frac{1}{n}\sum_{i=0}^{n-1} \left[\frac{1}{2}\left(\ln\frac{H_{t-i}}{L_{t-i}}\right)^2 - (2\ln 2 - 1)\left(\ln\frac{C_{t-i}}{O_{t-i}}\right)^2\right]}$ | **$7.4\times$** |
+| **Rogers-Satchell (1991)** | `rogers_satchell_volatility(open, high, low, close, period=20, trading_periods=252)` | $\hat{\sigma}_{\text{RS}, t} = \sqrt{A} \cdot \sqrt{\frac{1}{n}\sum_{i=0}^{n-1} \left[\ln\frac{H_{t-i}}{C_{t-i}}\ln\frac{H_{t-i}}{O_{t-i}} + \ln\frac{L_{t-i}}{C_{t-i}}\ln\frac{L_{t-i}}{O_{t-i}}\right]}$ | **$6.0\times$** (Drift-independent) |
+| **Yang-Zhang (2000)** | `yang_zhang_volatility(open, high, low, close, period=20, trading_periods=252)` | $\hat{\sigma}_{\text{YZ}, t} = \sqrt{A} \cdot \sqrt{\hat{\sigma}_o^2 + k\,\hat{\sigma}_c^2 + (1 - k)\,\hat{\sigma}_{\text{RS}}^2}, \quad k = \frac{0.34}{1.34 + \frac{n + 1}{n - 1}}$ | **$14.0\times$** (Drift & overnight jump robust) |
+
+```python
+import polars as pl
+import polars_anta as pa
+
+df = df.with_columns(
+    pa.rogers_satchell_volatility("open", "high", "low", "close", period=20).alias("rs_vol_20"),
+    pa.yang_zhang_volatility("open", "high", "low", "close", period=20).alias("yz_vol_20"),
+)
+```
 
 !!! info "Quantitative Advantage of Garman-Klass"
     Because Garman-Klass achieves **$7.4\times$ higher statistical efficiency** than Close-to-Close volatility, a **10-bar Garman-Klass estimator** has lower estimation variance than a **70-bar Close-to-Close estimator**, enabling much faster regime adaptation in Volatility Targeting (`vol_target`) and Triple-Barrier scaling without increasing estimation noise.

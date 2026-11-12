@@ -1,0 +1,51 @@
+﻿Audited 4 file(s).
+Identifier errors: 38
+  [IDENT] research\factor_zoo\REPORT.md:280: unknown identifier `senkou_a`
+  [IDENT] research\factor_zoo\REPORT.md:280: unknown identifier `senkou_b`
+  [IDENT] research\factor_zoo\REPORT.md:280: unknown identifier `tenkan`
+  [IDENT] research\factor_zoo\REPORT.md:280: unknown identifier `kijun`
+  [IDENT] research\factor_zoo\REPORT.md:281: unknown identifier `zigzag`
+  [IDENT] research\factor_zoo\REPORT.md:282: unknown identifier `td_sequential`
+  [IDENT] research\factor_zoo\REPORT.md:283: unknown identifier `ttm_squeeze`
+  [IDENT] research\factor_zoo\REPORT.md:283: unknown identifier `bb_width_20`
+  [IDENT] research\factor_zoo\REPORT.md:286: unknown identifier `trade_imbalance`
+  [IDENT] research\factor_zoo\REPORT.md:288: unknown identifier `opening_range`
+  [IDENT] research\factor_zoo\REPORT.md:288: unknown identifier `intraday`
+  [IDENT] research\factor_zoo\REPORT.md:289: unknown identifier `engulfing`
+  [IDENT] research\factor_zoo\REPORT.md:289: unknown identifier `three_black_crows`
+  [IDENT] research\factor_zoo\REPORT.md:289: unknown identifier `patterns`
+  [IDENT] research\factor_zoo\REPORT.md:290: unknown identifier `winsorize`
+  [IDENT] research\factor_zoo\REPORT.md:290: unknown identifier `forward`
+  [IDENT] research\factor_zoo\REPORT.md:290: unknown identifier `transforms`
+  [IDENT] research\factor_zoo\REPORT.md:290: unknown identifier `cross_sectional`
+  [IDENT] research\factor_zoo\REPORT.md:292: unknown identifier `kalman_beta`
+  [IDENT] docs\research\factor-zoo.md:280: unknown identifier `senkou_a`
+  [IDENT] docs\research\factor-zoo.md:280: unknown identifier `senkou_b`
+  [IDENT] docs\research\factor-zoo.md:280: unknown identifier `tenkan`
+  [IDENT] docs\research\factor-zoo.md:280: unknown identifier `kijun`
+  [IDENT] docs\research\factor-zoo.md:281: unknown identifier `zigzag`
+  [IDENT] docs\research\factor-zoo.md:282: unknown identifier `td_sequential`
+  [IDENT] docs\research\factor-zoo.md:283: unknown identifier `ttm_squeeze`
+  [IDENT] docs\research\factor-zoo.md:283: unknown identifier `bb_width_20`
+  [IDENT] docs\research\factor-zoo.md:286: unknown identifier `trade_imbalance`
+  [IDENT] docs\research\factor-zoo.md:288: unknown identifier `opening_range`
+  [IDENT] docs\research\factor-zoo.md:288: unknown identifier `intraday`
+  [IDENT] docs\research\factor-zoo.md:289: unknown identifier `engulfing`
+  [IDENT] docs\research\factor-zoo.md:289: unknown identifier `three_black_crows`
+  [IDENT] docs\research\factor-zoo.md:289: unknown identifier `patterns`
+  [IDENT] docs\research\factor-zoo.md:290: unknown identifier `winsorize`
+  [IDENT] docs\research\factor-zoo.md:290: unknown identifier `forward`
+  [IDENT] docs\research\factor-zoo.md:290: unknown identifier `transforms`
+  [IDENT] docs\research\factor-zoo.md:290: unknown identifier `cross_sectional`
+  [IDENT] docs\research\factor-zoo.md:292: unknown identifier `kalman_beta`
+Untraced number errors: 10
+  [NUM]   research\factor_zoo\REPORT.md:13: untraced number '21' in: - **Zero standalone single-factor long-only strategies survive both Vietnamese equity transaction costs and multiple-testing control**: When implemented as 5-day rebalanced, equal-weighted long-only top-quintile (Q5) portfolios against the equal-weight universe under realistic `HOSE` execution frictions (`0.15%`/side brokerage + `0.10%`/side slippage + `0.10%` statutory sell tax = `30 bps` per unit of L1 weight turnover $\sum_i |w_{i,t} - w_{i,t-1}|$, or `60 bps` round-trip replacement cost), fast mean-reversion signals suffer breakeven cost ceilings of only `6–21 bps` round-trip. Only **2** slower momentum signals (`trix_15` at $+8.37\%/\text{yr}$, raw $p = 0.0170$; `tsi` at $+7.65\%/\text{yr}$, raw $p = 0.0320$) clear the cost hurdle at unadjusted $p \le 0.05$, **0** survive Benjamini–Hochberg adjustment ($q \le 0.10$) across the 80 cost-stage candidates, and both `trix_15` and `tsi` suffer structural breaks (`CUSUM p = 0.013` and `0.009`) and negative net excess returns in the locked `2022–2026` holdout (**0** confirmed post-cost holdout survivors).
+  [NUM]   research\factor_zoo\REPORT.md:142: untraced number '70' in: 1. **68 of 80 candidates** yield negative net active returns after `HOSE` fees, slippage, and sell tax (`60 bps` round-trip replacement cost). Fast reversal signals (`returns_divergence_14`, `hma_10`, `tema_10`, `zlema_10`, `true_range_norm`, `alpha_018`) exhibit 5-day L1 weight turnover of **$1.40\text{–}1.75$** ($70\%\text{–}87\%$ one-way portfolio replacement every 5 trading days), incurring an annualized cost drag of **$21\%\text{–}26\%/\text{yr}$**, while their long-only top-quintile gross excess returns correspond to breakeven round-trip costs of only **$5.7\text{–}20.5\text{ bps}$**.
+  [NUM]   research\factor_zoo\REPORT.md:142: untraced number '87' in: 1. **68 of 80 candidates** yield negative net active returns after `HOSE` fees, slippage, and sell tax (`60 bps` round-trip replacement cost). Fast reversal signals (`returns_divergence_14`, `hma_10`, `tema_10`, `zlema_10`, `true_range_norm`, `alpha_018`) exhibit 5-day L1 weight turnover of **$1.40\text{–}1.75$** ($70\%\text{–}87\%$ one-way portfolio replacement every 5 trading days), incurring an annualized cost drag of **$21\%\text{–}26\%/\text{yr}$**, while their long-only top-quintile gross excess returns correspond to breakeven round-trip costs of only **$5.7\text{–}20.5\text{ bps}$**.
+  [NUM]   research\factor_zoo\REPORT.md:142: untraced number '21' in: 1. **68 of 80 candidates** yield negative net active returns after `HOSE` fees, slippage, and sell tax (`60 bps` round-trip replacement cost). Fast reversal signals (`returns_divergence_14`, `hma_10`, `tema_10`, `zlema_10`, `true_range_norm`, `alpha_018`) exhibit 5-day L1 weight turnover of **$1.40\text{–}1.75$** ($70\%\text{–}87\%$ one-way portfolio replacement every 5 trading days), incurring an annualized cost drag of **$21\%\text{–}26\%/\text{yr}$**, while their long-only top-quintile gross excess returns correspond to breakeven round-trip costs of only **$5.7\text{–}20.5\text{ bps}$**.
+  [NUM]   research\factor_zoo\REPORT.md:289: untraced number '92%' in: | `engulfing` .. `three_black_crows` (15 functions) | `patterns` | Binary `{0, 1, -1}` candlestick pattern flags are zero on >92% of stock-days, producing degenerate cross-sectional rank ties. |
+  [NUM]   docs\research\factor-zoo.md:13: untraced number '21' in: - **Zero standalone single-factor long-only strategies survive both Vietnamese equity transaction costs and multiple-testing control**: When implemented as 5-day rebalanced, equal-weighted long-only top-quintile (Q5) portfolios against the equal-weight universe under realistic `HOSE` execution frictions (`0.15%`/side brokerage + `0.10%`/side slippage + `0.10%` statutory sell tax = `30 bps` per unit of L1 weight turnover $\sum_i |w_{i,t} - w_{i,t-1}|$, or `60 bps` round-trip replacement cost), fast mean-reversion signals suffer breakeven cost ceilings of only `6–21 bps` round-trip. Only **2** slower momentum signals (`trix_15` at $+8.37\%/\text{yr}$, raw $p = 0.0170$; `tsi` at $+7.65\%/\text{yr}$, raw $p = 0.0320$) clear the cost hurdle at unadjusted $p \le 0.05$, **0** survive Benjamini–Hochberg adjustment ($q \le 0.10$) across the 80 cost-stage candidates, and both `trix_15` and `tsi` suffer structural breaks (`CUSUM p = 0.013` and `0.009`) and negative net excess returns in the locked `2022–2026` holdout (**0** confirmed post-cost holdout survivors).
+  [NUM]   docs\research\factor-zoo.md:142: untraced number '70' in: 1. **68 of 80 candidates** yield negative net active returns after `HOSE` fees, slippage, and sell tax (`60 bps` round-trip replacement cost). Fast reversal signals (`returns_divergence_14`, `hma_10`, `tema_10`, `zlema_10`, `true_range_norm`, `alpha_018`) exhibit 5-day L1 weight turnover of **$1.40\text{–}1.75$** ($70\%\text{–}87\%$ one-way portfolio replacement every 5 trading days), incurring an annualized cost drag of **$21\%\text{–}26\%/\text{yr}$**, while their long-only top-quintile gross excess returns correspond to breakeven round-trip costs of only **$5.7\text{–}20.5\text{ bps}$**.
+  [NUM]   docs\research\factor-zoo.md:142: untraced number '87' in: 1. **68 of 80 candidates** yield negative net active returns after `HOSE` fees, slippage, and sell tax (`60 bps` round-trip replacement cost). Fast reversal signals (`returns_divergence_14`, `hma_10`, `tema_10`, `zlema_10`, `true_range_norm`, `alpha_018`) exhibit 5-day L1 weight turnover of **$1.40\text{–}1.75$** ($70\%\text{–}87\%$ one-way portfolio replacement every 5 trading days), incurring an annualized cost drag of **$21\%\text{–}26\%/\text{yr}$**, while their long-only top-quintile gross excess returns correspond to breakeven round-trip costs of only **$5.7\text{–}20.5\text{ bps}$**.
+  [NUM]   docs\research\factor-zoo.md:142: untraced number '21' in: 1. **68 of 80 candidates** yield negative net active returns after `HOSE` fees, slippage, and sell tax (`60 bps` round-trip replacement cost). Fast reversal signals (`returns_divergence_14`, `hma_10`, `tema_10`, `zlema_10`, `true_range_norm`, `alpha_018`) exhibit 5-day L1 weight turnover of **$1.40\text{–}1.75$** ($70\%\text{–}87\%$ one-way portfolio replacement every 5 trading days), incurring an annualized cost drag of **$21\%\text{–}26\%/\text{yr}$**, while their long-only top-quintile gross excess returns correspond to breakeven round-trip costs of only **$5.7\text{–}20.5\text{ bps}$**.
+  [NUM]   docs\research\factor-zoo.md:289: untraced number '92%' in: | `engulfing` .. `three_black_crows` (15 functions) | `patterns` | Binary `{0, 1, -1}` candlestick pattern flags are zero on >92% of stock-days, producing degenerate cross-sectional rank ties. |

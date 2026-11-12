@@ -1,6 +1,6 @@
 # Time Bars, Information-Driven Bars & Continuous Futures Roll (`polars_anta.resample`)
 
-In institutional quantitative workflows, raw market feeds (tick data, Level-1 order book updates, or 1-minute candles) must be validated, stitched across futures contract expirations, and aggregated into chronological or activity-driven bars before feature extraction.
+In quantitative workflows, raw market feeds (tick data, Level-1 order book updates, or 1-minute candles) must be validated, stitched across futures contract expirations, and aggregated into chronological or activity-driven bars before feature extraction.
 
 `polars-anta` provides six native Polars data engineering primitives in `polars_anta.resample`:
 

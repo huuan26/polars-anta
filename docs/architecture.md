@@ -8,7 +8,7 @@
 
 Traditional Python technical analysis libraries force quantitative researchers into an architectural trade-off:
 
-| Paradigm | Representative Libraries | Bottleneck in Institutional Workflows |
+| Paradigm | Representative Libraries | Bottleneck in Research Workflows |
 | :--- | :--- | :--- |
 | **Compiled C Wrappers** | `TA-Lib` | Requires native C toolchains (`gcc` / MSVC), breaks across Python ABI versions, operates only on 1D NumPy arrays, and cannot optimize multi-asset queries or lazy execution plans. |
 | **Eager Pandas Wrappers** | `pandas-ta`, `ta`, `alphalens` | Bound by Python's Global Interpreter Lock (GIL), copies memory eagerly on every intermediate Series operation, and executes `groupby("symbol")` sequentially on a single CPU core. |
@@ -99,7 +99,7 @@ $$
 \hat{y}_t = \hat{\beta}_0(t) + \hat{\beta}_1(t)(n - 1) = 3\,\text{WMA}_t - 2\,\text{SMA}_t
 $$
 
-Because both $\text{SMA}_t$ and $\text{WMA}_t$ execute natively in Rust, `linear_regression_slope`, `linear_regression_intercept`, and `linear_regression_forecast` evaluate **1,000,000 rows in 20.9 ms** (**112.4x faster** than Pandas).
+Because both $\text{SMA}_t$ and $\text{WMA}_t$ execute natively in Rust, `linear_regression_slope`, `linear_regression_intercept`, and `linear_regression_forecast` evaluate **1,000,000 rows in 20.9 ms** (**112.4x faster** than a pandas `rolling().apply()` baseline).
 
 ---
 
@@ -128,7 +128,7 @@ $$
 
 ### 2.3 Modified Gram-Schmidt / Frisch-Waugh-Lovell Cross-Sectional Orthogonalization
 
-In institutional factor research, a candidate alpha $Y$ must be orthogonalized against a vector of $K$ continuous risk factors $X = [X_1, X_2, \dots, X_K]$ (e.g., Market Beta, Volatility, Size, Amihud Illiquidity) at every cross-sectional timestamp $t$.
+In cross-sectional factor research, a candidate alpha $Y$ must be orthogonalized against a vector of $K$ continuous risk factors $X = [X_1, X_2, \dots, X_K]$ (e.g., Market Beta, Volatility, Size, Amihud Illiquidity) at every cross-sectional timestamp $t$.
 
 Rather than grouping by timestamp in Python and invoking `np.linalg.lstsq` in a slow loop over $T$ dates, [`orthogonalize`](indicators/alpha.md) applies the **Frisch-Waugh-Lovell (FWL) Theorem** via **Modified Gram-Schmidt projections** written entirely in native Polars `.over(over)` window expressions:
 

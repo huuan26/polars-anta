@@ -1,6 +1,6 @@
 # Parallel Multi-Asset & Cross-Sectional Scaling with `.over()`
 
-In institutional quantitative research, a pipeline operates simultaneously along **two orthogonal axes** of a panel dataset $(i \in \{1, \dots, N_{\text{assets}}\},\; t \in \{1, \dots, T_{\text{bars}}\})$:
+In quantitative research, a pipeline operates simultaneously along **two orthogonal axes** of a panel dataset $(i \in \{1, \dots, N_{\text{assets}}\},\; t \in \{1, \dots, T_{\text{bars}}\})$:
 
 1. **Time-Series Axis (`.over("symbol")`)**: Rolling moving averages, fractional differentiation (`frac_diff`), volatility estimators (`garman_klass_volatility`), and path-dependent labels (`triple_barrier_labels`) computed independently per instrument across time.
 2. **Cross-Sectional Axis (`.over("timestamp")`)**: Winsorization (`cs_winsorize`), standardization (`cs_zscore`), sector neutralization (`neutralize`), and multi-factor OLS orthogonalization (`orthogonalize`) computed across all instruments at each point in time.

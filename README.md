@@ -652,6 +652,7 @@ Benchmarks are measured on **1,000,000 bars** (single-asset random walk) and on 
 | [`03_crypto_momentum_scan.ipynb`](examples/03_crypto_momentum_scan.ipynb) | Cross-sectional cryptocurrency momentum, volatility filtering and composite ranking | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/03_crypto_momentum_scan.ipynb) |
 | [`04_backtest_and_alpha_eval.ipynb`](examples/04_backtest_and_alpha_eval.ipynb) | Entry and exit crossovers, tearsheets, 5-quantile IC analysis and dollar-neutral portfolio backtesting | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/04_backtest_and_alpha_eval.ipynb) |
 | [`05_statistical_arbitrage_pairs_trading.ipynb`](examples/05_statistical_arbitrage_pairs_trading.ipynb) | Statistical arbitrage and pairs trading: log-spread z-scores, rolling correlation and mean-reversion entry/exit signals | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/05_statistical_arbitrage_pairs_trading.ipynb) |
+| [`06_multi_factor_sector_neutral_portfolio.ipynb`](examples/06_multi_factor_sector_neutral_portfolio.ipynb) | Multi-factor alpha combination: cross-sectional winsorization, sector neutralization, Rank IC comparison and dollar-neutral composite backtesting | [Open in Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/06_multi_factor_sector_neutral_portfolio.ipynb) |
 
 ---
 

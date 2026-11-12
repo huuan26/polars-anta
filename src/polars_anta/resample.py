@@ -8,7 +8,107 @@ from typing import Any, Literal, TypeVar
 import numpy as np
 import polars as pl
 
+from .core import check_positive
+
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
+
+__all__ = [
+    "resample_ohlcv",
+    "resample_volume_bars",
+    "resample_dollar_bars",
+    "resample_imbalance_bars",
+    "stitch_futures_roll",
+    "validate_ohlcv",
+]
+
+_METRIC_ERROR_TEMPLATES: tuple[tuple[str, str], ...] = (
+    ("high_lt_low", "{n} rows where high < low"),
+    ("high_lt_open", "{n} rows where high < open"),
+    ("high_lt_close", "{n} rows where high < close"),
+    ("low_gt_open", "{n} rows where low > open"),
+    ("low_gt_close", "{n} rows where low > close"),
+    ("negative_open", "{n} rows with negative open price"),
+    ("negative_high", "{n} rows with negative high price"),
+    ("negative_low", "{n} rows with negative low price"),
+    ("negative_close", "{n} rows with negative close price"),
+    ("negative_volume", "{n} rows with negative volume"),
+    ("null_open", "{n} null values in open"),
+    ("null_high", "{n} null values in high"),
+    ("null_low", "{n} null values in low"),
+    ("null_close", "{n} null values in close"),
+    ("null_volume", "{n} null values in volume"),
+    ("null_timestamp", "{n} null values in timestamp"),
+    ("unsorted_timestamp", "{n} out-of-order timestamps"),
+)
+
+
+def _get_schema(df: FrameType) -> pl.Schema | dict[str, Any]:
+    """Return LazyFrame schema without materialization or DataFrame schema directly."""
+    return df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+
+
+def _resolve_group_and_sort(
+    df: FrameType,
+    schema: pl.Schema | dict[str, Any],
+    group_by: str | Sequence[str] | None,
+    time_col: str | None,
+    sort: bool,
+) -> tuple[FrameType, list[str]]:
+    """Validate group_by columns and optionally sort chronologically per group."""
+    gb_cols: list[str] = []
+    if group_by is not None:
+        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
+        for g_col in gb_cols:
+            if g_col not in schema:
+                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
+
+    has_time = time_col is not None and time_col in schema
+    if sort and (gb_cols or has_time):
+        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
+        return df.sort(sort_keys), gb_cols
+    return df, gb_cols
+
+
+def _prepare_information_bar_frame(
+    df: FrameType,
+    threshold: float,
+    label: str,
+    close_col: str,
+    volume_col: str | None,
+    group_by: str | Sequence[str] | None,
+    time_col: str | None,
+    sort: bool,
+    *,
+    require_volume: bool = True,
+) -> tuple[FrameType, pl.Schema | dict[str, Any], list[str]]:
+    """Validate parameters and schema shared by volume, dollar, and imbalance bar samplers."""
+    check_positive(threshold, "threshold")
+    if label not in ("left", "right"):
+        raise ValueError("label must be either 'left' or 'right'")
+
+    schema = _get_schema(df)
+    if close_col not in schema:
+        raise ValueError(f"Required close column '{close_col}' not found in schema.")
+    if require_volume:
+        if volume_col is None or volume_col not in schema:
+            raise ValueError(f"Required volume column '{volume_col}' not found in schema.")
+    elif volume_col is not None and volume_col not in schema:
+        raise ValueError(f"Specified volume column '{volume_col}' not found in schema.")
+
+    working_df, gb_cols = _resolve_group_and_sort(df, schema, group_by, time_col, sort)
+    return working_df, schema, gb_cols
+
+
+def _bucket_id_from_cumulative(cum_expr: pl.Expr, threshold: float) -> pl.Expr:
+    """Assign integer bar bucket IDs from cumulative volume or notional flow."""
+    return (
+        ((cum_expr * (1.0 - 1e-12)) / float(threshold))
+        .floor()
+        .clip(lower_bound=0.0)
+        .fill_null(0.0)
+        .cast(pl.Int64)
+        .alias("_anta_bar_id")
+    )
 
 
 def validate_ohlcv(
@@ -45,12 +145,16 @@ def validate_ohlcv(
     :return: Original DataFrame/LazyFrame if valid, or validation report dictionary if return_report=True.
     :raises ValueError: If validation fails and return_report is False.
     """
-    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+    schema = _get_schema(df)
     errors: list[str] = []
 
     # 1. Schema checks
-    price_cols = [("open", open_col), ("high", high_col), ("low", low_col), ("close", close_col)]
-    for role, col in price_cols:
+    for role, col in [
+        ("open", open_col),
+        ("high", high_col),
+        ("low", low_col),
+        ("close", close_col),
+    ]:
         if col not in schema:
             errors.append(f"Missing required {role} column '{col}'")
         elif not schema[col].is_numeric():
@@ -106,72 +210,36 @@ def validate_ohlcv(
         ]
 
         if has_volume and volume_col is not None:
-            check_exprs.append(
-                (pl.col(volume_col) < 0).fill_null(False).sum().alias("negative_volume")
+            check_exprs.extend(
+                [
+                    (pl.col(volume_col) < 0).fill_null(False).sum().alias("negative_volume"),
+                    pl.col(volume_col).is_null().sum().alias("null_volume"),
+                ]
             )
-            check_exprs.append(pl.col(volume_col).is_null().sum().alias("null_volume"))
 
         if time_col is not None:
-            check_exprs.append(pl.col(time_col).is_null().sum().alias("null_timestamp"))
+            unsorted = pl.col(time_col) < pl.col(time_col).shift(1)
             if group_by is not None:
-                check_exprs.append(
-                    (pl.col(time_col) < pl.col(time_col).shift(1))
-                    .over(group_by)
-                    .fill_null(False)
-                    .sum()
-                    .alias("unsorted_timestamp")
-                )
-            else:
-                check_exprs.append(
-                    (pl.col(time_col) < pl.col(time_col).shift(1))
-                    .fill_null(False)
-                    .sum()
-                    .alias("unsorted_timestamp")
-                )
+                unsorted = unsorted.over(group_by)
+            check_exprs.extend(
+                [
+                    pl.col(time_col).is_null().sum().alias("null_timestamp"),
+                    unsorted.fill_null(False).sum().alias("unsorted_timestamp"),
+                ]
+            )
 
         eval_df = df.select(check_exprs)
-        if isinstance(eval_df, pl.LazyFrame):
-            eval_res = eval_df.collect().to_dicts()[0]
-        else:
-            eval_res = eval_df.to_dicts()[0]
+        eval_res = (
+            eval_df.collect().to_dicts()[0]
+            if isinstance(eval_df, pl.LazyFrame)
+            else eval_df.to_dicts()[0]
+        )
+        metrics = {k: (int(v) if v is not None else 0) for k, v in eval_res.items()}
 
-        for k, v in eval_res.items():
-            metrics[k] = int(v) if v is not None else 0
-
-        if metrics.get("high_lt_low", 0) > 0:
-            errors.append(f"{metrics['high_lt_low']} rows where high < low")
-        if metrics.get("high_lt_open", 0) > 0:
-            errors.append(f"{metrics['high_lt_open']} rows where high < open")
-        if metrics.get("high_lt_close", 0) > 0:
-            errors.append(f"{metrics['high_lt_close']} rows where high < close")
-        if metrics.get("low_gt_open", 0) > 0:
-            errors.append(f"{metrics['low_gt_open']} rows where low > open")
-        if metrics.get("low_gt_close", 0) > 0:
-            errors.append(f"{metrics['low_gt_close']} rows where low > close")
-        if metrics.get("negative_open", 0) > 0:
-            errors.append(f"{metrics['negative_open']} rows with negative open price")
-        if metrics.get("negative_high", 0) > 0:
-            errors.append(f"{metrics['negative_high']} rows with negative high price")
-        if metrics.get("negative_low", 0) > 0:
-            errors.append(f"{metrics['negative_low']} rows with negative low price")
-        if metrics.get("negative_close", 0) > 0:
-            errors.append(f"{metrics['negative_close']} rows with negative close price")
-        if metrics.get("negative_volume", 0) > 0:
-            errors.append(f"{metrics['negative_volume']} rows with negative volume")
-        if metrics.get("null_open", 0) > 0:
-            errors.append(f"{metrics['null_open']} null values in open")
-        if metrics.get("null_high", 0) > 0:
-            errors.append(f"{metrics['null_high']} null values in high")
-        if metrics.get("null_low", 0) > 0:
-            errors.append(f"{metrics['null_low']} null values in low")
-        if metrics.get("null_close", 0) > 0:
-            errors.append(f"{metrics['null_close']} null values in close")
-        if metrics.get("null_volume", 0) > 0:
-            errors.append(f"{metrics['null_volume']} null values in volume")
-        if metrics.get("null_timestamp", 0) > 0:
-            errors.append(f"{metrics['null_timestamp']} null values in timestamp")
-        if metrics.get("unsorted_timestamp", 0) > 0:
-            errors.append(f"{metrics['unsorted_timestamp']} out-of-order timestamps")
+        for key, template in _METRIC_ERROR_TEMPLATES:
+            count = metrics.get(key, 0)
+            if count > 0:
+                errors.append(template.format(n=count))
 
     if errors:
         if return_report:
@@ -226,7 +294,7 @@ def resample_ohlcv(
     :param sort: When True, ensures inputs and outputs are sorted chronologically (per group).
     :return: Resampled DataFrame or LazyFrame of the same type as input.
     """
-    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+    schema = _get_schema(df)
 
     for col_name, role in [
         (time_col, "timestamp"),
@@ -243,19 +311,9 @@ def resample_ohlcv(
             f"Timestamp column '{time_col}' must be Date or Datetime (got {schema[time_col]})."
         )
 
-    # Validate group_by columns
-    gb_cols: list[str] = []
-    if group_by is not None:
-        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
-        for g_col in gb_cols:
-            if g_col not in schema:
-                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
-
-    # Sort if requested
+    working_df, gb_cols = _resolve_group_and_sort(df, schema, group_by, time_col, sort)
     sort_keys = gb_cols + [time_col] if gb_cols else [time_col]
-    working_df = df.sort(sort_keys) if sort else df
 
-    # Build candle aggregations
     aggs: list[pl.Expr] = [
         pl.col(open_col).first().alias(open_col),
         pl.col(high_col).max().alias(high_col),
@@ -263,18 +321,15 @@ def resample_ohlcv(
         pl.col(close_col).last().alias(close_col),
     ]
 
-    # Handle volume
     if volume_col is not None:
         if volume_col in schema:
             aggs.append(pl.col(volume_col).sum().alias(volume_col))
         elif volume_col != "volume":
             raise ValueError(f"Specified volume column '{volume_col}' not found in schema.")
 
-    # Custom additional aggregations
     if additional_aggs:
         aggs.extend(additional_aggs)
 
-    # Perform dynamic grouping (Polars 2.0 uses group_by parameter)
     if gb_cols:
         group_arg: str | list[str] = gb_cols[0] if len(gb_cols) == 1 else gb_cols
         resampled = working_df.group_by_dynamic(
@@ -292,10 +347,7 @@ def resample_ohlcv(
             label=label,
         ).agg(aggs)
 
-    if sort:
-        resampled = resampled.sort(sort_keys)
-
-    return resampled
+    return resampled.sort(sort_keys) if sort else resampled
 
 
 def _build_information_bar_aggs(
@@ -336,12 +388,14 @@ def _build_information_bar_aggs(
     if volume_col is not None and volume_col in schema:
         v_sum = pl.col(volume_col).sum()
         pv_sum = (pl.col(close_col).cast(pl.Float64) * pl.col(volume_col).cast(pl.Float64)).sum()
-        aggs.append(v_sum.alias(volume_col))
-        aggs.append(
-            pl.when(v_sum > 0.0)
-            .then(pv_sum / v_sum)
-            .otherwise(pl.col(close_col).mean())
-            .alias("vwap")
+        aggs.extend(
+            [
+                v_sum.alias(volume_col),
+                pl.when(v_sum > 0.0)
+                .then(pv_sum / v_sum)
+                .otherwise(pl.col(close_col).mean())
+                .alias("vwap"),
+            ]
         )
 
     if extra_cols:
@@ -391,58 +445,19 @@ def resample_volume_bars(
     :return: Volume-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
         ``volume``, ``vwap``, and ``n_obs`` columns.
     """
-    if threshold <= 0.0:
-        raise ValueError("threshold must be a positive number greater than zero")
-    if label not in ("left", "right"):
-        raise ValueError("label must be either 'left' or 'right'")
-
-    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
-    if close_col not in schema:
-        raise ValueError(f"Required close column '{close_col}' not found in schema.")
-    if volume_col not in schema:
-        raise ValueError(f"Required volume column '{volume_col}' not found in schema.")
-
-    gb_cols: list[str] = []
-    if group_by is not None:
-        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
-        for g_col in gb_cols:
-            if g_col not in schema:
-                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
-
-    has_time = time_col is not None and time_col in schema
-    if sort and (gb_cols or has_time):
-        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
-        working_df = df.sort(sort_keys)
-    else:
-        working_df = df
+    working_df, schema, gb_cols = _prepare_information_bar_frame(
+        df, threshold, label, close_col, volume_col, group_by, time_col, sort, require_volume=True
+    )
 
     v_clean = pl.col(volume_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
     cum_v = v_clean.cum_sum().over(gb_cols) if gb_cols else v_clean.cum_sum()
-    bar_id_expr = (
-        ((cum_v * (1.0 - 1e-12)) / float(threshold))
-        .floor()
-        .clip(lower_bound=0.0)
-        .fill_null(0.0)
-        .cast(pl.Int64)
-        .alias("_anta_bar_id")
-    )
-
     aggs = _build_information_bar_aggs(
-        schema=schema,
-        time_col=time_col,
-        open_col=open_col,
-        high_col=high_col,
-        low_col=low_col,
-        close_col=close_col,
-        volume_col=volume_col,
-        label=label,
-        additional_aggs=additional_aggs,
+        schema, time_col, open_col, high_col, low_col, close_col, volume_col, label, additional_aggs
     )
 
-    group_keys = gb_cols + ["_anta_bar_id"]
     return (
-        working_df.with_columns(bar_id_expr)
-        .group_by(group_keys, maintain_order=True)
+        working_df.with_columns(_bucket_id_from_cumulative(cum_v, threshold))
+        .group_by([*gb_cols, "_anta_bar_id"], maintain_order=True)
         .agg(aggs)
         .drop("_anta_bar_id")
     )
@@ -486,32 +501,11 @@ def resample_dollar_bars(
     :return: Dollar-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
         ``volume``, ``vwap``, ``dollar_volume``, and ``n_obs`` columns.
     """
-    if threshold <= 0.0:
-        raise ValueError("threshold must be a positive number greater than zero")
-    if multiplier <= 0.0:
-        raise ValueError("multiplier must be a positive number greater than zero")
-    if label not in ("left", "right"):
-        raise ValueError("label must be either 'left' or 'right'")
-
-    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
-    if close_col not in schema:
-        raise ValueError(f"Required close column '{close_col}' not found in schema.")
-    if volume_col not in schema:
-        raise ValueError(f"Required volume column '{volume_col}' not found in schema.")
-
-    gb_cols: list[str] = []
-    if group_by is not None:
-        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
-        for g_col in gb_cols:
-            if g_col not in schema:
-                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
-
-    has_time = time_col is not None and time_col in schema
-    if sort and (gb_cols or has_time):
-        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
-        working_df = df.sort(sort_keys)
-    else:
-        working_df = df
+    check_positive(threshold, "threshold")
+    check_positive(multiplier, "multiplier")
+    working_df, schema, gb_cols = _prepare_information_bar_frame(
+        df, threshold, label, close_col, volume_col, group_by, time_col, sort, require_volume=True
+    )
 
     dvol_expr = (
         pl.col(close_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
@@ -519,32 +513,24 @@ def resample_dollar_bars(
         * float(multiplier)
     )
     cum_dvol = dvol_expr.cum_sum().over(gb_cols) if gb_cols else dvol_expr.cum_sum()
-    bar_id_expr = (
-        ((cum_dvol * (1.0 - 1e-12)) / float(threshold))
-        .floor()
-        .clip(lower_bound=0.0)
-        .fill_null(0.0)
-        .cast(pl.Int64)
-        .alias("_anta_bar_id")
-    )
-
     aggs = _build_information_bar_aggs(
-        schema=schema,
-        time_col=time_col,
-        open_col=open_col,
-        high_col=high_col,
-        low_col=low_col,
-        close_col=close_col,
-        volume_col=volume_col,
-        label=label,
-        additional_aggs=additional_aggs,
+        schema,
+        time_col,
+        open_col,
+        high_col,
+        low_col,
+        close_col,
+        volume_col,
+        label,
+        additional_aggs,
         extra_cols=[pl.col("_anta_dvol").sum().alias("dollar_volume")],
     )
 
-    group_keys = gb_cols + ["_anta_bar_id"]
     return (
-        working_df.with_columns([dvol_expr.alias("_anta_dvol"), bar_id_expr])
-        .group_by(group_keys, maintain_order=True)
+        working_df.with_columns(
+            [dvol_expr.alias("_anta_dvol"), _bucket_id_from_cumulative(cum_dvol, threshold)]
+        )
+        .group_by([*gb_cols, "_anta_bar_id"], maintain_order=True)
         .agg(aggs)
         .drop("_anta_bar_id")
     )
@@ -587,30 +573,9 @@ def resample_imbalance_bars(
     :return: Imbalance-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
         ``imbalance``, and ``n_obs`` (plus ``volume`` and ``vwap`` if ``volume_col`` is present).
     """
-    if threshold <= 0.0:
-        raise ValueError("threshold must be a positive number greater than zero")
-    if label not in ("left", "right"):
-        raise ValueError("label must be either 'left' or 'right'")
-
-    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
-    if close_col not in schema:
-        raise ValueError(f"Required close column '{close_col}' not found in schema.")
-    if volume_col is not None and volume_col not in schema:
-        raise ValueError(f"Specified volume column '{volume_col}' not found in schema.")
-
-    gb_cols: list[str] = []
-    if group_by is not None:
-        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
-        for g_col in gb_cols:
-            if g_col not in schema:
-                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
-
-    has_time = time_col is not None and time_col in schema
-    if sort and (gb_cols or has_time):
-        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
-        working_df = df.sort(sort_keys)
-    else:
-        working_df = df
+    working_df, schema, gb_cols = _prepare_information_bar_frame(
+        df, threshold, label, close_col, volume_col, group_by, time_col, sort, require_volume=False
+    )
 
     c = pl.col(close_col).cast(pl.Float64)
     diff = c.diff().over(gb_cols) if gb_cols else c.diff()
@@ -621,11 +586,11 @@ def resample_imbalance_bars(
         else raw_sign.forward_fill().fill_null(1.0)
     )
 
-    if volume_col is not None:
-        v = pl.col(volume_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
-        theta_expr = tick_sign * v
-    else:
-        theta_expr = tick_sign
+    theta_expr = (
+        tick_sign * pl.col(volume_col).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
+        if volume_col is not None
+        else tick_sign
+    )
 
     thresh_val = float(threshold)
     _reset_ufunc = np.frompyfunc(
@@ -652,27 +617,23 @@ def resample_imbalance_bars(
         bar_id_expr = bar_id_expr.over(gb_cols)
 
     aggs = _build_information_bar_aggs(
-        schema=schema,
-        time_col=time_col,
-        open_col=open_col,
-        high_col=high_col,
-        low_col=low_col,
-        close_col=close_col,
-        volume_col=volume_col,
-        label=label,
-        additional_aggs=additional_aggs,
+        schema,
+        time_col,
+        open_col,
+        high_col,
+        low_col,
+        close_col,
+        volume_col,
+        label,
+        additional_aggs,
         extra_cols=[pl.col("_anta_theta").sum().alias("imbalance")],
     )
 
-    group_keys = gb_cols + ["_anta_bar_id"]
     return (
         working_df.with_columns(
-            [
-                theta_expr.alias("_anta_theta"),
-                bar_id_expr.alias("_anta_bar_id"),
-            ]
+            [theta_expr.alias("_anta_theta"), bar_id_expr.alias("_anta_bar_id")]
         )
-        .group_by(group_keys, maintain_order=True)
+        .group_by([*gb_cols, "_anta_bar_id"], maintain_order=True)
         .agg(aggs)
         .drop("_anta_bar_id")
     )
@@ -722,25 +683,13 @@ def stitch_futures_roll(
     if roll_measure not in ("open_to_close", "close_to_close"):
         raise ValueError("roll_measure must be either 'open_to_close' or 'close_to_close'")
 
-    schema = df.collect_schema() if isinstance(df, pl.LazyFrame) else df.schema
+    schema = _get_schema(df)
     if contract_col not in schema:
         raise ValueError(f"Required contract column '{contract_col}' not found in schema.")
     if close_col not in schema:
         raise ValueError(f"Required close column '{close_col}' not found in schema.")
 
-    gb_cols: list[str] = []
-    if group_by is not None:
-        gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
-        for g_col in gb_cols:
-            if g_col not in schema:
-                raise ValueError(f"Group-by column '{g_col}' not found in schema.")
-
-    has_time = time_col is not None and time_col in schema
-    if sort and (gb_cols or has_time):
-        sort_keys = gb_cols + ([time_col] if has_time and time_col is not None else [])
-        working_df = df.sort(sort_keys)
-    else:
-        working_df = df
+    working_df, gb_cols = _resolve_group_and_sort(df, schema, group_by, time_col, sort)
 
     price_cols = [c for c in (open_col, high_col, low_col, close_col) if c in schema]
     ref_new_col = (
@@ -775,15 +724,13 @@ def stitch_futures_roll(
         else:
             adj_expr = (-cum_gap).alias("roll_adjustment")
 
-        out_df = working_df.with_columns(adj_expr)
-        return out_df.with_columns(
+        return working_df.with_columns(adj_expr).with_columns(
             [
                 (pl.col(col).cast(pl.Float64) + pl.col("roll_adjustment")).alias(col)
                 for col in price_cols
             ]
         )
 
-    # Ratio adjustment
     step_ratio = (
         pl.when(is_roll & (prev_close > 0.0) & (pl.col(ref_new_col).cast(pl.Float64) > 0.0))
         .then(pl.col(ref_new_col).cast(pl.Float64) / prev_close)
@@ -795,8 +742,7 @@ def stitch_futures_roll(
     total_log_r = log_r.sum().over(gb_cols) if gb_cols else log_r.sum()
     factor_expr = (total_log_r - cum_log_r).exp().alias("roll_adjustment")
 
-    out_df = working_df.with_columns(factor_expr)
-    return out_df.with_columns(
+    return working_df.with_columns(factor_expr).with_columns(
         [
             (pl.col(col).cast(pl.Float64) * pl.col("roll_adjustment")).alias(col)
             for col in price_cols

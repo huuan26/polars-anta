@@ -4,8 +4,33 @@ from __future__ import annotations
 
 import polars as pl
 
-from .core import IntoExpr, parse_expr, true_range, wilder_smooth
+from .core import IntoExpr, check_period, check_periods, parse_expr, true_range, wilder_smooth
 from .trend import ema, wma
+
+__all__ = [
+    "rsi",
+    "macd",
+    "stochastic",
+    "squeeze_momentum",
+    "stc",
+    "williams_r",
+    "cci",
+    "roc",
+    "stoch_rsi",
+    "awesome_oscillator",
+    "tsi",
+    "trix",
+    "cmo",
+    "ppo",
+    "coppock",
+    "ultimate_oscillator",
+    "fisher_transform",
+    "rvi",
+    "kst",
+    "dpo",
+    "bop",
+    "cfo",
+]
 
 
 def rsi(close: IntoExpr, period: int = 14) -> pl.Expr:
@@ -15,24 +40,18 @@ def rsi(close: IntoExpr, period: int = 14) -> pl.Expr:
     :param period: lookback period (default 14)
     :return: Polars expression producing RSI values in [0, 100]
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
 
-    c = parse_expr(close)
-    diff = c.diff(1)
-    gain = pl.when(diff > 0).then(diff).otherwise(0.0)
-    loss = pl.when(diff < 0).then(-diff).otherwise(0.0)
+    diff = parse_expr(close).diff(1)
+    avg_gain = wilder_smooth(pl.when(diff > 0).then(diff).otherwise(0.0), period)
+    avg_loss = wilder_smooth(pl.when(diff < 0).then(-diff).otherwise(0.0), period)
 
-    avg_gain = wilder_smooth(gain, period)
-    avg_loss = wilder_smooth(loss, period)
-
-    rs = avg_gain / avg_loss
     return (
         pl.when(avg_loss == 0.0)
         .then(100.0)
         .when(avg_gain == 0.0)
         .then(0.0)
-        .otherwise(100.0 - (100.0 / (1.0 + rs)))
+        .otherwise(100.0 - (100.0 / (1.0 + avg_gain / avg_loss)))
     )
 
 
@@ -55,8 +74,7 @@ def macd(
     :param signal_period: signal line EMA period (default 9)
     :return: Polars Struct expression
     """
-    if fast_period <= 0 or slow_period <= 0 or signal_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(fast_period, slow_period, signal_period)
     if fast_period >= slow_period:
         raise ValueError("fast_period must be less than slow_period")
 
@@ -65,13 +83,12 @@ def macd(
         span=slow_period, adjust=False
     )
     signal_line = macd_line.ewm_mean(span=signal_period, adjust=False)
-    histogram = macd_line - signal_line
 
     return pl.struct(
         [
             macd_line.alias("macd"),
             signal_line.alias("signal"),
-            histogram.alias("histogram"),
+            (macd_line - signal_line).alias("histogram"),
         ]
     )
 
@@ -98,25 +115,23 @@ def stochastic(
     :param smooth_k: %K smoothing window (default 3)
     :return: Polars Struct expression
     """
-    if k_period <= 0 or d_period <= 0 or smooth_k <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(k_period, d_period, smooth_k)
 
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-
-    lowest_low = lo.rolling_min(window_size=k_period)
-    highest_high = hi.rolling_max(window_size=k_period)
+    lowest_low = parse_expr(low).rolling_min(window_size=k_period)
+    highest_high = parse_expr(high).rolling_max(window_size=k_period)
     spread = highest_high - lowest_low
 
-    fast_k = pl.when(spread > 0.0).then(100.0 * (c - lowest_low) / spread).otherwise(50.0)
+    fast_k = (
+        pl.when(spread > 0.0)
+        .then(100.0 * (parse_expr(close) - lowest_low) / spread)
+        .otherwise(50.0)
+    )
     k_line = fast_k.rolling_mean(window_size=smooth_k)
-    d_line = k_line.rolling_mean(window_size=d_period)
 
     return pl.struct(
         [
             k_line.alias("k"),
-            d_line.alias("d"),
+            k_line.rolling_mean(window_size=d_period).alias("d"),
         ]
     )
 
@@ -137,18 +152,15 @@ def williams_r(
     :param period: lookback period (default 14)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-
-    highest_high = hi.rolling_max(window_size=period)
-    lowest_low = lo.rolling_min(window_size=period)
+    check_period(period)
+    highest_high = parse_expr(high).rolling_max(window_size=period)
+    lowest_low = parse_expr(low).rolling_min(window_size=period)
     spread = highest_high - lowest_low
-
-    return pl.when(spread > 0.0).then(-100.0 * (highest_high - c) / spread).otherwise(-50.0)
+    return (
+        pl.when(spread > 0.0)
+        .then(-100.0 * (highest_high - parse_expr(close)) / spread)
+        .otherwise(-50.0)
+    )
 
 
 def cci(
@@ -169,16 +181,10 @@ def cci(
     :param constant: scaling factor (default 0.015)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-
-    tp = (hi + lo + c) / 3.0
+    check_period(period)
+    tp = (parse_expr(high) + parse_expr(low) + parse_expr(close)) / 3.0
     sma_tp = tp.rolling_mean(window_size=period)
     mad = sum((tp.shift(i) - sma_tp).abs() for i in range(period)) / float(period)
-
     return pl.when(mad > 0.0).then((tp - sma_tp) / (constant * mad)).otherwise(0.0)
 
 
@@ -191,8 +197,7 @@ def roc(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     c = parse_expr(close)
     prev_c = c.shift(period)
     return pl.when(prev_c != 0.0).then(100.0 * (c - prev_c) / prev_c).otherwise(0.0)
@@ -220,22 +225,19 @@ def stoch_rsi(
     :param d_period: %D smoothing window (default 3)
     :return: Polars Struct expression
     """
-    if rsi_period <= 0 or stoch_period <= 0 or k_period <= 0 or d_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(rsi_period, stoch_period, k_period, d_period)
 
     rsi_val = rsi(close, period=rsi_period)
     lowest_rsi = rsi_val.rolling_min(window_size=stoch_period)
-    highest_rsi = rsi_val.rolling_max(window_size=stoch_period)
-    spread = highest_rsi - lowest_rsi
+    spread = rsi_val.rolling_max(window_size=stoch_period) - lowest_rsi
 
     fast_k = pl.when(spread > 0.0).then(100.0 * (rsi_val - lowest_rsi) / spread).otherwise(50.0)
     k_line = fast_k.rolling_mean(window_size=k_period)
-    d_line = k_line.rolling_mean(window_size=d_period)
 
     return pl.struct(
         [
             k_line.alias("k"),
-            d_line.alias("d"),
+            k_line.rolling_mean(window_size=d_period).alias("d"),
         ]
     )
 
@@ -256,19 +258,14 @@ def awesome_oscillator(
     :param slow_period: slow SMA period (default 34)
     :return: Polars expression
     """
-    if fast_period <= 0 or slow_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(fast_period, slow_period)
     if fast_period >= slow_period:
         raise ValueError("fast_period must be less than slow_period")
 
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    median_price = (hi + lo) / 2.0
-
-    fast_sma = median_price.rolling_mean(window_size=fast_period)
-    slow_sma = median_price.rolling_mean(window_size=slow_period)
-
-    return fast_sma - slow_sma
+    median_price = (parse_expr(high) + parse_expr(low)) / 2.0
+    return median_price.rolling_mean(window_size=fast_period) - median_price.rolling_mean(
+        window_size=slow_period
+    )
 
 
 def tsi(
@@ -286,19 +283,17 @@ def tsi(
     :param short_period: second smoothing span (default 13)
     :return: Polars expression
     """
-    if long_period <= 0 or short_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(long_period, short_period)
 
-    c = parse_expr(close)
-    diff = c.diff(1)
-    abs_diff = diff.abs()
-
-    smooth_1 = diff.ewm_mean(span=long_period, adjust=False)
-    smooth_2 = smooth_1.ewm_mean(span=short_period, adjust=False)
-
-    abs_smooth_1 = abs_diff.ewm_mean(span=long_period, adjust=False)
-    abs_smooth_2 = abs_smooth_1.ewm_mean(span=short_period, adjust=False)
-
+    diff = parse_expr(close).diff(1)
+    smooth_2 = diff.ewm_mean(span=long_period, adjust=False).ewm_mean(
+        span=short_period, adjust=False
+    )
+    abs_smooth_2 = (
+        diff.abs()
+        .ewm_mean(span=long_period, adjust=False)
+        .ewm_mean(span=short_period, adjust=False)
+    )
     return pl.when(abs_smooth_2 > 0.0).then(100.0 * smooth_2 / abs_smooth_2).otherwise(0.0)
 
 
@@ -311,17 +306,11 @@ def cmo(close: IntoExpr, period: int = 14) -> pl.Expr:
     :param period: lookback period (default 14)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    c = parse_expr(close)
-    diff = c.diff(1)
-    gain = pl.when(diff > 0.0).then(diff).otherwise(0.0)
-    loss = pl.when(diff < 0.0).then(-diff).otherwise(0.0)
-
-    sum_gain = gain.rolling_sum(window_size=period)
-    sum_loss = loss.rolling_sum(window_size=period)
+    check_period(period)
+    diff = parse_expr(close).diff(1)
+    sum_gain = pl.when(diff > 0.0).then(diff).otherwise(0.0).rolling_sum(window_size=period)
+    sum_loss = pl.when(diff < 0.0).then(-diff).otherwise(0.0).rolling_sum(window_size=period)
     total = sum_gain + sum_loss
-
     return pl.when(total > 0.0).then(100.0 * (sum_gain - sum_loss) / total).otherwise(0.0)
 
 
@@ -344,8 +333,7 @@ def ppo(
     :param signal_period: signal line EMA period (default 9)
     :return: Polars Struct expression
     """
-    if fast_period <= 0 or slow_period <= 0 or signal_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(fast_period, slow_period, signal_period)
     if fast_period >= slow_period:
         raise ValueError("fast_period must be less than slow_period")
 
@@ -357,13 +345,12 @@ def ppo(
         pl.when(slow_ema != 0.0).then(100.0 * (fast_ema - slow_ema) / slow_ema).otherwise(0.0)
     )
     signal_line = ema(ppo_line, period=signal_period)
-    histogram = ppo_line - signal_line
 
     return pl.struct(
         [
             ppo_line.alias("ppo"),
             signal_line.alias("signal"),
-            histogram.alias("histogram"),
+            (ppo_line - signal_line).alias("histogram"),
         ]
     )
 
@@ -384,13 +371,9 @@ def trix(
     :param signal_period: signal line EMA period (default 9)
     :return: Polars Struct expression
     """
-    if period <= 0 or signal_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(period, signal_period)
 
-    c = parse_expr(close)
-    ema_1 = ema(c, period=period)
-    ema_2 = ema(ema_1, period=period)
-    ema_3 = ema(ema_2, period=period)
+    ema_3 = ema(ema(ema(parse_expr(close), period=period), period=period), period=period)
     prev = ema_3.shift(1)
     # A missing prior triple EMA (leading bar, or a null smooth) stays null.
     # A zero prior smooth has an undefined percentage change and is reported as 0.
@@ -400,12 +383,10 @@ def trix(
         .when(prev.is_not_null())
         .then(0.0)
     )
-    signal_line = ema(trix_line, period=signal_period)
-
     return pl.struct(
         [
             trix_line.alias("trix"),
-            signal_line.alias("signal"),
+            ema(trix_line, period=signal_period).alias("signal"),
         ]
     )
 
@@ -426,14 +407,9 @@ def coppock(
     :param slow_roc: slow ROC period (default 14)
     :return: Polars expression
     """
-    if wma_period <= 0 or fast_roc <= 0 or slow_roc <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(wma_period, fast_roc, slow_roc)
     c = parse_expr(close)
-    roc_fast = roc(c, period=fast_roc)
-    roc_slow = roc(c, period=slow_roc)
-    total_roc = roc_fast + roc_slow
-
-    return wma(total_roc, period=wma_period)
+    return wma(roc(c, period=fast_roc) + roc(c, period=slow_roc), period=wma_period)
 
 
 def ultimate_oscillator(
@@ -456,8 +432,7 @@ def ultimate_oscillator(
     :param period3: long lookback period (default 28)
     :return: Polars expression
     """
-    if period1 <= 0 or period2 <= 0 or period3 <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(period1, period2, period3)
 
     hi = parse_expr(high)
     lo = parse_expr(low)
@@ -465,24 +440,14 @@ def ultimate_oscillator(
     prev_close = c.shift(1)
 
     min_l_c = pl.min_horizontal(lo, prev_close)
-    max_h_c = pl.max_horizontal(hi, prev_close)
-
     bp = c - min_l_c
-    tr = max_h_c - min_l_c
+    tr = pl.max_horizontal(hi, prev_close) - min_l_c
 
-    sum_bp1 = bp.rolling_sum(window_size=period1)
-    sum_tr1 = tr.rolling_sum(window_size=period1)
-    avg1 = pl.when(sum_tr1 > 0.0).then(sum_bp1 / sum_tr1).otherwise(0.0)
+    def _avg(p: int) -> pl.Expr:
+        s_tr = tr.rolling_sum(window_size=p)
+        return pl.when(s_tr > 0.0).then(bp.rolling_sum(window_size=p) / s_tr).otherwise(0.0)
 
-    sum_bp2 = bp.rolling_sum(window_size=period2)
-    sum_tr2 = tr.rolling_sum(window_size=period2)
-    avg2 = pl.when(sum_tr2 > 0.0).then(sum_bp2 / sum_tr2).otherwise(0.0)
-
-    sum_bp3 = bp.rolling_sum(window_size=period3)
-    sum_tr3 = tr.rolling_sum(window_size=period3)
-    avg3 = pl.when(sum_tr3 > 0.0).then(sum_bp3 / sum_tr3).otherwise(0.0)
-
-    return 100.0 * (4.0 * avg1 + 2.0 * avg2 + avg3) / 7.0
+    return 100.0 * (4.0 * _avg(period1) + 2.0 * _avg(period2) + _avg(period3)) / 7.0
 
 
 def fisher_transform(
@@ -503,26 +468,22 @@ def fisher_transform(
     :param period: lookback window (default 9)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
 
     hi = parse_expr(high)
     lo = parse_expr(low)
-    max_h = hi.rolling_max(window_size=period)
     min_l = lo.rolling_min(window_size=period)
-    hl_diff = max_h - min_l
+    hl_diff = hi.rolling_max(window_size=period) - min_l
     mid = (hi + lo) / 2.0
 
     raw_x = pl.when(hl_diff > 0.0).then(2.0 * ((mid - min_l) / hl_diff - 0.5)).otherwise(0.0)
     smoothed_x = raw_x.ewm_mean(span=3, adjust=False).clip(-0.999, 0.999)
-
     fisher = 0.5 * ((1.0 + smoothed_x) / (1.0 - smoothed_x)).log()
-    signal = fisher.shift(1)
 
     return pl.struct(
         [
             fisher.alias("fisher"),
-            signal.alias("signal"),
+            fisher.shift(1).alias("signal"),
         ]
     )
 
@@ -549,32 +510,19 @@ def rvi(
     :param period: lookback period (default 14)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
 
-    o = parse_expr(open)
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
+    def _tri4(x: pl.Expr) -> pl.Expr:
+        return (x + 2.0 * x.shift(1) + 2.0 * x.shift(2) + x.shift(3)) / 6.0
 
-    co = c - o
-    hl = hi - lo
-
-    co_num = (co + 2.0 * co.shift(1) + 2.0 * co.shift(2) + co.shift(3)) / 6.0
-    hl_den = (hl + 2.0 * hl.shift(1) + 2.0 * hl.shift(2) + hl.shift(3)) / 6.0
-
-    sum_num = co_num.rolling_sum(window_size=period)
-    sum_den = hl_den.rolling_sum(window_size=period)
-
+    sum_num = _tri4(parse_expr(close) - parse_expr(open)).rolling_sum(window_size=period)
+    sum_den = _tri4(parse_expr(high) - parse_expr(low)).rolling_sum(window_size=period)
     rvi_line = pl.when(sum_den > 0.0).then(sum_num / sum_den).otherwise(0.0)
-    signal = (
-        rvi_line + 2.0 * rvi_line.shift(1) + 2.0 * rvi_line.shift(2) + rvi_line.shift(3)
-    ) / 6.0
 
     return pl.struct(
         [
             rvi_line.alias("rvi"),
-            signal.alias("signal"),
+            _tri4(rvi_line).alias("signal"),
         ]
     )
 
@@ -637,11 +585,9 @@ def dpo(close: IntoExpr, period: int = 20) -> pl.Expr:
     :param period: lookback period (default 20)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     c = parse_expr(close)
-    shift_k = period // 2 + 1
-    return c - c.rolling_mean(window_size=period).shift(shift_k)
+    return c - c.rolling_mean(window_size=period).shift(period // 2 + 1)
 
 
 def bop(
@@ -660,13 +606,10 @@ def bop(
     :param close: close price column or expression
     :return: Polars expression in [-1, 1]
     """
-    o = parse_expr(open)
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-    spread = hi - lo
-
-    return pl.when(spread > 0.0).then((c - o) / spread).otherwise(0.0)
+    spread = parse_expr(high) - parse_expr(low)
+    return (
+        pl.when(spread > 0.0).then((parse_expr(close) - parse_expr(open)) / spread).otherwise(0.0)
+    )
 
 
 def cfo(close: IntoExpr, period: int = 14) -> pl.Expr:
@@ -678,8 +621,7 @@ def cfo(close: IntoExpr, period: int = 14) -> pl.Expr:
     :param period: linear regression period (default 14)
     :return: Polars expression
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
+    check_period(period, 2)
 
     n = float(period)
     mean_x = (n - 1.0) / 2.0
@@ -725,11 +667,9 @@ def squeeze_momentum(
     :param mom_period: Momentum linear regression lookback period (default None, uses kc_period)
     :return: Polars Struct expression
     """
-    if bb_period <= 0 or kc_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(bb_period, kc_period)
     effective_mom = mom_period if mom_period is not None else kc_period
-    if effective_mom <= 0:
-        raise ValueError("mom_period must be a positive integer greater than zero")
+    check_period(effective_mom, name="mom_period")
 
     hi = parse_expr(high)
     lo = parse_expr(low)
@@ -743,8 +683,7 @@ def squeeze_momentum(
 
     # 2. Keltner Channels
     basis_kc = c.rolling_mean(window_size=kc_period)
-    tr = true_range(hi, lo, c)
-    range_kc = tr.rolling_mean(window_size=kc_period) * float(kc_mult)
+    range_kc = true_range(hi, lo, c).rolling_mean(window_size=kc_period) * float(kc_mult)
     upper_kc = basis_kc + range_kc
     lower_kc = basis_kc - range_kc
 
@@ -755,15 +694,11 @@ def squeeze_momentum(
     no_sqz = pl.when(null_mask).then(None).otherwise((~sqz_on) & (~sqz_off))
 
     # 3. Momentum Histogram
-    highest_h = hi.rolling_max(window_size=kc_period)
-    lowest_l = lo.rolling_min(window_size=kc_period)
-    avg_hl = (highest_h + lowest_l) / 2.0
-    avg_mid = (avg_hl + basis_kc) / 2.0
-    delta = c - avg_mid
-
-    sma_delta = delta.rolling_mean(window_size=effective_mom)
-    wma_delta = wma(delta, period=effective_mom)
-    momentum = 3.0 * wma_delta - 2.0 * sma_delta
+    avg_hl = (hi.rolling_max(window_size=kc_period) + lo.rolling_min(window_size=kc_period)) / 2.0
+    delta = c - (avg_hl + basis_kc) / 2.0
+    momentum = 3.0 * wma(delta, period=effective_mom) - 2.0 * delta.rolling_mean(
+        window_size=effective_mom
+    )
 
     return pl.struct(
         [
@@ -801,8 +736,7 @@ def stc(
     :param factor: smoothing factor applied as EMA span = factor * cycle_period (default 0.5)
     :return: Polars expression producing STC values typically in [0, 100]
     """
-    if fast_period <= 0 or slow_period <= 0 or cycle_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(fast_period, slow_period, cycle_period)
     if not (0.0 < factor <= 1.0):
         raise ValueError("factor must be in (0, 1]")
     if fast_period >= slow_period:

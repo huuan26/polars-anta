@@ -6,16 +6,20 @@ import pytest
 import polars_anta  # noqa: F401 - triggers namespace registration
 from polars_anta.evaluation import (
     calmar_ratio,
+    conditional_var,
     drawdown_series,
     factor_turnover,
     forward_returns,
     ic_summary,
     information_coefficient,
     max_drawdown,
+    omega_ratio,
     profit_factor,
     quantile_analysis,
     sharpe_ratio,
     sortino_ratio,
+    tail_ratio,
+    value_at_risk,
     win_rate,
 )
 
@@ -458,3 +462,134 @@ def test_newey_west_ic_summary_and_ic_decay() -> None:
         ic_decay(panel, "alpha", horizons=())
     with pytest.raises(ValueError, match="each horizon in horizons must be a positive"):
         ic_decay(panel, "alpha", horizons=(0,))
+
+
+def _tail_returns() -> pl.DataFrame:
+    """Seven returns whose empirical quantiles are easy to hand-check."""
+    return pl.DataFrame({"ret": [-0.05, -0.02, -0.01, 0.0, 0.01, 0.03, 0.04]})
+
+
+def _scalar(df: pl.DataFrame, expr: pl.Expr, name: str = "v"):
+    return df.select(expr.alias(name))[name][0]
+
+
+def test_value_at_risk_matches_manual_linear_quantile():
+    df = _tail_returns()
+    # sorted: 0.05 * (7 - 1) = 0.3 -> between -0.05 and -0.02
+    expected = -0.05 + 0.3 * (-0.02 - -0.05)
+
+    assert _scalar(df, value_at_risk("ret", cutoff=0.05)) == pytest.approx(expected)
+    assert value_at_risk("ret", cutoff=0.05) is not None
+
+
+def test_conditional_var_is_mean_of_tail_below_var():
+    df = _tail_returns()
+    # only -0.05 sits at or below the VaR level
+    assert _scalar(df, conditional_var("ret", cutoff=0.05)) == pytest.approx(-0.05)
+
+    wider = _scalar(df, conditional_var("ret", cutoff=0.30))
+    tail = [v for v in df["ret"].to_list() if v <= _scalar(df, value_at_risk("ret", cutoff=0.30))]
+    assert wider == pytest.approx(sum(tail) / len(tail))
+
+
+def test_conditional_var_never_above_var():
+    df = pl.DataFrame({"ret": [((i * 37) % 11 - 5) / 100.0 for i in range(60)]})
+    for cutoff in (0.01, 0.05, 0.10, 0.25):
+        var = _scalar(df, value_at_risk("ret", cutoff=cutoff))
+        cvar = _scalar(df, conditional_var("ret", cutoff=cutoff))
+        assert cvar <= var + 1e-12
+
+
+def test_omega_ratio_symmetric_series_is_one():
+    df = _tail_returns()
+    # upside 0.01 + 0.03 + 0.04 = 0.08, downside 0.05 + 0.02 + 0.01 = 0.08
+    assert _scalar(df, omega_ratio("ret")) == pytest.approx(1.0)
+
+
+def test_omega_ratio_rewards_positive_skew():
+    df = pl.DataFrame({"ret": [-0.01, -0.01, 0.02, 0.05, 0.08]})
+    assert _scalar(df, omega_ratio("ret")) > 2.0
+
+
+def test_omega_ratio_respects_annualized_threshold():
+    df = pl.DataFrame({"ret": [0.0001, 0.0002, 0.0003]})
+    # threshold = 0.05 / 252 ~ 1.98e-4, so only the last bar clears it
+    assert _scalar(df, omega_ratio("ret", risk_free_rate=0.05, annualization=252.0)) > 0.0
+
+
+def test_tail_ratio_matches_manual_quantiles():
+    df = _tail_returns()
+    upper = 0.03 + 0.7 * (0.04 - 0.03)
+    lower = -0.05 + 0.3 * (-0.02 - -0.05)
+
+    assert _scalar(df, tail_ratio("ret", cutoff=0.05)) == pytest.approx(abs(upper) / abs(lower))
+
+
+def test_tail_ratio_is_above_one_for_right_skewed_series():
+    df = pl.DataFrame({"ret": [-0.02, -0.01, 0.0, 0.01, 0.02, 0.03, 0.10]})
+    assert _scalar(df, tail_ratio("ret", cutoff=0.10)) > 1.0
+
+
+def test_tail_ratio_zero_lower_tail_reports_inf():
+    df = pl.DataFrame({"ret": [0.0, 0.0, 0.0, 0.01, 0.02]})
+    assert _scalar(df, tail_ratio("ret", cutoff=0.05)) == float("inf")
+
+
+def test_tail_metrics_handle_all_zero_series_without_nan():
+    df = pl.DataFrame({"ret": [0.0] * 10})
+    values = df.select(
+        value_at_risk("ret").alias("var"),
+        conditional_var("ret").alias("cvar"),
+        omega_ratio("ret").alias("omega"),
+        tail_ratio("ret").alias("tail"),
+    ).row(0)
+
+    assert values == (0.0, 0.0, 0.0, 0.0)
+
+
+def test_tail_metrics_handle_empty_series_without_nan():
+    df = pl.DataFrame({"ret": []}, schema={"ret": pl.Float64})
+    values = df.select(
+        value_at_risk("ret").alias("var"),
+        conditional_var("ret").alias("cvar"),
+    ).row(0)
+
+    assert values == (None, None)
+
+
+def test_tail_metrics_reject_invalid_cutoff():
+    for bad in (0.0, 1.0, -0.05, 1.5):
+        with pytest.raises(ValueError, match="cutoff must be a probability"):
+            value_at_risk("ret", cutoff=bad)
+        with pytest.raises(ValueError, match="cutoff must be a probability"):
+            conditional_var("ret", cutoff=bad)
+        with pytest.raises(ValueError, match="cutoff must be a probability"):
+            tail_ratio("ret", cutoff=bad)
+
+
+def test_omega_ratio_rejects_invalid_annualization():
+    with pytest.raises(ValueError, match="annualization must be a positive"):
+        omega_ratio("ret", annualization=0.0)
+
+
+def test_tail_metrics_are_registered_on_namespaces():
+    df = _tail_returns()
+    out = df.select(
+        pl.col("ret").anta.value_at_risk().alias("var"),
+        pl.col("ret").ta.conditional_var().alias("cvar"),
+        pl.col("ret").anta.omega_ratio().alias("omega"),
+        pl.col("ret").ta.tail_ratio().alias("tail"),
+    ).row(0)
+
+    assert out[0] < 0.0
+    assert out[1] <= out[0]
+    assert out[2] > 0.0
+    assert out[3] > 0.0
+
+
+def test_tail_metrics_are_exported_from_package():
+    import polars_anta as pa
+
+    for name in ("value_at_risk", "conditional_var", "omega_ratio", "tail_ratio"):
+        assert hasattr(pa, name)
+        assert name in pa.__all__

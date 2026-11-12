@@ -7,7 +7,38 @@ import math
 import numpy as np
 import polars as pl
 
-from .core import IntoExpr, parse_expr, true_range, wilder_smooth
+from .core import IntoExpr, check_period, check_periods, parse_expr, true_range, wilder_smooth
+
+__all__ = [
+    "sma",
+    "ssl_channel",
+    "trend_intensity_index",
+    "heikin_ashi",
+    "ema",
+    "wma",
+    "hma",
+    "dema",
+    "tema",
+    "zlema",
+    "vortex",
+    "adx",
+    "aroon",
+    "chop",
+    "t3",
+    "alma",
+    "mass_index",
+    "supertrend",
+    "psar",
+    "kama",
+    "mcginley_dynamic",
+    "vidya",
+    "center_of_gravity",
+    "ichimoku",
+    "pivot_points",
+    "fibonacci_pivots",
+    "camarilla_pivots",
+    "woodie_pivots",
+]
 
 
 def sma(close: IntoExpr, period: int = 10) -> pl.Expr:
@@ -17,8 +48,7 @@ def sma(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     return parse_expr(close).rolling_mean(window_size=period)
 
 
@@ -29,8 +59,7 @@ def ema(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     return parse_expr(close).ewm_mean(span=period, adjust=False)
 
 
@@ -43,8 +72,7 @@ def wma(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     if period == 1:
         return parse_expr(close)
 
@@ -64,14 +92,10 @@ def hma(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    half_period = max(1, period // 2)
-    sqrt_period = max(1, int(math.sqrt(period)))
-
+    check_period(period)
     c = parse_expr(close)
-    diff = 2.0 * wma(c, half_period) - wma(c, period)
-    return wma(diff, sqrt_period)
+    diff = 2.0 * wma(c, max(1, period // 2)) - wma(c, period)
+    return wma(diff, max(1, int(math.sqrt(period))))
 
 
 def dema(close: IntoExpr, period: int = 10) -> pl.Expr:
@@ -84,11 +108,9 @@ def dema(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     e1 = ema(close, period=period)
-    e2 = ema(e1, period=period)
-    return 2.0 * e1 - e2
+    return 2.0 * e1 - ema(e1, period=period)
 
 
 def tema(close: IntoExpr, period: int = 10) -> pl.Expr:
@@ -102,12 +124,10 @@ def tema(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     e1 = ema(close, period=period)
     e2 = ema(e1, period=period)
-    e3 = ema(e2, period=period)
-    return 3.0 * e1 - 3.0 * e2 + e3
+    return 3.0 * e1 - 3.0 * e2 + ema(e2, period=period)
 
 
 def zlema(close: IntoExpr, period: int = 10) -> pl.Expr:
@@ -121,12 +141,9 @@ def zlema(close: IntoExpr, period: int = 10) -> pl.Expr:
     :param period: lookback period (default 10)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    lag = (period - 1) // 2
+    check_period(period)
     c = parse_expr(close)
-    adjusted = 2.0 * c - c.shift(lag)
-    return ema(adjusted, period=period)
+    return ema(2.0 * c - c.shift((period - 1) // 2), period=period)
 
 
 def vortex(
@@ -147,26 +164,17 @@ def vortex(
     :param period: lookback period (default 14)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     hi = parse_expr(high)
     lo = parse_expr(low)
-    tr = true_range(hi, lo, close)
-
-    vm_plus = (hi - lo.shift(1)).abs()
-    vm_minus = (lo - hi.shift(1)).abs()
-
-    sum_tr = tr.rolling_sum(window_size=period)
-    sum_vm_plus = vm_plus.rolling_sum(window_size=period)
-    sum_vm_minus = vm_minus.rolling_sum(window_size=period)
-
-    vi_plus = pl.when(sum_tr > 0.0).then(sum_vm_plus / sum_tr).otherwise(1.0)
-    vi_minus = pl.when(sum_tr > 0.0).then(sum_vm_minus / sum_tr).otherwise(1.0)
+    sum_tr = true_range(hi, lo, close).rolling_sum(window_size=period)
+    sum_vm_plus = (hi - lo.shift(1)).abs().rolling_sum(window_size=period)
+    sum_vm_minus = (lo - hi.shift(1)).abs().rolling_sum(window_size=period)
 
     return pl.struct(
         [
-            vi_plus.alias("vi_plus"),
-            vi_minus.alias("vi_minus"),
+            pl.when(sum_tr > 0.0).then(sum_vm_plus / sum_tr).otherwise(1.0).alias("vi_plus"),
+            pl.when(sum_tr > 0.0).then(sum_vm_minus / sum_tr).otherwise(1.0).alias("vi_minus"),
         ]
     )
 
@@ -190,8 +198,7 @@ def adx(
     :param period: lookback smoothing period (default 14)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     hi = parse_expr(high)
     lo = parse_expr(low)
 
@@ -201,23 +208,24 @@ def adx(
     plus_dm = pl.when((up_move > down_move) & (up_move > 0.0)).then(up_move).otherwise(0.0)
     minus_dm = pl.when((down_move > up_move) & (down_move > 0.0)).then(down_move).otherwise(0.0)
 
-    tr = true_range(hi, lo, close)
-    atr_smooth = wilder_smooth(tr, period)
-    smooth_plus_dm = wilder_smooth(plus_dm, period)
-    smooth_minus_dm = wilder_smooth(minus_dm, period)
-
-    plus_di = pl.when(atr_smooth > 0.0).then(100.0 * smooth_plus_dm / atr_smooth).otherwise(0.0)
-    minus_di = pl.when(atr_smooth > 0.0).then(100.0 * smooth_minus_dm / atr_smooth).otherwise(0.0)
+    atr_smooth = wilder_smooth(true_range(hi, lo, close), period)
+    plus_di = (
+        pl.when(atr_smooth > 0.0)
+        .then(100.0 * wilder_smooth(plus_dm, period) / atr_smooth)
+        .otherwise(0.0)
+    )
+    minus_di = (
+        pl.when(atr_smooth > 0.0)
+        .then(100.0 * wilder_smooth(minus_dm, period) / atr_smooth)
+        .otherwise(0.0)
+    )
 
     di_sum = plus_di + minus_di
-    di_diff = (plus_di - minus_di).abs()
-
-    dx = pl.when(di_sum > 0.0).then(100.0 * di_diff / di_sum).otherwise(0.0)
-    adx_line = wilder_smooth(dx, period)
+    dx = pl.when(di_sum > 0.0).then(100.0 * (plus_di - minus_di).abs() / di_sum).otherwise(0.0)
 
     return pl.struct(
         [
-            adx_line.alias("adx"),
+            wilder_smooth(dx, period).alias("adx"),
             plus_di.alias("plus_di"),
             minus_di.alias("minus_di"),
         ]
@@ -241,8 +249,7 @@ def aroon(
     :param period: lookback period (default 25)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     hi = parse_expr(high)
     lo = parse_expr(low)
 
@@ -254,13 +261,12 @@ def aroon(
 
     aroon_up = 100.0 * pl.coalesce(up_conds) / float(period)
     aroon_down = 100.0 * pl.coalesce(down_conds) / float(period)
-    oscillator = aroon_up - aroon_down
 
     return pl.struct(
         [
             aroon_up.alias("aroon_up"),
             aroon_down.alias("aroon_down"),
-            oscillator.alias("oscillator"),
+            (aroon_up - aroon_down).alias("oscillator"),
         ]
     )
 
@@ -281,16 +287,11 @@ def chop(
     :param period: lookback period (default 14)
     :return: Polars expression
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
+    check_period(period, 2)
     hi = parse_expr(high)
     lo = parse_expr(low)
-    tr = true_range(hi, lo, close)
-
-    sum_tr = tr.rolling_sum(window_size=period)
-    max_hi = hi.rolling_max(window_size=period)
-    min_lo = lo.rolling_min(window_size=period)
-    diff = max_hi - min_lo
+    sum_tr = true_range(hi, lo, close).rolling_sum(window_size=period)
+    diff = hi.rolling_max(window_size=period) - lo.rolling_min(window_size=period)
 
     log_period = math.log10(float(period))
     return (
@@ -310,8 +311,7 @@ def t3(close: IntoExpr, period: int = 5, volume_factor: float = 0.7) -> pl.Expr:
     :param volume_factor: volume factor between 0.0 and 1.0 (default 0.7)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     v = float(volume_factor)
     c1 = -(v**3)
     c2 = 3.0 * (v**2) + 3.0 * (v**3)
@@ -344,17 +344,14 @@ def alma(
     :param sigma: filter sharpness parameter (default 6.0)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     m = float(offset * (period - 1))
     s = float(period / sigma)
 
     weights = [math.exp(-((i - m) ** 2) / (2.0 * s * s)) for i in range(period)]
-    sum_w = sum(weights)
-
     c = parse_expr(close)
     weighted_sum = sum(c.shift(period - 1 - i) * w for i, w in enumerate(weights))
-    return weighted_sum / sum_w
+    return weighted_sum / sum(weights)
 
 
 def mass_index(
@@ -373,17 +370,10 @@ def mass_index(
     :param slow_period: rolling sum period (default 25)
     :return: Polars expression
     """
-    if fast_period <= 0 or slow_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    hl_diff = hi - lo
-
-    ema1 = ema(hl_diff, period=fast_period)
+    check_periods(fast_period, slow_period)
+    ema1 = ema(parse_expr(high) - parse_expr(low), period=fast_period)
     ema2 = ema(ema1, period=fast_period)
-    ratio = pl.when(ema2 > 0.0).then(ema1 / ema2).otherwise(1.0)
-
-    return ratio.rolling_sum(window_size=slow_period)
+    return pl.when(ema2 > 0.0).then(ema1 / ema2).otherwise(1.0).rolling_sum(window_size=slow_period)
 
 
 def supertrend(
@@ -406,8 +396,7 @@ def supertrend(
     :param multiplier: ATR multiplier (default 3.0)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
 
     hi = parse_expr(high)
     lo = parse_expr(low)
@@ -583,8 +572,7 @@ def kama(
     :param slow_span: slowest EMA span (default 30)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
 
     c = parse_expr(close)
     fast_sc = 2.0 / (fast_span + 1)
@@ -603,23 +591,17 @@ def kama(
         n = len(c_vals)
 
         kama_vals = np.full(n, np.nan, dtype=np.float64)
-        first_valid = -1
-        for i in range(n):
-            if not np.isnan(c_vals[i]) and not np.isnan(sc_vals[i]):
-                first_valid = i
-                break
-
-        if first_valid == -1:
+        valid_idx = np.flatnonzero((~np.isnan(c_vals)) & (~np.isnan(sc_vals)))
+        if valid_idx.size == 0:
             return pl.Series(kama_vals).fill_nan(None)
 
+        first_valid = int(valid_idx[0])
         current = c_vals[first_valid]
         kama_vals[first_valid] = current
 
         for i in range(first_valid + 1, n):
             c_i = c_vals[i]
-            sc_i = sc_vals[i]
-            if np.isnan(sc_i):
-                sc_i = slow_sc
+            sc_i = slow_sc if np.isnan(sc_vals[i]) else sc_vals[i]
             if not np.isnan(c_i):
                 current = current + sc_i * (c_i - current)
                 kama_vals[i] = current
@@ -644,9 +626,7 @@ def mcginley_dynamic(
     :param k: constant factor (default 0.6)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
+    check_period(period)
     c = parse_expr(close)
 
     def _calc_md(s: pl.Series) -> pl.Series:
@@ -654,15 +634,11 @@ def mcginley_dynamic(
         n = len(vals)
         md_vals = np.full(n, np.nan, dtype=np.float64)
 
-        first_valid = -1
-        for i in range(n):
-            if not np.isnan(vals[i]):
-                first_valid = i
-                break
-
-        if first_valid == -1:
+        valid_idx = np.flatnonzero(~np.isnan(vals))
+        if valid_idx.size == 0:
             return pl.Series(md_vals).fill_nan(None)
 
+        first_valid = int(valid_idx[0])
         curr = vals[first_valid]
         md_vals[first_valid] = curr
 
@@ -692,16 +668,12 @@ def vidya(
     :param cmo_period: CMO lookback period (default 9)
     :return: Polars expression
     """
-    if period <= 0 or cmo_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(period, cmo_period)
 
     c = parse_expr(close)
     diff = c.diff(1)
-    gain = pl.when(diff > 0.0).then(diff).otherwise(0.0)
-    loss = pl.when(diff < 0.0).then(-diff).otherwise(0.0)
-
-    sum_gain = gain.rolling_sum(window_size=cmo_period)
-    sum_loss = loss.rolling_sum(window_size=cmo_period)
+    sum_gain = pl.when(diff > 0.0).then(diff).otherwise(0.0).rolling_sum(window_size=cmo_period)
+    sum_loss = pl.when(diff < 0.0).then(-diff).otherwise(0.0).rolling_sum(window_size=cmo_period)
     sum_total = sum_gain + sum_loss
 
     cmo = pl.when(sum_total > 0.0).then(((sum_gain - sum_loss) / sum_total).abs()).otherwise(0.0)
@@ -714,23 +686,17 @@ def vidya(
         n = len(c_vals)
 
         vidya_vals = np.full(n, np.nan, dtype=np.float64)
-        first_valid = -1
-        for i in range(n):
-            if not np.isnan(c_vals[i]):
-                first_valid = i
-                break
-
-        if first_valid == -1:
+        valid_idx = np.flatnonzero(~np.isnan(c_vals))
+        if valid_idx.size == 0:
             return pl.Series(vidya_vals).fill_nan(None)
 
+        first_valid = int(valid_idx[0])
         curr = c_vals[first_valid]
         vidya_vals[first_valid] = curr
 
         for i in range(first_valid + 1, n):
             c_i = c_vals[i]
-            a_i = a_vals[i]
-            if np.isnan(a_i):
-                a_i = 0.0
+            a_i = 0.0 if np.isnan(a_vals[i]) else a_vals[i]
             if not np.isnan(c_i):
                 curr = a_i * c_i + (1.0 - a_i) * curr
                 vidya_vals[i] = curr
@@ -818,6 +784,15 @@ def ichimoku(
     )
 
 
+def _shifted_hlc(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+) -> tuple[pl.Expr, pl.Expr, pl.Expr]:
+    """Return 1-bar lagged high, low, and close expressions for pivot-point levels."""
+    return parse_expr(high).shift(1), parse_expr(low).shift(1), parse_expr(close).shift(1)
+
+
 def pivot_points(
     high: IntoExpr,
     low: IntoExpr,
@@ -833,27 +808,18 @@ def pivot_points(
     :param close: close price column or expression
     :return: Polars Struct expression
     """
-    h = parse_expr(high).shift(1)
-    l_ = parse_expr(low).shift(1)
-    c = parse_expr(close).shift(1)
-
+    h, l_, c = _shifted_hlc(high, low, close)
     pivot = (h + l_ + c) / 3.0
-    r1 = 2.0 * pivot - l_
-    s1 = 2.0 * pivot - h
-    r2 = pivot + (h - l_)
-    s2 = pivot - (h - l_)
-    r3 = h + 2.0 * (pivot - l_)
-    s3 = l_ - 2.0 * (h - pivot)
-
+    rng = h - l_
     return pl.struct(
         [
             pivot.alias("pivot"),
-            r1.alias("r1"),
-            s1.alias("s1"),
-            r2.alias("r2"),
-            s2.alias("s2"),
-            r3.alias("r3"),
-            s3.alias("s3"),
+            (2.0 * pivot - l_).alias("r1"),
+            (2.0 * pivot - h).alias("s1"),
+            (pivot + rng).alias("r2"),
+            (pivot - rng).alias("s2"),
+            (h + 2.0 * (pivot - l_)).alias("r3"),
+            (l_ - 2.0 * (h - pivot)).alias("s3"),
         ]
     )
 
@@ -873,28 +839,18 @@ def fibonacci_pivots(
     :param close: close price column or expression
     :return: Polars Struct expression
     """
-    h = parse_expr(high).shift(1)
-    l_ = parse_expr(low).shift(1)
-    c = parse_expr(close).shift(1)
-
+    h, l_, c = _shifted_hlc(high, low, close)
     pivot = (h + l_ + c) / 3.0
     rng = h - l_
-    r1 = pivot + 0.382 * rng
-    s1 = pivot - 0.382 * rng
-    r2 = pivot + 0.618 * rng
-    s2 = pivot - 0.618 * rng
-    r3 = pivot + 1.000 * rng
-    s3 = pivot - 1.000 * rng
-
     return pl.struct(
         [
             pivot.alias("pivot"),
-            r1.alias("r1"),
-            s1.alias("s1"),
-            r2.alias("r2"),
-            s2.alias("s2"),
-            r3.alias("r3"),
-            s3.alias("s3"),
+            (pivot + 0.382 * rng).alias("r1"),
+            (pivot - 0.382 * rng).alias("s1"),
+            (pivot + 0.618 * rng).alias("r2"),
+            (pivot - 0.618 * rng).alias("s2"),
+            (pivot + 1.000 * rng).alias("r3"),
+            (pivot - 1.000 * rng).alias("s3"),
         ]
     )
 
@@ -914,30 +870,18 @@ def camarilla_pivots(
     :param close: close price column or expression
     :return: Polars Struct expression
     """
-    h = parse_expr(high).shift(1)
-    l_ = parse_expr(low).shift(1)
-    c = parse_expr(close).shift(1)
+    h, l_, c = _shifted_hlc(high, low, close)
     rng = h - l_
-
-    r4 = c + rng * (1.1 / 2.0)
-    r3 = c + rng * (1.1 / 4.0)
-    r2 = c + rng * (1.1 / 6.0)
-    r1 = c + rng * (1.1 / 12.0)
-    s1 = c - rng * (1.1 / 12.0)
-    s2 = c - rng * (1.1 / 6.0)
-    s3 = c - rng * (1.1 / 4.0)
-    s4 = c - rng * (1.1 / 2.0)
-
     return pl.struct(
         [
-            r4.alias("r4"),
-            r3.alias("r3"),
-            r2.alias("r2"),
-            r1.alias("r1"),
-            s1.alias("s1"),
-            s2.alias("s2"),
-            s3.alias("s3"),
-            s4.alias("s4"),
+            (c + rng * (1.1 / 2.0)).alias("r4"),
+            (c + rng * (1.1 / 4.0)).alias("r3"),
+            (c + rng * (1.1 / 6.0)).alias("r2"),
+            (c + rng * (1.1 / 12.0)).alias("r1"),
+            (c - rng * (1.1 / 12.0)).alias("s1"),
+            (c - rng * (1.1 / 6.0)).alias("s2"),
+            (c - rng * (1.1 / 4.0)).alias("s3"),
+            (c - rng * (1.1 / 2.0)).alias("s4"),
         ]
     )
 
@@ -959,23 +903,16 @@ def woodie_pivots(
     :param close: close price column or expression
     :return: Polars Struct expression
     """
-    h = parse_expr(high).shift(1)
-    l_ = parse_expr(low).shift(1)
-    c = parse_expr(close).shift(1)
-
+    h, l_, c = _shifted_hlc(high, low, close)
     pivot = (h + l_ + 2.0 * c) / 4.0
-    r1 = 2.0 * pivot - l_
-    s1 = 2.0 * pivot - h
-    r2 = pivot + (h - l_)
-    s2 = pivot - (h - l_)
-
+    rng = h - l_
     return pl.struct(
         [
             pivot.alias("pivot"),
-            r1.alias("r1"),
-            s1.alias("s1"),
-            r2.alias("r2"),
-            s2.alias("s2"),
+            (2.0 * pivot - l_).alias("r1"),
+            (2.0 * pivot - h).alias("s1"),
+            (pivot + rng).alias("r2"),
+            (pivot - rng).alias("s2"),
         ]
     )
 
@@ -999,15 +936,11 @@ def ssl_channel(
     :param period: lookback period for SMA (default 10)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
 
-    hi = parse_expr(high)
-    lo = parse_expr(low)
+    sma_high = parse_expr(high).rolling_mean(window_size=period)
+    sma_low = parse_expr(low).rolling_mean(window_size=period)
     c = parse_expr(close)
-
-    sma_high = hi.rolling_mean(window_size=period)
-    sma_low = lo.rolling_mean(window_size=period)
 
     hlv = (
         pl.when(c > sma_high)
@@ -1020,15 +953,21 @@ def ssl_channel(
     )
 
     null_mask = sma_high.is_null() | sma_low.is_null()
-    ssl_up = pl.when(null_mask).then(None).when(hlv < 0).then(sma_low).otherwise(sma_high)
-    ssl_down = pl.when(null_mask).then(None).when(hlv < 0).then(sma_high).otherwise(sma_low)
-    hlv_out = pl.when(null_mask).then(None).otherwise(hlv)
-
     return pl.struct(
         [
-            ssl_up.alias("ssl_up"),
-            ssl_down.alias("ssl_down"),
-            hlv_out.alias("hlv"),
+            pl.when(null_mask)
+            .then(None)
+            .when(hlv < 0)
+            .then(sma_low)
+            .otherwise(sma_high)
+            .alias("ssl_up"),
+            pl.when(null_mask)
+            .then(None)
+            .when(hlv < 0)
+            .then(sma_high)
+            .otherwise(sma_low)
+            .alias("ssl_down"),
+            pl.when(null_mask).then(None).otherwise(hlv).alias("hlv"),
         ]
     )
 
@@ -1052,11 +991,9 @@ def trend_intensity_index(
     :param signal_period: lookback period for deviation sum (default None, uses period // 2)
     :return: Polars Struct expression
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
+    check_period(period, 2)
     dev_period = signal_period if signal_period is not None else max(1, period // 2)
-    if dev_period <= 0:
-        raise ValueError("signal_period must be a positive integer greater than zero")
+    check_period(dev_period, name="signal_period")
 
     c = parse_expr(close)
     base_sma = c.rolling_mean(window_size=period)

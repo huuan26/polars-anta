@@ -10,10 +10,34 @@ from typing import Literal, TypeVar
 import numpy as np
 import polars as pl
 
-from .core import IntoExpr, parse_expr
+from .core import IntoExpr, check_period, check_positive, parse_expr
 from .trend import wma as _wma
 
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
+
+__all__ = [
+    "drawdown_series",
+    "max_drawdown",
+    "sharpe_ratio",
+    "sortino_ratio",
+    "calmar_ratio",
+    "profit_factor",
+    "win_rate",
+    "value_at_risk",
+    "conditional_var",
+    "omega_ratio",
+    "tail_ratio",
+    "probabilistic_sharpe_ratio",
+    "deflated_sharpe_ratio",
+    "forward_returns",
+    "information_coefficient",
+    "ic_summary",
+    "ic_decay",
+    "quantile_analysis",
+    "factor_turnover",
+    "triple_barrier_labels",
+    "trend_scanning_labels",
+]
 
 
 # =============================================================================
@@ -69,12 +93,9 @@ def sharpe_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
-    r = parse_expr(returns)
-    rf_per_bar = float(risk_free_rate) / float(annualization)
-    excess = r - rf_per_bar
+    excess = parse_expr(returns) - float(risk_free_rate) / float(annualization)
     mean_ex = excess.mean()
     std_ex = excess.std()
     return (
@@ -96,15 +117,11 @@ def sortino_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
-    r = parse_expr(returns)
-    rf_per_bar = float(risk_free_rate) / float(annualization)
-    excess = r - rf_per_bar
+    excess = parse_expr(returns) - float(risk_free_rate) / float(annualization)
     mean_ex = excess.mean()
-    downside_sq = pl.when(excess < 0.0).then(excess**2).otherwise(0.0)
-    downside_dev = downside_sq.mean().sqrt()
+    downside_dev = pl.when(excess < 0.0).then(excess**2).otherwise(0.0).mean().sqrt()
     return (
         pl.when(downside_dev.is_null() | (downside_dev == 0.0) | mean_ex.is_null())
         .then(0.0)
@@ -122,8 +139,7 @@ def calmar_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
     r = parse_expr(returns)
     ann_return = r.mean() * float(annualization)
@@ -173,6 +189,139 @@ def win_rate(
     return pl.when(total == 0.0).then(0.0).otherwise(wins / total)
 
 
+def _validate_cutoff(cutoff: float) -> float:
+    """Validate a left-tail probability cutoff and return it as a float."""
+    alpha = float(cutoff)
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("cutoff must be a probability strictly between 0.0 and 1.0")
+    return alpha
+
+
+def value_at_risk(
+    returns: IntoExpr,
+    cutoff: float = 0.05,
+) -> pl.Expr:
+    """Compute the Historical Value at Risk (VaR) scalar expression.
+
+    Returns the empirical ``cutoff`` quantile of the period-return distribution,
+    i.e. the return level that is not exceeded in ``cutoff`` of the sample::
+
+        VaR_alpha(r) = Quantile(r, alpha)
+
+    The quantile uses linear interpolation, so the result is continuous in the
+    sample rather than snapping to an observed order statistic. On a typical
+    return series this is a negative number (the size of the loss in return
+    units); it is reported in the same units as the input, not as a positive
+    loss magnitude.
+
+    :param returns: Period returns column or expression.
+    :param cutoff: Left-tail probability in ``(0.0, 1.0)`` (default 0.05 for 95% VaR).
+    :return: Scalar Polars expression, ``null`` when the input has no values.
+    """
+    alpha = _validate_cutoff(cutoff)
+    return parse_expr(returns).quantile(alpha, interpolation="linear")
+
+
+def conditional_var(
+    returns: IntoExpr,
+    cutoff: float = 0.05,
+) -> pl.Expr:
+    """Compute the Conditional Value at Risk / Expected Shortfall scalar expression.
+
+    The mean of the returns that fall at or below the historical VaR level::
+
+        CVaR_alpha(r) = E[r | r <= VaR_alpha(r)]
+
+    This is the average loss once the tail is actually entered, so it is always
+    less than or equal to ``value_at_risk`` on the same sample. Because the VaR
+    level is itself a sample quantile, at least one observation satisfies the
+    conditioning event whenever the input has values, so the mean is never taken
+    over an empty set.
+
+    :param returns: Period returns column or expression.
+    :param cutoff: Left-tail probability in ``(0.0, 1.0)`` (default 0.05).
+    :return: Scalar Polars expression, ``null`` when the input has no values.
+    """
+    alpha = _validate_cutoff(cutoff)
+    r = parse_expr(returns)
+    var = r.quantile(alpha, interpolation="linear")
+    tail = pl.when(r <= var).then(r).otherwise(None)
+    return tail.mean()
+
+
+def omega_ratio(
+    returns: IntoExpr,
+    risk_free_rate: float = 0.0,
+    annualization: float = 252.0,
+) -> pl.Expr:
+    """Compute the Omega Ratio scalar expression.
+
+    Ratio of probability-weighted gains to losses around a threshold::
+
+        Omega(theta) = sum(max(0, r_t - theta)) / sum(max(0, theta - r_t))
+
+    The threshold is the risk-free rate de-annualized to one period
+    (``risk_free_rate / annualization``), so a ``risk_free_rate`` of ``0.05``
+    with daily data compares each day's return against roughly 2 basis points.
+    Values above ``1.0`` mean the upside beyond the threshold outweighs the
+    downside.
+
+    A series with no observations below the threshold has zero downside mass;
+    following ``profit_factor``, that reports ``inf`` when there is upside and
+    ``0.0`` when the series is entirely flat, rather than ``NaN``.
+
+    :param returns: Period returns column or expression.
+    :param risk_free_rate: Annualized risk-free threshold (default 0.0).
+    :param annualization: Number of trading periods per year (default 252.0).
+    :return: Scalar Polars expression, non-negative (or ``inf``).
+    """
+    check_positive(annualization, "annualization")
+
+    r = parse_expr(returns)
+    theta = float(risk_free_rate) / float(annualization)
+    upside = pl.when(r > theta).then(r - theta).otherwise(0.0).sum()
+    downside = pl.when(r < theta).then(theta - r).otherwise(0.0).sum()
+    return (
+        pl.when(downside == 0.0)
+        .then(pl.when(upside > 0.0).then(float("inf")).otherwise(0.0))
+        .otherwise(upside / downside)
+    )
+
+
+def tail_ratio(
+    returns: IntoExpr,
+    cutoff: float = 0.05,
+) -> pl.Expr:
+    """Compute the Tail Ratio scalar expression.
+
+    Compares the magnitude of the right tail to the left tail::
+
+        TailRatio = |Quantile(r, 1 - alpha)| / |Quantile(r, alpha)|
+
+    A value above ``1.0`` means the best ``alpha`` of periods are larger in
+    magnitude than the worst ``alpha`` - a right-skewed return distribution.
+    Absolute values are used so the ratio is positive for a symmetric series
+    even though the left quantile itself is negative.
+
+    A degenerate left tail (lower quantile exactly ``0.0``) has no denominator;
+    following ``profit_factor``, that reports ``inf`` when there is a non-zero
+    right tail and ``0.0`` otherwise, rather than ``NaN``.
+
+    :param returns: Period returns column or expression.
+    :param cutoff: Tail probability in ``(0.0, 1.0)`` (default 0.05).
+    :return: Scalar Polars expression, non-negative (or ``inf``).
+    """
+    alpha = _validate_cutoff(cutoff)
+    r = parse_expr(returns)
+    upper = r.quantile(1.0 - alpha, interpolation="linear").abs()
+    lower = r.quantile(alpha, interpolation="linear").abs()
+    return (
+        pl.when(lower == 0.0)
+        .then(pl.when(upper > 0.0).then(float("inf")).otherwise(0.0))
+        .otherwise(upper / lower)
+    )
+
+
 def _norm_cdf_expr(z: pl.Expr) -> pl.Expr:
     """Closed-form Abramowitz & Stegun (7.1.26) Standard Normal CDF $\\Phi(z)$ expression."""
     x = z.abs() / math.sqrt(2.0)
@@ -204,13 +353,9 @@ def probabilistic_sharpe_ratio(
     :param annualization: Number of trading periods per year (default 252.0).
     :return: Scalar Polars expression in ``[0.0, 1.0]``.
     """
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
-    r = parse_expr(returns).cast(pl.Float64)
-    rf_per_bar = float(risk_free_rate) / float(annualization)
-    excess = r - rf_per_bar
-
+    excess = parse_expr(returns).cast(pl.Float64) - float(risk_free_rate) / float(annualization)
     t_obs = excess.count().cast(pl.Float64)
     mean_ex = excess.mean()
     std_ex = excess.std()
@@ -223,8 +368,7 @@ def probabilistic_sharpe_ratio(
     var_num = (1.0 - skew_hat * sr_hat + ((kurt_pearson - 1.0) / 4.0) * (sr_hat * sr_hat)).clip(
         lower_bound=1e-12
     )
-    se_sr = (var_num / (t_obs - 1.0)).sqrt()
-    z_stat = (sr_hat - sr_star) / se_sr
+    z_stat = (sr_hat - sr_star) / (var_num / (t_obs - 1.0)).sqrt()
 
     return (
         pl.when(
@@ -261,8 +405,7 @@ def deflated_sharpe_ratio(
         raise ValueError("n_trials must be a positive integer greater than or equal to 1")
     if trials_sr_std < 0.0:
         raise ValueError("trials_sr_std must be non-negative")
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_positive(annualization, "annualization")
 
     if n_trials == 1 or trials_sr_std == 0.0:
         hurdle_sr = 0.0
@@ -713,14 +856,12 @@ def triple_barrier_labels(
     :param side: Optional primary model directional signal ($\\in \\{-1, +1\\}$) for Meta-Labeling.
     :return: Polars Struct expression.
     """
-    if horizon <= 0:
-        raise ValueError("horizon must be a positive integer greater than zero")
+    check_period(horizon, 1, "horizon")
     if pt_mult < 0.0 or sl_mult < 0.0:
         raise ValueError("pt_mult and sl_mult must be non-negative")
     if min_ret < 0.0:
         raise ValueError("min_ret must be non-negative")
-    if vol_period <= 1:
-        raise ValueError("vol_period must be an integer greater than 1")
+    check_period(vol_period, 2, "vol_period")
 
     c = parse_expr(close).cast(pl.Float64)
 

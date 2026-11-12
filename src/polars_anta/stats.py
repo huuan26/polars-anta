@@ -7,8 +7,26 @@ import math
 import numpy as np
 import polars as pl
 
-from .core import IntoExpr, parse_expr
+from .core import IntoExpr, check_period, map_sliding_windows, parse_expr
 from .trend import wma as _wma
+
+__all__ = [
+    "zscore",
+    "percentile_rank",
+    "skewness",
+    "kurtosis",
+    "rolling_cov",
+    "rolling_corr",
+    "rolling_beta",
+    "rolling_alpha",
+    "linear_regression_slope",
+    "linear_regression_intercept",
+    "linear_regression_angle",
+    "linear_regression_forecast",
+    "linear_regression_r2",
+    "linear_regression_stderr",
+    "frac_diff",
+]
 
 
 def zscore(
@@ -24,9 +42,7 @@ def zscore(
     :return: Polars expression
     """
     c = parse_expr(close)
-    mean = c.rolling_mean(window_size=period)
-    std = c.rolling_std(window_size=period)
-    return (c - mean) / std
+    return (c - c.rolling_mean(window_size=period)) / c.rolling_std(window_size=period)
 
 
 def percentile_rank(
@@ -42,23 +58,11 @@ def percentile_rank(
     :param period: rolling lookback window (default 20)
     :return: Polars expression
     """
-    c = parse_expr(close)
-
-    def _calc_rank(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy().astype(np.float64, copy=False)
-        n = len(vals)
-        out = np.full(n, np.nan, dtype=np.float64)
-        if n >= period:
-            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
-            valid_mask = ~np.isnan(windows).any(axis=1)
-            if valid_mask.any():
-                valid_w = windows[valid_mask]
-                counts = np.sum(valid_w <= valid_w[:, -1:], axis=1, dtype=np.float64)
-                out_slice = out[period - 1 :]
-                out_slice[valid_mask] = counts / float(period)
-        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
-
-    return c.map_batches(_calc_rank, return_dtype=pl.Float64)
+    return map_sliding_windows(
+        close,
+        period,
+        lambda w: np.sum(w <= w[:, -1:], axis=1, dtype=np.float64) / float(period),
+    )
 
 
 def skewness(
@@ -95,9 +99,8 @@ def skewness(
     mean_cube = (c**3).rolling_mean(window_size=period)
 
     variance = (mean_sq - mu**2).clip(lower_bound=1e-12)
-    std = variance.sqrt()
     m3 = mean_cube - 3.0 * mu * mean_sq + 2.0 * (mu**3)
-    g1 = m3 / (variance * std)
+    g1 = m3 / (variance * variance.sqrt())
     if bias:
         return g1
     n = float(period)
@@ -161,13 +164,11 @@ def rolling_cov(
     :param period: rolling lookback window (default 20)
     :return: Polars expression
     """
-    px = parse_expr(x)
-    py = parse_expr(y)
-    mean_x = px.rolling_mean(window_size=period)
-    mean_y = py.rolling_mean(window_size=period)
+    px, py = parse_expr(x), parse_expr(y)
     mean_xy = (px * py).rolling_mean(window_size=period)
-    cov = (mean_xy - mean_x * mean_y) * (period / float(period - 1))
-    return cov
+    return (mean_xy - px.rolling_mean(window_size=period) * py.rolling_mean(window_size=period)) * (
+        period / float(period - 1)
+    )
 
 
 def rolling_corr(
@@ -182,12 +183,9 @@ def rolling_corr(
     :param period: rolling lookback window (default 20)
     :return: Polars expression
     """
-    px = parse_expr(x)
-    py = parse_expr(y)
-    cov = rolling_cov(px, py, period=period)
-    std_x = px.rolling_std(window_size=period)
-    std_y = py.rolling_std(window_size=period)
-    return (cov / (std_x * std_y)).clip(lower_bound=-1.0, upper_bound=1.0)
+    px, py = parse_expr(x), parse_expr(y)
+    denom = px.rolling_std(window_size=period) * py.rolling_std(window_size=period)
+    return (rolling_cov(px, py, period=period) / denom).clip(lower_bound=-1.0, upper_bound=1.0)
 
 
 def rolling_beta(
@@ -204,11 +202,8 @@ def rolling_beta(
     :param period: rolling lookback window (default 60)
     :return: Polars expression
     """
-    ra = parse_expr(asset_returns)
-    rb = parse_expr(benchmark_returns)
-    cov = rolling_cov(ra, rb, period=period)
-    var_b = rb.rolling_var(window_size=period)
-    return cov / var_b
+    ra, rb = parse_expr(asset_returns), parse_expr(benchmark_returns)
+    return rolling_cov(ra, rb, period=period) / rb.rolling_var(window_size=period)
 
 
 def rolling_alpha(
@@ -227,12 +222,16 @@ def rolling_alpha(
     :param period: rolling lookback window (default 60)
     :return: Polars expression
     """
-    ra = parse_expr(asset_returns)
-    rb = parse_expr(benchmark_returns)
+    ra, rb = parse_expr(asset_returns), parse_expr(benchmark_returns)
     beta = rolling_beta(ra, rb, period=period)
-    mean_ra = ra.rolling_mean(window_size=period)
-    mean_rb = rb.rolling_mean(window_size=period)
-    return mean_ra - (rf + beta * (mean_rb - rf))
+    return ra.rolling_mean(window_size=period) - (
+        rf + beta * (rb.rolling_mean(window_size=period) - rf)
+    )
+
+
+def _ols_sma_wma(close: IntoExpr, period: int) -> tuple[pl.Expr, pl.Expr]:
+    c = parse_expr(close)
+    return c.rolling_mean(window_size=period), _wma(c, period=period)
 
 
 def linear_regression_slope(
@@ -248,9 +247,7 @@ def linear_regression_slope(
     :param period: lookback window (default 14)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    sma = c.rolling_mean(window_size=period)
-    wma = _wma(c, period=period)
+    sma, wma = _ols_sma_wma(close, period)
     return (wma - sma) * (6.0 / float(period - 1))
 
 
@@ -266,9 +263,7 @@ def linear_regression_intercept(
     :param period: lookback window (default 14)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    sma = c.rolling_mean(window_size=period)
-    wma = _wma(c, period=period)
+    sma, wma = _ols_sma_wma(close, period)
     return 4.0 * sma - 3.0 * wma
 
 
@@ -284,8 +279,7 @@ def linear_regression_angle(
     :param period: lookback window (default 14)
     :return: Polars expression
     """
-    slope = linear_regression_slope(close, period=period)
-    return slope.arctan() * (180.0 / math.pi)
+    return linear_regression_slope(close, period=period).arctan() * (180.0 / math.pi)
 
 
 def linear_regression_forecast(
@@ -300,9 +294,7 @@ def linear_regression_forecast(
     :param period: lookback window (default 14)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    sma = c.rolling_mean(window_size=period)
-    wma = _wma(c, period=period)
+    sma, wma = _ols_sma_wma(close, period)
     return 3.0 * wma - 2.0 * sma
 
 
@@ -326,15 +318,11 @@ def linear_regression_r2(
     :param period: lookback window, must be greater than 1 (default 14)
     :return: Polars expression in [0.0, 1.0]
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
+    check_period(period, 2)
     c = parse_expr(close)
-    slope = linear_regression_slope(c, period=period)
     var_y = c.rolling_var(window_size=period)
     n = float(period)
-    const = n * (n + 1.0) / 12.0
-    r2 = slope.pow(2) * (const / var_y)
-
+    r2 = linear_regression_slope(c, period=period).pow(2) * ((n * (n + 1.0) / 12.0) / var_y)
     return pl.when(var_y > 0.0).then(r2.clip(0.0, 1.0)).otherwise(0.0)
 
 
@@ -350,14 +338,14 @@ def linear_regression_stderr(
     :param period: lookback window, must be greater than 2 (default 14)
     :return: Polars expression, non-negative
     """
-    if period <= 2:
-        raise ValueError("period must be an integer greater than 2")
+    check_period(period, 3)
     c = parse_expr(close)
-    var_y = c.rolling_var(window_size=period)
-    r2 = linear_regression_r2(c, period=period)
     n = float(period)
-    residual = ((n - 1.0) / (n - 2.0)) * var_y * (1.0 - r2)
-
+    residual = (
+        ((n - 1.0) / (n - 2.0))
+        * c.rolling_var(window_size=period)
+        * (1.0 - linear_regression_r2(c, period=period))
+    )
     return pl.when(residual > 0.0).then(residual.sqrt()).otherwise(0.0)
 
 
@@ -381,25 +369,16 @@ def frac_diff(
     """
     if d < 0.0:
         raise ValueError("d must be a non-negative number")
-    if window < 2:
-        raise ValueError("window must be an integer greater than or equal to 2")
-
-    c = parse_expr(close).cast(pl.Float64)
+    check_period(window, 2, "window", inclusive=True)
 
     k = np.arange(1, window, dtype=np.float64)
-    factors = -(float(d) - k + 1.0) / k
     weights = np.empty(window, dtype=np.float64)
     weights[0] = 1.0
-    weights[1:] = np.cumprod(factors)
+    weights[1:] = np.cumprod(-(float(d) - k + 1.0) / k)
     w_rev = weights[::-1].copy()
-
-    def _calc_ffd(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy().astype(np.float64, copy=False)
-        n = len(vals)
-        out = np.full(n, np.nan, dtype=np.float64)
-        if n >= window:
-            windows = np.lib.stride_tricks.sliding_window_view(vals, window)
-            out[window - 1 :] = windows @ w_rev
-        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
-
-    return c.map_batches(_calc_ffd, return_dtype=pl.Float64)
+    return map_sliding_windows(
+        parse_expr(close).cast(pl.Float64),
+        window,
+        lambda w: w @ w_rev,
+        skip_nan=False,
+    )

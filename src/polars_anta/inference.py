@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import itertools
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import NormalDist
 from typing import Any, Literal
@@ -21,6 +21,27 @@ import polars as pl
 
 from polars_anta.backtest import BacktestResult, vectorized_backtest
 from polars_anta.evaluation import _newey_west_lrv, _nw_auto_lag, information_coefficient
+
+__all__ = [
+    "stationary_bootstrap_indices",
+    "bootstrap_test",
+    "adjust_pvalues",
+    "romano_wolf",
+    "spa_test",
+    "pbo_cscv",
+    "empirical_bayes_shrinkage",
+    "oos_r2",
+    "clark_west_test",
+    "diebold_mariano_test",
+    "cusum_mean_test",
+    "breakeven_cost",
+    "breakeven_cost_from_backtest",
+    "ic_matrix",
+    "long_short_returns",
+    "falsify_factors",
+    "FalsificationResult",
+    "sweep_robustness",
+]
 
 _STD_NORMAL = NormalDist(0.0, 1.0)
 
@@ -1101,6 +1122,31 @@ def _normalize_group_by(group_by: str | Sequence[str]) -> list[str]:
     return cols
 
 
+def _join_factor_series(
+    df: pl.DataFrame | pl.LazyFrame,
+    factor_cols: Sequence[str],
+    return_col: str,
+    group_by: str | Sequence[str],
+    compute_one: Callable[[pl.DataFrame, str, list[str]], pl.DataFrame],
+) -> pl.DataFrame:
+    f_cols = list(dict.fromkeys(str(c) for c in factor_cols))
+    if not f_cols:
+        raise ValueError("factor_cols must not be empty")
+    gb_cols = _normalize_group_by(group_by)
+    needed = [*gb_cols, return_col, *f_cols]
+    base_df = df.select(needed).collect() if isinstance(df, pl.LazyFrame) else df.select(needed)
+    wide_df: pl.DataFrame | None = None
+    for f_col in f_cols:
+        sub_df = compute_one(base_df, f_col, gb_cols)
+        wide_df = (
+            sub_df
+            if wide_df is None
+            else wide_df.join(sub_df, on=gb_cols, how="full", coalesce=True)
+        )
+    assert wide_df is not None
+    return wide_df.sort(gb_cols)
+
+
 def ic_matrix(
     df: pl.DataFrame | pl.LazyFrame,
     factor_cols: Sequence[str],
@@ -1123,17 +1169,12 @@ def ic_matrix(
     """
     if method not in ("spearman", "pearson"):
         raise ValueError("method must be 'spearman' or 'pearson'")
-    f_cols = list(dict.fromkeys(str(c) for c in factor_cols))
-    if not f_cols:
-        raise ValueError("factor_cols must not be empty")
-    gb_cols = _normalize_group_by(group_by)
-
-    needed = [*gb_cols, return_col, *f_cols]
-    base_df = df.select(needed).collect() if isinstance(df, pl.LazyFrame) else df.select(needed)
-
-    wide_df: pl.DataFrame | None = None
-    for f_col in f_cols:
-        ic_df = (
+    return _join_factor_series(
+        df,
+        factor_cols,
+        return_col,
+        group_by,
+        lambda base_df, f_col, gb_cols: (
             information_coefficient(
                 base_df,
                 factor_col=f_col,
@@ -1143,14 +1184,8 @@ def ic_matrix(
             )
             .filter((pl.col("n_obs") > 0) & pl.col("ic").is_not_null() & (~pl.col("ic").is_nan()))
             .select([*gb_cols, pl.col("ic").alias(f_col)])
-        )
-        if wide_df is None:
-            wide_df = ic_df
-        else:
-            wide_df = wide_df.join(ic_df, on=gb_cols, how="full", coalesce=True)
-
-    assert wide_df is not None
-    return wide_df.sort(gb_cols)
+        ),
+    )
 
 
 def long_short_returns(
@@ -1183,17 +1218,9 @@ def long_short_returns(
         raise ValueError("quantiles must be an integer >= 2")
     if mode not in ("long_short", "top_minus_mean"):
         raise ValueError("mode must be 'long_short' or 'top_minus_mean'")
-    f_cols = list(dict.fromkeys(str(c) for c in factor_cols))
-    if not f_cols:
-        raise ValueError("factor_cols must not be empty")
-    gb_cols = _normalize_group_by(group_by)
-
-    needed = [*gb_cols, return_col, *f_cols]
-    base_df = df.select(needed).collect() if isinstance(df, pl.LazyFrame) else df.select(needed)
     r_expr = pl.col(return_col).cast(pl.Float64)
 
-    wide_df: pl.DataFrame | None = None
-    for f_name in f_cols:
+    def _compute_spread(base_df: pl.DataFrame, f_name: str, gb_cols: list[str]) -> pl.DataFrame:
         f_expr = pl.col(f_name).cast(pl.Float64)
         valid = (
             f_expr.is_not_null() & r_expr.is_not_null() & (~f_expr.is_nan()) & (~r_expr.is_nan())
@@ -1202,28 +1229,19 @@ def long_short_returns(
         q_expr = (
             (pct_rank * float(q_num)).floor().clip(0.0, float(q_num - 1)).cast(pl.Int32) + 1
         ).alias("_anta_q")
-
         top_mean = r_expr.filter(pl.col("_anta_q") == q_num).mean()
-        if mode == "long_short":
-            bot_mean = r_expr.filter(pl.col("_anta_q") == 1).mean()
-            spread_expr = (top_mean - bot_mean).alias(f_name)
-        else:
-            spread_expr = (top_mean - r_expr.mean()).alias(f_name)
-
-        sub_df = (
+        bot_ref = (
+            r_expr.filter(pl.col("_anta_q") == 1).mean() if mode == "long_short" else r_expr.mean()
+        )
+        return (
             base_df.filter(valid)
             .with_columns(q_expr)
             .group_by(gb_cols)
-            .agg(spread_expr)
+            .agg((top_mean - bot_ref).alias(f_name))
             .filter(pl.col(f_name).is_not_null() & (~pl.col(f_name).is_nan()))
         )
-        if wide_df is None:
-            wide_df = sub_df
-        else:
-            wide_df = wide_df.join(sub_df, on=gb_cols, how="full", coalesce=True)
 
-    assert wide_df is not None
-    return wide_df.sort(gb_cols)
+    return _join_factor_series(df, factor_cols, return_col, group_by, _compute_spread)
 
 
 @dataclass

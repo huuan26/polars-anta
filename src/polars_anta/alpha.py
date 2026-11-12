@@ -9,10 +9,91 @@ from typing import Literal
 import numpy as np
 import polars as pl
 
-from .core import IntoExpr, parse_expr
-from .stats import rolling_corr, rolling_cov
+from .core import IntoExpr, check_period, check_positive, map_sliding_windows, parse_expr
+from .stats import percentile_rank, rolling_corr, rolling_cov, zscore
 from .trend import wma
 from .volume import vwap as _calc_vwap
+
+__all__ = [
+    "ts_rank",
+    "ts_argmax",
+    "ts_argmin",
+    "decay_linear",
+    "ts_zscore",
+    "returns_divergence",
+    "hl_ratio",
+    "co_ratio",
+    "volume_weighted_momentum",
+    "relative_spread",
+    "twap",
+    "entropy",
+    "fractal_dimension",
+    "hurst_exponent",
+    "cs_rank",
+    "cs_zscore",
+    "cs_winsorize",
+    "neutralize",
+    "orthogonalize",
+    "ts_scale",
+    "ts_delta",
+    "ts_delay",
+    "signed_power",
+    "ts_min",
+    "ts_max",
+    "ts_sum",
+    "ts_std",
+    "ts_correlation",
+    "ts_covariance",
+    "ts_product",
+    "amihud_illiquidity",
+    "roll_spread",
+    "corwin_schultz_spread",
+    "kyle_lambda",
+    "vpin",
+    "ofi",
+    "futures_basis",
+    "oi_regime",
+    "alpha_001",
+    "alpha_002",
+    "alpha_003",
+    "alpha_004",
+    "alpha_005",
+    "alpha_006",
+    "alpha_007",
+    "alpha_008",
+    "alpha_009",
+    "alpha_010",
+    "alpha_011",
+    "alpha_012",
+    "alpha_013",
+    "alpha_014",
+    "alpha_015",
+    "alpha_016",
+    "alpha_017",
+    "alpha_018",
+    "alpha_019",
+    "alpha_020",
+    "alpha_021",
+    "alpha_022",
+    "alpha_023",
+    "alpha_024",
+    "alpha_025",
+    "alpha_026",
+    "alpha_027",
+    "alpha_028",
+    "alpha_029",
+    "alpha_030",
+    "alpha_041",
+    "alpha_054",
+    "alpha_101",
+]
+
+
+def _over_cols(over: IntoExpr | Sequence[str] | None) -> list[str | pl.Expr] | None:
+    """Normalize optional cross-sectional grouping argument to a list of columns/expressions."""
+    if over is None:
+        return None
+    return [over] if isinstance(over, (str, pl.Expr)) else list(over)
 
 
 def ts_rank(
@@ -28,23 +109,7 @@ def ts_rank(
     :param period: lookback window (default 10)
     :return: Polars expression
     """
-    c = parse_expr(close)
-
-    def _calc_rank(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy().astype(np.float64, copy=False)
-        n = len(vals)
-        out = np.full(n, np.nan, dtype=np.float64)
-        if n >= period:
-            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
-            valid_mask = ~np.isnan(windows).any(axis=1)
-            if valid_mask.any():
-                valid_w = windows[valid_mask]
-                counts = np.sum(valid_w <= valid_w[:, -1:], axis=1, dtype=np.float64)
-                out_slice = out[period - 1 :]
-                out_slice[valid_mask] = counts / float(period)
-        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
-
-    return c.map_batches(_calc_rank, return_dtype=pl.Float64)
+    return percentile_rank(close, period=period)
 
 
 def ts_argmax(
@@ -60,23 +125,9 @@ def ts_argmax(
     :param period: lookback window (default 10)
     :return: Polars expression
     """
-    c = parse_expr(close)
-
-    def _calc_argmax(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy().astype(np.float64, copy=False)
-        n = len(vals)
-        out = np.full(n, np.nan, dtype=np.float64)
-        if n >= period:
-            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
-            valid_mask = ~np.isnan(windows).any(axis=1)
-            if valid_mask.any():
-                valid_w = windows[valid_mask]
-                idx_from_end = np.argmax(valid_w[:, ::-1], axis=1).astype(np.float64)
-                out_slice = out[period - 1 :]
-                out_slice[valid_mask] = idx_from_end
-        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
-
-    return c.map_batches(_calc_argmax, return_dtype=pl.Float64)
+    return map_sliding_windows(
+        close, period, lambda w: np.argmax(w[:, ::-1], axis=1).astype(np.float64)
+    )
 
 
 def ts_argmin(
@@ -92,23 +143,9 @@ def ts_argmin(
     :param period: lookback window (default 10)
     :return: Polars expression
     """
-    c = parse_expr(close)
-
-    def _calc_argmin(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy().astype(np.float64, copy=False)
-        n = len(vals)
-        out = np.full(n, np.nan, dtype=np.float64)
-        if n >= period:
-            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
-            valid_mask = ~np.isnan(windows).any(axis=1)
-            if valid_mask.any():
-                valid_w = windows[valid_mask]
-                idx_from_end = np.argmin(valid_w[:, ::-1], axis=1).astype(np.float64)
-                out_slice = out[period - 1 :]
-                out_slice[valid_mask] = idx_from_end
-        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
-
-    return c.map_batches(_calc_argmin, return_dtype=pl.Float64)
+    return map_sliding_windows(
+        close, period, lambda w: np.argmin(w[:, ::-1], axis=1).astype(np.float64)
+    )
 
 
 def decay_linear(
@@ -123,8 +160,7 @@ def decay_linear(
     :param period: lookback window (default 10)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    return wma(c, period=period)
+    return wma(parse_expr(close), period=period)
 
 
 def ts_zscore(
@@ -139,10 +175,7 @@ def ts_zscore(
     :param period: lookback window (default 20)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    mean = c.rolling_mean(window_size=period)
-    std = c.rolling_std(window_size=period)
-    return (c - mean) / std
+    return zscore(close, period=period)
 
 
 def returns_divergence(
@@ -160,15 +193,9 @@ def returns_divergence(
     :param period: lookback window (default 14)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    v = parse_expr(volume)
-
-    c_ret = c.pct_change()
-    v_change = v.pct_change()
-
-    c_z = ts_zscore(c_ret, period=period)
-    v_z = ts_zscore(v_change, period=period)
-    return c_z - v_z
+    return ts_zscore(parse_expr(close).pct_change(), period=period) - ts_zscore(
+        parse_expr(volume).pct_change(), period=period
+    )
 
 
 def hl_ratio(
@@ -341,8 +368,7 @@ def fractal_dimension(
     :param period: lookback period (default 20, should be an even integer)
     :return: Polars expression producing fractal dimension values in [1.0, 2.0]
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
+    check_period(period, 2)
 
     half_period = max(1, period // 2)
     hi = parse_expr(high)
@@ -351,22 +377,16 @@ def fractal_dimension(
     n1 = (
         hi.rolling_max(window_size=half_period) - lo.rolling_min(window_size=half_period)
     ) / float(half_period)
-    n2 = (
-        hi.rolling_max(window_size=half_period).shift(half_period)
-        - lo.rolling_min(window_size=half_period).shift(half_period)
-    ) / float(half_period)
+    n2 = n1.shift(half_period)
     n3 = (hi.rolling_max(window_size=period) - lo.rolling_min(window_size=period)) / float(period)
 
     sum_n1_n2 = n1 + n2
-    log2 = math.log(2.0)
-
     null_mask = n3.is_null() | (n3 <= 0.0) | (sum_n1_n2 <= 0.0)
-    dim = (
+    return (
         pl.when(null_mask)
         .then(None)
-        .otherwise(((sum_n1_n2.log() - n3.log()) / log2).clip(1.0, 2.0))
+        .otherwise(((sum_n1_n2.log() - n3.log()) / math.log(2.0)).clip(1.0, 2.0))
     )
-    return dim
 
 
 def hurst_exponent(
@@ -384,43 +404,24 @@ def hurst_exponent(
     :param period: lookback window (default 50)
     :return: Polars expression producing Hurst exponent in [0.0, 1.0]
     """
-    if period < 4:
-        raise ValueError("period must be an integer greater than or equal to 4")
-
-    c = parse_expr(close)
+    check_period(period, 4)
     log_half_n = math.log(float(period) * 0.5)
 
-    def _calc_hurst(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy().astype(np.float64, copy=False)
-        n = len(vals)
-        out = np.full(n, np.nan, dtype=np.float64)
+    def _hurst_reducer(valid_w: np.ndarray) -> np.ndarray:
+        cum_dev = np.cumsum(valid_w - np.mean(valid_w, axis=1, keepdims=True), axis=1)
+        r_vals = np.max(cum_dev, axis=1) - np.min(cum_dev, axis=1)
+        s_vals = np.std(valid_w, axis=1, ddof=1)
 
-        if n >= period:
-            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
-            valid_mask = ~np.isnan(windows).any(axis=1)
-            if valid_mask.any():
-                valid_w = windows[valid_mask]
-                means = np.mean(valid_w, axis=1, keepdims=True)
-                cum_dev = np.cumsum(valid_w - means, axis=1)
-                r_vals = np.max(cum_dev, axis=1) - np.min(cum_dev, axis=1)
-                s_vals = np.std(valid_w, axis=1, ddof=1)
+        h_vals = np.full(len(valid_w), np.nan, dtype=np.float64)
+        h_vals[s_vals <= 1e-12] = 0.5
+        pos_mask = (s_vals > 1e-12) & (r_vals > 1e-12)
+        if pos_mask.any():
+            h_vals[pos_mask] = np.clip(
+                np.log(r_vals[pos_mask] / s_vals[pos_mask]) / log_half_n, 0.0, 1.0
+            )
+        return h_vals
 
-                h_vals = np.full(len(valid_w), np.nan, dtype=np.float64)
-                flat_mask = s_vals <= 1e-12
-                pos_mask = (s_vals > 1e-12) & (r_vals > 1e-12)
-                h_vals[flat_mask] = 0.5
-                if pos_mask.any():
-                    h_vals[pos_mask] = np.clip(
-                        np.log(r_vals[pos_mask] / s_vals[pos_mask]) / log_half_n,
-                        0.0,
-                        1.0,
-                    )
-                out_slice = out[period - 1 :]
-                out_slice[valid_mask] = h_vals
-
-        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
-
-    return c.map_batches(_calc_hurst, return_dtype=pl.Float64)
+    return map_sliding_windows(close, period, _hurst_reducer)
 
 
 def cs_rank(
@@ -441,19 +442,12 @@ def cs_rank(
     :return: Polars expression.
     """
     e = parse_expr(expr)
-    if over is not None:
-        over_cols = [over] if isinstance(over, str) else list(over)
-        ranked = e.rank(method=method).over(over_cols)
-        if percentile:
-            count = e.count().over(over_cols)
-            return ranked / count
+    cols = _over_cols(over)
+    ranked = e.rank(method=method).over(cols) if cols is not None else e.rank(method=method)
+    if not percentile:
         return ranked
-    else:
-        ranked = e.rank(method=method)
-        if percentile:
-            count = e.count()
-            return ranked / count
-        return ranked
+    count = e.count().over(cols) if cols is not None else e.count()
+    return ranked / count
 
 
 def neutralize(
@@ -474,19 +468,8 @@ def neutralize(
     :return: Polars expression.
     """
     e = parse_expr(expr)
-    group_cols: list[str] = []
-    if over is not None:
-        if isinstance(over, str):
-            group_cols.append(over)
-        else:
-            group_cols.extend(over)
-    if isinstance(by, str):
-        group_cols.append(by)
-    else:
-        group_cols.extend(by)
-
-    mean = e.mean().over(group_cols)
-    demeaned = e - mean
+    group_cols = [*(_over_cols(over) or []), *(_over_cols(by) or [])]
+    demeaned = e - e.mean().over(group_cols)
     if standardize:
         std = e.std().over(group_cols)
         return pl.when(std == 0.0).then(0.0).otherwise(demeaned / std)
@@ -580,11 +563,8 @@ def ts_scale(
     :return: Polars expression.
     """
     e = parse_expr(expr)
-    if over is not None:
-        over_cols = [over] if isinstance(over, str) else list(over)
-        abs_sum = e.abs().sum().over(over_cols)
-    else:
-        abs_sum = e.abs().sum()
+    cols = _over_cols(over)
+    abs_sum = e.abs().sum().over(cols) if cols is not None else e.abs().sum()
     return pl.when(abs_sum == 0.0).then(0.0).otherwise((float(a) * e) / abs_sum)
 
 
@@ -616,8 +596,7 @@ def ts_delay(
     :param period: Lag distance (default 1).
     :return: Polars expression.
     """
-    e = parse_expr(expr)
-    return e.shift(period)
+    return parse_expr(expr).shift(period)
 
 
 def signed_power(
@@ -647,8 +626,7 @@ def ts_min(
     :param period: Lookback window (default 10).
     :return: Polars expression.
     """
-    e = parse_expr(expr)
-    return e.rolling_min(window_size=period)
+    return parse_expr(expr).rolling_min(window_size=period)
 
 
 def ts_max(
@@ -661,8 +639,7 @@ def ts_max(
     :param period: Lookback window (default 10).
     :return: Polars expression.
     """
-    e = parse_expr(expr)
-    return e.rolling_max(window_size=period)
+    return parse_expr(expr).rolling_max(window_size=period)
 
 
 def ts_sum(
@@ -675,8 +652,7 @@ def ts_sum(
     :param period: Lookback window (default 10).
     :return: Polars expression.
     """
-    e = parse_expr(expr)
-    return e.rolling_sum(window_size=period)
+    return parse_expr(expr).rolling_sum(window_size=period)
 
 
 def ts_std(
@@ -689,8 +665,7 @@ def ts_std(
     :param period: Lookback window (default 10).
     :return: Polars expression.
     """
-    e = parse_expr(expr)
-    return e.rolling_std(window_size=period)
+    return parse_expr(expr).rolling_std(window_size=period)
 
 
 def ts_correlation(
@@ -739,22 +714,7 @@ def ts_product(
     :param period: Lookback window (default 10).
     :return: Polars expression.
     """
-    e = parse_expr(expr)
-
-    def _calc_prod(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy().astype(np.float64, copy=False)
-        n = len(vals)
-        out = np.full(n, np.nan, dtype=np.float64)
-        if n >= period:
-            windows = np.lib.stride_tricks.sliding_window_view(vals, period)
-            valid_mask = ~np.isnan(windows).any(axis=1)
-            if valid_mask.any():
-                valid_w = windows[valid_mask]
-                out_slice = out[period - 1 :]
-                out_slice[valid_mask] = np.prod(valid_w, axis=1)
-        return pl.Series(out, dtype=pl.Float64).fill_nan(None)
-
-    return e.map_batches(_calc_prod, return_dtype=pl.Float64)
+    return map_sliding_windows(expr, period, lambda w: np.prod(w, axis=1))
 
 
 def cs_zscore(
@@ -772,17 +732,13 @@ def cs_zscore(
     :param clip_bound: Optional symmetric bound (e.g. 3.0) to clip standardized z-scores into [-clip_bound, clip_bound].
     :return: Polars expression.
     """
-    if clip_bound is not None and clip_bound <= 0.0:
-        raise ValueError("clip_bound must be a positive number greater than zero")
+    if clip_bound is not None:
+        check_positive(clip_bound, "clip_bound")
 
     e = parse_expr(expr)
-    if over is not None:
-        over_cols = [over] if isinstance(over, str) else list(over)
-        mean = e.mean().over(over_cols)
-        std = e.std().over(over_cols)
-    else:
-        mean = e.mean()
-        std = e.std()
+    cols = _over_cols(over)
+    mean = e.mean().over(cols) if cols is not None else e.mean()
+    std = e.std().over(cols) if cols is not None else e.std()
 
     z = pl.when(std == 0.0).then(0.0).otherwise((e - mean) / std)
     if clip_bound is not None:
@@ -816,37 +772,26 @@ def cs_winsorize(
         raise ValueError("method must be one of 'quantile', 'zscore', or 'mad'")
     if method == "quantile" and not (0.0 <= lower < upper <= 1.0):
         raise ValueError("lower and upper quantiles must satisfy 0.0 <= lower < upper <= 1.0")
-    if method in ("zscore", "mad") and threshold <= 0.0:
-        raise ValueError("threshold must be a positive number greater than zero")
+    if method in ("zscore", "mad"):
+        check_positive(threshold, "threshold")
 
     e = parse_expr(expr)
-    over_cols = ([over] if isinstance(over, str) else list(over)) if over is not None else None
+    over_cols = _over_cols(over)
+
+    def _cs(agg: pl.Expr) -> pl.Expr:
+        return agg.over(over_cols) if over_cols is not None else agg
 
     if method == "quantile":
-        lo_expr = e.quantile(lower, interpolation="linear")
-        hi_expr = e.quantile(upper, interpolation="linear")
-        if over_cols is not None:
-            lo_expr = lo_expr.over(over_cols)
-            hi_expr = hi_expr.over(over_cols)
+        lo_expr = _cs(e.quantile(lower, interpolation="linear"))
+        hi_expr = _cs(e.quantile(upper, interpolation="linear"))
     elif method == "zscore":
-        mean_expr = e.mean()
-        std_expr = e.std().fill_null(0.0)
-        if over_cols is not None:
-            mean_expr = mean_expr.over(over_cols)
-            std_expr = std_expr.over(over_cols)
-        lo_expr = mean_expr - float(threshold) * std_expr
-        hi_expr = mean_expr + float(threshold) * std_expr
+        mean_expr = _cs(e.mean())
+        band = float(threshold) * _cs(e.std().fill_null(0.0))
+        lo_expr, hi_expr = mean_expr - band, mean_expr + band
     else:
-        med_expr = e.median()
-        if over_cols is not None:
-            med_expr = med_expr.over(over_cols)
-        abs_dev = (e - med_expr).abs()
-        mad_expr = abs_dev.median()
-        if over_cols is not None:
-            mad_expr = mad_expr.over(over_cols)
-        scaled_mad = 1.4826 * float(threshold) * mad_expr
-        lo_expr = med_expr - scaled_mad
-        hi_expr = med_expr + scaled_mad
+        med_expr = _cs(e.median())
+        scaled_mad = 1.4826 * float(threshold) * _cs((e - med_expr).abs().median())
+        lo_expr, hi_expr = med_expr - scaled_mad, med_expr + scaled_mad
 
     return pl.when(e < lo_expr).then(lo_expr).when(e > hi_expr).then(hi_expr).otherwise(e)
 
@@ -868,14 +813,14 @@ def amihud_illiquidity(
     :param scale: Scaling factor (default 1e6, measuring return impact per $1M traded).
     :return: Polars expression.
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
+    check_period(period)
     c = parse_expr(close)
-    v = parse_expr(volume)
-    abs_ret = c.pct_change().abs()
-    dollar_vol = c * v
-    ratio = pl.when(dollar_vol > 0.0).then((abs_ret / dollar_vol) * float(scale)).otherwise(None)
+    dollar_vol = c * parse_expr(volume)
+    ratio = (
+        pl.when(dollar_vol > 0.0)
+        .then((c.pct_change().abs() / dollar_vol) * float(scale))
+        .otherwise(None)
+    )
     return ratio.rolling_mean(window_size=period)
 
 
@@ -893,13 +838,10 @@ def roll_spread(
     :param period: Rolling lookback window (default 20).
     :return: Polars expression producing non-negative proportional spread estimates.
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
-
+    check_period(period, 2)
     c = parse_expr(close)
     log_ret = (c / c.shift(1)).log()
-    lag_log_ret = log_ret.shift(1)
-    serial_cov = rolling_cov(log_ret, lag_log_ret, period=period)
+    serial_cov = rolling_cov(log_ret, log_ret.shift(1), period=period)
     return (
         pl.when(serial_cov.is_null())
         .then(None)
@@ -922,24 +864,21 @@ def corwin_schultz_spread(
     :param period: Rolling smoothing window (default 20).
     :return: Polars expression producing non-negative proportional spread estimates.
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
+    check_period(period)
     hi = parse_expr(high)
     lo = parse_expr(low)
 
     hl_log_sq = (hi / lo).log() ** 2
     beta = hl_log_sq + hl_log_sq.shift(1)
-
-    two_day_hi = pl.max_horizontal(hi, hi.shift(1))
-    two_day_lo = pl.min_horizontal(lo, lo.shift(1))
-    gamma = (two_day_hi / two_day_lo).log() ** 2
+    gamma = (pl.max_horizontal(hi, hi.shift(1)) / pl.min_horizontal(lo, lo.shift(1))).log() ** 2
 
     denom = 3.0 - 2.0 * math.sqrt(2.0)
-    alpha = ((math.sqrt(2.0) - 1.0) * beta.sqrt() / denom) - (gamma / denom).sqrt()
-    exp_alpha = alpha.exp()
-    raw_spread = ((2.0 * (exp_alpha - 1.0)) / (1.0 + exp_alpha)).clip(lower_bound=0.0)
-    return raw_spread.rolling_mean(window_size=period)
+    exp_alpha = (((math.sqrt(2.0) - 1.0) * beta.sqrt() / denom) - (gamma / denom).sqrt()).exp()
+    return (
+        ((2.0 * (exp_alpha - 1.0)) / (1.0 + exp_alpha))
+        .clip(lower_bound=0.0)
+        .rolling_mean(window_size=period)
+    )
 
 
 def kyle_lambda(
@@ -959,13 +898,9 @@ def kyle_lambda(
     :param scale: Scaling multiplier (default 1e6).
     :return: Polars expression.
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
-
-    c = parse_expr(close)
-    v = parse_expr(volume)
-    ret = c.pct_change()
-    signed_vol = ret.sign() * v
+    check_period(period, 2)
+    ret = parse_expr(close).pct_change()
+    signed_vol = ret.sign() * parse_expr(volume)
     cov_rv = rolling_cov(ret, signed_vol, period=period)
     var_v = signed_vol.rolling_var(window_size=period)
     return (
@@ -996,22 +931,17 @@ def vpin(
     :param period: Rolling lookback window for standard deviation and flow aggregation (default 20).
     :return: Polars expression producing VPIN values in ``[0.0, 1.0]``.
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
-
-    c = parse_expr(close).cast(pl.Float64)
+    check_period(period, 2)
+    dp = parse_expr(close).cast(pl.Float64).diff(1)
     v = parse_expr(volume).cast(pl.Float64).fill_null(0.0).clip(lower_bound=0.0)
 
-    dp = c.diff(1)
     std_dp = dp.rolling_std(window_size=period)
     z = pl.when(std_dp.is_null()).then(None).when(std_dp > 1e-12).then(dp / std_dp).otherwise(0.0)
 
     # Bowling et al. (2009) closed-form Normal CDF approximation (max error < 1.4e-4)
-    logit = -(0.07056 * (z**3) + 1.5976 * z)
-    phi_z = 1.0 / (1.0 + logit.clip(-40.0, 40.0).exp())
+    phi_z = 1.0 / (1.0 + (-(0.07056 * (z**3) + 1.5976 * z)).clip(-40.0, 40.0).exp())
 
-    abs_imbalance = v * (2.0 * phi_z - 1.0).abs()
-    sum_imb = abs_imbalance.rolling_sum(window_size=period)
+    sum_imb = (v * (2.0 * phi_z - 1.0).abs()).rolling_sum(window_size=period)
     sum_vol = v.rolling_sum(window_size=period)
 
     return (
@@ -1043,19 +973,13 @@ def ofi(
     :param period: Rolling aggregation window (default 1 for single-bar OFI).
     :return: Polars expression.
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
+    check_period(period)
     bp = parse_expr(bid_price).cast(pl.Float64)
     bs = parse_expr(bid_size).cast(pl.Float64)
     ap = parse_expr(ask_price).cast(pl.Float64)
     as_ = parse_expr(ask_size).cast(pl.Float64)
 
-    prev_bp = bp.shift(1)
-    prev_bs = bs.shift(1)
-    prev_ap = ap.shift(1)
-    prev_as = as_.shift(1)
-
+    prev_bp, prev_bs, prev_ap, prev_as = bp.shift(1), bs.shift(1), ap.shift(1), as_.shift(1)
     bid_flow = pl.when(bp >= prev_bp).then(bs).otherwise(0.0) - pl.when(bp <= prev_bp).then(
         prev_bs
     ).otherwise(0.0)
@@ -1070,10 +994,7 @@ def ofi(
         & prev_as.is_not_null()
     )
     raw_ofi = pl.when(valid).then(bid_flow - ask_flow).otherwise(None)
-
-    if period == 1:
-        return raw_ofi
-    return raw_ofi.rolling_sum(window_size=period)
+    return raw_ofi if period == 1 else raw_ofi.rolling_sum(window_size=period)
 
 
 def futures_basis(
@@ -1099,10 +1020,8 @@ def futures_basis(
     :param annualization: Days per year used for carry annualization (default 365.0).
     :return: Polars Struct expression.
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
-    if annualization <= 0.0:
-        raise ValueError("annualization must be a positive number greater than zero")
+    check_period(period, 2)
+    check_positive(annualization, "annualization")
 
     f = parse_expr(futures_close).cast(pl.Float64)
     s = parse_expr(spot_close).cast(pl.Float64)
@@ -1113,11 +1032,11 @@ def futures_basis(
     if days_to_expiry is None:
         ann_basis = basis_pct
     elif isinstance(days_to_expiry, (int, float)) and not isinstance(days_to_expiry, bool):
-        dte_val = max(float(days_to_expiry), 1.0)
-        ann_basis = basis_pct * (float(annualization) / dte_val)
+        ann_basis = basis_pct * (float(annualization) / max(float(days_to_expiry), 1.0))
     else:
-        dte_expr = parse_expr(days_to_expiry).cast(pl.Float64).clip(lower_bound=1.0)
-        ann_basis = basis_pct * (float(annualization) / dte_expr)
+        ann_basis = basis_pct * (
+            float(annualization) / parse_expr(days_to_expiry).cast(pl.Float64).clip(lower_bound=1.0)
+        )
 
     mean_bp = basis_pct.rolling_mean(window_size=period)
     std_bp = basis_pct.rolling_std(window_size=period)
@@ -1165,8 +1084,7 @@ def oi_regime(
     :param period: Lookback lag for price and OI difference (default 1).
     :return: Polars Struct expression.
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
 
     c = parse_expr(close).cast(pl.Float64)
     oi = parse_expr(open_interest).cast(pl.Float64)
@@ -1387,6 +1305,20 @@ def alpha_008(
     return -1.0 * cs_rank(prod - ts_delay(prod, 10), over=over)
 
 
+def _persistence_or_reversal(close: IntoExpr, window: int) -> pl.Expr:
+    """Shared short-horizon trend persistence vs. mean-reversion switch for Alpha #9 and #10."""
+    d1 = ts_delta(parse_expr(close), 1)
+    lo = ts_min(d1, window)
+    hi = ts_max(d1, window)
+    return (
+        pl.when(lo.is_null() | hi.is_null())
+        .then(None)
+        .when((lo > 0.0) | (hi < 0.0))
+        .then(d1)
+        .otherwise(-1.0 * d1)
+    )
+
+
 def alpha_009(
     close: IntoExpr,
 ) -> pl.Expr:
@@ -1398,17 +1330,7 @@ def alpha_009(
     :param close: Close price column or expression.
     :return: Polars expression.
     """
-    c = parse_expr(close)
-    d1 = ts_delta(c, 1)
-    min5 = ts_min(d1, 5)
-    max5 = ts_max(d1, 5)
-    return (
-        pl.when(min5.is_null() | max5.is_null())
-        .then(None)
-        .when((min5 > 0.0) | (max5 < 0.0))
-        .then(d1)
-        .otherwise(-1.0 * d1)
-    )
+    return _persistence_or_reversal(close, 5)
 
 
 def alpha_010(
@@ -1424,18 +1346,7 @@ def alpha_010(
     :param over: Cross-sectional grouping column (e.g. 'timestamp').
     :return: Polars expression.
     """
-    c = parse_expr(close)
-    d1 = ts_delta(c, 1)
-    min4 = ts_min(d1, 4)
-    max4 = ts_max(d1, 4)
-    inner = (
-        pl.when(min4.is_null() | max4.is_null())
-        .then(None)
-        .when((min4 > 0.0) | (max4 < 0.0))
-        .then(d1)
-        .otherwise(-1.0 * d1)
-    )
-    return cs_rank(inner, over=over)
+    return cs_rank(_persistence_or_reversal(close, 4), over=over)
 
 
 def alpha_011(

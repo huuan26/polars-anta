@@ -6,7 +6,14 @@ import math
 
 import polars as pl
 
-from .core import IntoExpr, parse_expr, true_range, wilder_smooth
+from .core import (
+    IntoExpr,
+    check_period,
+    check_periods,
+    parse_expr,
+    true_range,
+    wilder_smooth,
+)
 from .trend import ema
 
 __all__ = [
@@ -26,6 +33,10 @@ __all__ = [
     "yang_zhang_volatility",
     "chaikin_volatility",
     "donchian_width",
+    "envelopes",
+    "keltner_width",
+    "bollinger_delta",
+    "starc_bands",
 ]
 
 
@@ -43,11 +54,8 @@ def atr(
     :param period: lookback period (default 14)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
-    tr = true_range(high, low, close)
-    return wilder_smooth(tr, period)
+    check_period(period)
+    return wilder_smooth(true_range(high, low, close), period)
 
 
 def bollinger_bands(
@@ -71,9 +79,7 @@ def bollinger_bands(
     :param num_std: alias for multiplier
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
+    check_period(period)
     mult = float(num_std) if num_std is not None else float(multiplier)
     c = parse_expr(close)
     middle = c.rolling_mean(window_size=period)
@@ -123,21 +129,17 @@ def keltner_channels(
     :return: Polars Struct expression
     """
     effective_period = ema_period if ema_period is not None else period
-    if effective_period <= 0 or atr_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(effective_period, atr_period)
 
     c = parse_expr(close)
     middle = ema(c, period=effective_period)
     band_range = atr(high, low, close, period=atr_period) * float(multiplier)
 
-    upper = middle + band_range
-    lower = middle - band_range
-
     return pl.struct(
         [
-            upper.alias("upper"),
+            (middle + band_range).alias("upper"),
             middle.alias("middle"),
-            lower.alias("lower"),
+            (middle - band_range).alias("lower"),
         ]
     )
 
@@ -159,13 +161,9 @@ def donchian_channels(
     :param period: lookback period (default 20)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-
-    upper = hi.rolling_max(window_size=period)
-    lower = lo.rolling_min(window_size=period)
+    check_period(period)
+    upper = parse_expr(high).rolling_max(window_size=period)
+    lower = parse_expr(low).rolling_min(window_size=period)
     middle = (upper + lower) / 2.0
 
     return pl.struct(
@@ -184,8 +182,7 @@ def stddev(close: IntoExpr, period: int = 20) -> pl.Expr:
     :param period: lookback period (default 20)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     return parse_expr(close).rolling_std(window_size=period)
 
 
@@ -198,8 +195,7 @@ def ulcer_index(close: IntoExpr, period: int = 14) -> pl.Expr:
     :param period: lookback period (default 14)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     c = parse_expr(close)
     highest_close = c.rolling_max(window_size=period)
     drawdown_pct = (
@@ -207,8 +203,7 @@ def ulcer_index(close: IntoExpr, period: int = 14) -> pl.Expr:
         .then(100.0 * (c - highest_close) / highest_close)
         .otherwise(0.0)
     )
-    drawdown_sq = drawdown_pct.pow(2)
-    return drawdown_sq.rolling_mean(window_size=period).sqrt()
+    return drawdown_pct.pow(2).rolling_mean(window_size=period).sqrt()
 
 
 def chandelier_exit(
@@ -231,18 +226,10 @@ def chandelier_exit(
     :param multiplier: ATR multiplier (default 3.0)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    atr_val = atr(high, low, close, period=period)
-
-    highest_high = hi.rolling_max(window_size=period)
-    lowest_low = lo.rolling_min(window_size=period)
-
-    long_stop = highest_high - float(multiplier) * atr_val
-    short_stop = lowest_low + float(multiplier) * atr_val
+    check_period(period)
+    band = float(multiplier) * atr(high, low, close, period=period)
+    long_stop = parse_expr(high).rolling_max(window_size=period) - band
+    short_stop = parse_expr(low).rolling_min(window_size=period) + band
 
     return pl.struct(
         [
@@ -268,11 +255,9 @@ def natr(
     :param period: lookback period (default 14)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     c = parse_expr(close)
     atr_val = atr(high, low, close, period=period)
-
     return pl.when(c > 0.0).then(100.0 * atr_val / c).otherwise(0.0)
 
 
@@ -290,13 +275,11 @@ def historical_volatility(
     :param trading_periods: trading periods per year (default 252 for daily)
     :return: Polars expression in percentage [0, inf)
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
+    check_period(period, 2)
     c = parse_expr(close)
     prev_c = c.shift(1)
     log_return = pl.when((c > 0.0) & (prev_c > 0.0)).then((c / prev_c).log()).otherwise(0.0)
     ann_factor = math.sqrt(float(trading_periods)) * 100.0
-
     return log_return.rolling_std(window_size=period) * ann_factor
 
 
@@ -316,18 +299,14 @@ def parkinson_volatility(
     :param trading_periods: trading periods per year (default 252)
     :return: Polars expression in percentage
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     hi = parse_expr(high)
     lo = parse_expr(low)
 
-    hl_ratio = pl.when((hi > 0.0) & (lo > 0.0)).then((hi / lo).log()).otherwise(0.0)
-    hl_sq = hl_ratio.pow(2)
+    hl_sq = pl.when((hi > 0.0) & (lo > 0.0)).then((hi / lo).log().pow(2)).otherwise(0.0)
     factor = 1.0 / (4.0 * math.log(2.0))
     ann_factor = math.sqrt(float(trading_periods)) * 100.0
-
-    mean_sq = hl_sq.rolling_mean(window_size=period)
-    return (mean_sq * factor).sqrt() * ann_factor
+    return (hl_sq.rolling_mean(window_size=period) * factor).sqrt() * ann_factor
 
 
 def garman_klass_volatility(
@@ -350,8 +329,7 @@ def garman_klass_volatility(
     :param trading_periods: trading periods per year (default 252)
     :return: Polars expression in percentage
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     o = parse_expr(open)
     hi = parse_expr(high)
     lo = parse_expr(low)
@@ -360,12 +338,27 @@ def garman_klass_volatility(
     hl_term = pl.when((hi > 0.0) & (lo > 0.0)).then((hi / lo).log().pow(2)).otherwise(0.0)
     co_term = pl.when((c > 0.0) & (o > 0.0)).then((c / o).log().pow(2)).otherwise(0.0)
 
-    gk_const = 2.0 * math.log(2.0) - 1.0
-    val = 0.5 * hl_term - gk_const * co_term
+    val = 0.5 * hl_term - (2.0 * math.log(2.0) - 1.0) * co_term
     mean_val = val.rolling_mean(window_size=period)
     ann_factor = math.sqrt(float(trading_periods)) * 100.0
 
     return pl.when(mean_val > 0.0).then(mean_val.sqrt() * ann_factor).otherwise(0.0)
+
+
+def _rogers_satchell_term(
+    o: pl.Expr,
+    hi: pl.Expr,
+    lo: pl.Expr,
+    c: pl.Expr,
+) -> tuple[pl.Expr, pl.Expr]:
+    """Compute positive-OHLC validity mask and single-bar Rogers-Satchell variance term."""
+    valid = (hi > 0.0) & (lo > 0.0) & (o > 0.0) & (c > 0.0)
+    term = (
+        pl.when(valid)
+        .then((hi / c).log() * (hi / o).log() + (lo / c).log() * (lo / o).log())
+        .otherwise(0.0)
+    )
+    return valid, term
 
 
 def rogers_satchell_volatility(
@@ -390,23 +383,12 @@ def rogers_satchell_volatility(
     :param trading_periods: trading periods per year (default 252)
     :return: Polars expression in percentage
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    o = parse_expr(open)
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-
-    valid = (hi > 0.0) & (lo > 0.0) & (o > 0.0) & (c > 0.0)
-    term = (
-        pl.when(valid)
-        .then((hi / c).log() * (hi / o).log() + (lo / c).log() * (lo / o).log())
-        .otherwise(0.0)
+    check_period(period)
+    _, term = _rogers_satchell_term(
+        parse_expr(open), parse_expr(high), parse_expr(low), parse_expr(close)
     )
-
     mean_term = term.rolling_mean(window_size=period)
     ann_factor = math.sqrt(float(trading_periods)) * 100.0
-
     return pl.when(mean_term > 0.0).then(mean_term.sqrt() * ann_factor).otherwise(0.0)
 
 
@@ -434,31 +416,24 @@ def yang_zhang_volatility(
     :param trading_periods: trading periods per year (default 252)
     :return: Polars expression in percentage
     """
-    if period <= 1:
-        raise ValueError("period must be an integer greater than 1")
+    check_period(period, 2)
     o = parse_expr(open)
     hi = parse_expr(high)
     lo = parse_expr(low)
     c = parse_expr(close)
     prev_c = c.shift(1)
 
-    valid = (hi > 0.0) & (lo > 0.0) & (o > 0.0) & (c > 0.0)
-    rs_term = (
-        pl.when(valid)
-        .then((hi / c).log() * (hi / o).log() + (lo / c).log() * (lo / o).log())
-        .otherwise(0.0)
-    )
+    valid, rs_term = _rogers_satchell_term(o, hi, lo, c)
     overnight = pl.when(valid & (prev_c > 0.0)).then((o / prev_c).log()).otherwise(0.0)
     intraday = pl.when(valid).then((c / o).log()).otherwise(0.0)
 
-    var_overnight = overnight.rolling_var(window_size=period)
-    var_intraday = intraday.rolling_var(window_size=period)
-    var_rs = rs_term.rolling_mean(window_size=period)
-
     k = 0.34 / (1.34 + float(period + 1) / float(period - 1))
-    combined = var_overnight + k * var_intraday + (1.0 - k) * var_rs
+    combined = (
+        overnight.rolling_var(window_size=period)
+        + k * intraday.rolling_var(window_size=period)
+        + (1.0 - k) * rs_term.rolling_mean(window_size=period)
+    )
     ann = float(trading_periods)
-
     return pl.when(combined > 0.0).then((combined * ann).sqrt() * 100.0).otherwise(0.0)
 
 
@@ -478,14 +453,9 @@ def chaikin_volatility(
     :param roc_period: rate of change shift lookback (default 10)
     :return: Polars expression
     """
-    if period <= 0 or roc_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    hl = hi - lo
-    ema_hl = ema(hl, period=period)
+    check_periods(period, roc_period)
+    ema_hl = ema(parse_expr(high) - parse_expr(low), period=period)
     prev_ema = ema_hl.shift(roc_period)
-
     return pl.when(prev_ema > 0.0).then(100.0 * (ema_hl - prev_ema) / prev_ema).otherwise(0.0)
 
 
@@ -503,14 +473,10 @@ def donchian_width(
     :param period: lookback period (default 20)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    upper = hi.rolling_max(window_size=period)
-    lower = lo.rolling_min(window_size=period)
+    check_period(period)
+    upper = parse_expr(high).rolling_max(window_size=period)
+    lower = parse_expr(low).rolling_min(window_size=period)
     middle = (upper + lower) / 2.0
-
     return pl.when(middle > 0.0).then(100.0 * (upper - lower) / middle).otherwise(0.0)
 
 
@@ -529,14 +495,15 @@ def envelopes(
     :param percentage: band percentage offset as a decimal (e.g. 0.025 for 2.5%)
     :return: Polars Struct expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    c = parse_expr(close)
-    middle = c.rolling_mean(window_size=period)
-    upper = middle * (1.0 + percentage)
-    lower = middle * (1.0 - percentage)
-
-    return pl.struct([upper.alias("upper"), middle.alias("middle"), lower.alias("lower")])
+    check_period(period)
+    middle = parse_expr(close).rolling_mean(window_size=period)
+    return pl.struct(
+        [
+            (middle * (1.0 + percentage)).alias("upper"),
+            middle.alias("middle"),
+            (middle * (1.0 - percentage)).alias("lower"),
+        ]
+    )
 
 
 def keltner_width(
@@ -560,10 +527,8 @@ def keltner_width(
     :param multiplier: ATR multiplier (default 2.0)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    middle = c.ewm_mean(span=ema_period, adjust=False)
-    atr_val = atr(high, low, close, period=atr_period)
-    spread = 2.0 * multiplier * atr_val
+    middle = parse_expr(close).ewm_mean(span=ema_period, adjust=False)
+    spread = 2.0 * multiplier * atr(high, low, close, period=atr_period)
     return pl.when(middle > 0.0).then(100.0 * spread / middle).otherwise(0.0)
 
 
@@ -581,11 +546,8 @@ def bollinger_delta(
     :param num_std: standard deviation multiplier (default 2.0)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    c = parse_expr(close)
-    std = c.rolling_std(window_size=period)
-    return 2.0 * num_std * std
+    check_period(period)
+    return 2.0 * num_std * parse_expr(close).rolling_std(window_size=period)
 
 
 def starc_bands(
@@ -609,12 +571,13 @@ def starc_bands(
     :param multiplier: ATR band multiplier (default 2.0)
     :return: Polars Struct expression
     """
-    if period <= 0 or atr_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
-    c = parse_expr(close)
-    middle = c.rolling_mean(window_size=period)
-    atr_val = atr(high, low, close, period=atr_period)
-    upper = middle + multiplier * atr_val
-    lower = middle - multiplier * atr_val
-
-    return pl.struct([upper.alias("upper"), middle.alias("middle"), lower.alias("lower")])
+    check_periods(period, atr_period)
+    middle = parse_expr(close).rolling_mean(window_size=period)
+    band = multiplier * atr(high, low, close, period=atr_period)
+    return pl.struct(
+        [
+            (middle + band).alias("upper"),
+            middle.alias("middle"),
+            (middle - band).alias("lower"),
+        ]
+    )

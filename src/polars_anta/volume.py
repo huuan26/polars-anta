@@ -6,8 +6,43 @@ from collections.abc import Sequence
 
 import polars as pl
 
-from .core import IntoExpr, parse_expr
+from .core import IntoExpr, check_period, check_periods, parse_expr
 from .trend import ema, sma
+
+__all__ = [
+    "obv",
+    "vwap",
+    "vwap_bands",
+    "session_vwap",
+    "vwma",
+    "cmf",
+    "adl",
+    "mfi",
+    "eom",
+    "klinger",
+    "nvi",
+    "pvi",
+    "pvt",
+    "force_index",
+    "vpci",
+    "vr",
+]
+
+
+def _money_flow_volume(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+) -> tuple[pl.Expr, pl.Expr]:
+    """Compute Chaikin Money Flow Volume (MFV) and parsed volume expression."""
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+    v = parse_expr(volume)
+    hl_range = hi - lo
+    mfm = pl.when(hl_range != 0.0).then(((c - lo) - (hi - c)) / hl_range).otherwise(0.0)
+    return mfm * v, v
 
 
 def obv(close: IntoExpr, volume: IntoExpr) -> pl.Expr:
@@ -20,12 +55,9 @@ def obv(close: IntoExpr, volume: IntoExpr) -> pl.Expr:
     :param volume: volume column name or expression
     :return: Polars expression
     """
-    c = parse_expr(close)
+    diff = parse_expr(close).diff(1)
     v = parse_expr(volume)
-    diff = c.diff(1)
-
-    signed_vol = pl.when(diff > 0).then(v).when(diff < 0).then(-v).otherwise(0)
-    return signed_vol.cum_sum()
+    return pl.when(diff > 0).then(v).when(diff < 0).then(-v).otherwise(0).cum_sum()
 
 
 def vwap(
@@ -47,15 +79,11 @@ def vwap(
     :param period: lookback window size, or None for cumulative VWAP
     :return: Polars expression
     """
-    if period is not None and period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    if period is not None:
+        check_period(period)
 
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
+    typical_price = (parse_expr(high) + parse_expr(low) + parse_expr(close)) / 3.0
     v = parse_expr(volume)
-
-    typical_price = (hi + lo + c) / 3.0
     pv = typical_price * v
 
     if period is None:
@@ -94,15 +122,11 @@ def vwap_bands(
     :param mult3: third band multiplier (default 3.0)
     :return: Polars Struct expression
     """
-    if period is not None and period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    if period is not None:
+        check_period(period)
 
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
+    tp = (parse_expr(high) + parse_expr(low) + parse_expr(close)) / 3.0
     v = parse_expr(volume)
-
-    tp = (hi + lo + c) / 3.0
     pv = tp * v
     pv2 = (tp**2) * v
 
@@ -116,8 +140,7 @@ def vwap_bands(
         vwap2_val = pv2.rolling_sum(window_size=period) / roll_v
 
     # Weighted variance = E[X^2] - (E[X])^2
-    variance = (vwap2_val - vwap_val**2).clip(0.0)
-    std_val = variance.sqrt()
+    std_val = (vwap2_val - vwap_val**2).clip(0.0).sqrt()
 
     return pl.struct(
         [
@@ -146,12 +169,9 @@ def vwma(
     :param period: lookback period (default 20)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
+    check_period(period)
     c = parse_expr(close)
     v = parse_expr(volume)
-
     return (c * v).rolling_sum(window_size=period) / v.rolling_sum(window_size=period)
 
 
@@ -171,14 +191,7 @@ def adl(
     :param volume: volume column or expression
     :return: Polars expression
     """
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-    v = parse_expr(volume)
-
-    hl_range = hi - lo
-    mfm = pl.when(hl_range != 0.0).then(((c - lo) - (hi - c)) / hl_range).otherwise(0.0)
-    mfv = mfm * v
+    mfv, _ = _money_flow_volume(high, low, close, volume)
     return mfv.cum_sum()
 
 
@@ -200,21 +213,10 @@ def cmf(
     :param period: lookback period (default 20)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-    v = parse_expr(volume)
-
-    hl_range = hi - lo
-    mfm = pl.when(hl_range != 0.0).then(((c - lo) - (hi - c)) / hl_range).otherwise(0.0)
-    mfv = mfm * v
-
+    check_period(period)
+    mfv, v = _money_flow_volume(high, low, close, volume)
     sum_mfv = mfv.rolling_sum(window_size=period)
     sum_vol = v.rolling_sum(window_size=period)
-
     return pl.when(sum_vol != 0.0).then(sum_mfv / sum_vol).otherwise(0.0)
 
 
@@ -236,31 +238,24 @@ def mfi(
     :param period: lookback period (default 14)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-    v = parse_expr(volume)
-
-    typical_price = (hi + lo + c) / 3.0
-    raw_money_flow = typical_price * v
+    check_period(period)
+    typical_price = (parse_expr(high) + parse_expr(low) + parse_expr(close)) / 3.0
+    raw_money_flow = typical_price * parse_expr(volume)
     diff = typical_price.diff(1)
 
-    pos_flow = pl.when(diff > 0.0).then(raw_money_flow).otherwise(0.0)
-    neg_flow = pl.when(diff < 0.0).then(raw_money_flow).otherwise(0.0)
-
-    pos_sum = pos_flow.rolling_sum(window_size=period)
-    neg_sum = neg_flow.rolling_sum(window_size=period)
-
-    money_ratio = pos_sum / neg_sum
+    pos_sum = (
+        pl.when(diff > 0.0).then(raw_money_flow).otherwise(0.0).rolling_sum(window_size=period)
+    )
+    neg_sum = (
+        pl.when(diff < 0.0).then(raw_money_flow).otherwise(0.0).rolling_sum(window_size=period)
+    )
 
     return (
         pl.when(neg_sum == 0.0)
         .then(100.0)
         .when(pos_sum == 0.0)
         .then(0.0)
-        .otherwise(100.0 - (100.0 / (1.0 + money_ratio)))
+        .otherwise(100.0 - (100.0 / (1.0 + pos_sum / neg_sum)))
     )
 
 
@@ -282,8 +277,7 @@ def eom(
     :param divisor: volume scaling divisor (default 100,000,000)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
+    check_period(period)
     hi = parse_expr(high)
     lo = parse_expr(low)
     v = parse_expr(volume)
@@ -291,12 +285,11 @@ def eom(
     hl_mid = (hi + lo) / 2.0
     dist_moved = hl_mid - hl_mid.shift(1)
     hl_range = hi - lo
-
     box_ratio = (v / float(divisor)) / hl_range
+
     emv_1 = (
         pl.when((hl_range > 0.0) & (box_ratio > 0.0)).then(dist_moved / box_ratio).otherwise(0.0)
     )
-
     return emv_1.rolling_mean(window_size=period)
 
 
@@ -326,29 +319,27 @@ def klinger(
     :param signal_period: signal EMA period (default 13)
     :return: Polars Struct expression
     """
-    if fast_period <= 0 or slow_period <= 0 or signal_period <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
-
-    hi = parse_expr(high)
-    lo = parse_expr(low)
-    c = parse_expr(close)
-    v = parse_expr(volume)
-
-    tp = (hi + lo + c) / 3.0
+    check_periods(fast_period, slow_period, signal_period)
+    tp = (parse_expr(high) + parse_expr(low) + parse_expr(close)) / 3.0
     direction = pl.when(tp > tp.shift(1)).then(1.0).when(tp < tp.shift(1)).then(-1.0).otherwise(0.0)
-    sv = v * direction
+    sv = parse_expr(volume) * direction
 
-    fast_ema = ema(sv, period=fast_period)
-    slow_ema = ema(sv, period=slow_period)
-    klinger_line = fast_ema - slow_ema
-    signal_line = ema(klinger_line, period=signal_period)
-
+    klinger_line = ema(sv, period=fast_period) - ema(sv, period=slow_period)
     return pl.struct(
         [
             klinger_line.alias("klinger"),
-            signal_line.alias("signal"),
+            ema(klinger_line, period=signal_period).alias("signal"),
         ]
     )
+
+
+def _volume_index(close: IntoExpr, volume: IntoExpr, initial: float, *, up: bool) -> pl.Expr:
+    """Shared cumulative volume index helper for PVI (up=True) and NVI (up=False)."""
+    c = parse_expr(close)
+    diff_v = parse_expr(volume).diff(1)
+    cond = diff_v > 0 if up else diff_v < 0
+    ret = pl.when(cond).then(c.pct_change()).otherwise(0.0).fill_null(0.0)
+    return (1.0 + ret).cum_prod() * float(initial)
 
 
 def nvi(
@@ -365,12 +356,7 @@ def nvi(
     :param initial: starting index level (default 1000.0)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    v = parse_expr(volume)
-    diff_v = v.diff(1)
-    ret = pl.when(diff_v < 0).then(c.pct_change()).otherwise(0.0).fill_null(0.0)
-
-    return (1.0 + ret).cum_prod() * float(initial)
+    return _volume_index(close, volume, initial, up=False)
 
 
 def pvi(
@@ -387,12 +373,7 @@ def pvi(
     :param initial: starting index level (default 1000.0)
     :return: Polars expression
     """
-    c = parse_expr(close)
-    v = parse_expr(volume)
-    diff_v = v.diff(1)
-    ret = pl.when(diff_v > 0).then(c.pct_change()).otherwise(0.0).fill_null(0.0)
-
-    return (1.0 + ret).cum_prod() * float(initial)
+    return _volume_index(close, volume, initial, up=True)
 
 
 def pvt(close: IntoExpr, volume: IntoExpr) -> pl.Expr:
@@ -404,10 +385,7 @@ def pvt(close: IntoExpr, volume: IntoExpr) -> pl.Expr:
     :param volume: volume column or expression
     :return: Polars expression
     """
-    c = parse_expr(close)
-    v = parse_expr(volume)
-    ret = c.pct_change().fill_null(0.0)
-    return (ret * v).cum_sum()
+    return (parse_expr(close).pct_change().fill_null(0.0) * parse_expr(volume)).cum_sum()
 
 
 def force_index(
@@ -424,12 +402,8 @@ def force_index(
     :param period: EMA smoothing window (default 13)
     :return: Polars expression
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    c = parse_expr(close)
-    v = parse_expr(volume)
-    raw_fi = c.diff(1).fill_null(0.0) * v
-
+    check_period(period)
+    raw_fi = parse_expr(close).diff(1).fill_null(0.0) * parse_expr(volume)
     return ema(raw_fi, period=period)
 
 
@@ -449,15 +423,13 @@ def vpci(
     :param period_long: long window (default 25)
     :return: Polars expression
     """
-    if period_short <= 0 or period_long <= 0:
-        raise ValueError("periods must be positive integers greater than zero")
+    check_periods(period_short, period_long)
     c = parse_expr(close)
     v = parse_expr(volume)
 
     vpc = vwma(c, v, period=period_short) - sma(c, period=period_short)
     vpr = vwma(c, v, period=period_long) / sma(c, period=period_long)
     vm = sma(v, period=period_short) / sma(v, period=period_long)
-
     return vpc * vpr * vm
 
 
@@ -475,19 +447,13 @@ def vr(
     :param period: lookback period (default 26)
     :return: Polars expression in percentage [0, inf)
     """
-    if period <= 0:
-        raise ValueError("period must be a positive integer greater than zero")
-    c = parse_expr(close)
+    check_period(period)
     v = parse_expr(volume)
-    change = c.diff(1)
+    change = parse_expr(close).diff(1)
 
-    up_vol = pl.when(change > 0).then(v).otherwise(0)
-    down_vol = pl.when(change < 0).then(v).otherwise(0)
-    flat_vol = pl.when(change == 0).then(v).otherwise(0)
-
-    sum_up = up_vol.rolling_sum(window_size=period)
-    sum_down = down_vol.rolling_sum(window_size=period)
-    sum_flat = flat_vol.rolling_sum(window_size=period)
+    sum_up = pl.when(change > 0).then(v).otherwise(0).rolling_sum(window_size=period)
+    sum_down = pl.when(change < 0).then(v).otherwise(0).rolling_sum(window_size=period)
+    sum_flat = pl.when(change == 0).then(v).otherwise(0).rolling_sum(window_size=period)
 
     den = sum_down + 0.5 * sum_flat
     return pl.when(den > 0.0).then(100.0 * (sum_up + 0.5 * sum_flat) / den).otherwise(100.0)
@@ -538,10 +504,9 @@ def session_vwap(
     pv2 = (tp**2) * v
 
     if session_by is not None:
-        if isinstance(session_by, (str, pl.Expr)):
-            part_cols: list[str | pl.Expr] = [session_by]
-        else:
-            part_cols = list(session_by)
+        part_cols: list[str | pl.Expr] = (
+            [session_by] if isinstance(session_by, (str, pl.Expr)) else list(session_by)
+        )
         cum_v = v.cum_sum().over(part_cols)
         cum_pv = pv.cum_sum().over(part_cols)
         cum_pv2 = pv2.cum_sum().over(part_cols)
@@ -552,8 +517,7 @@ def session_vwap(
 
     vwap_val = pl.when(cum_v > 0.0).then(cum_pv / cum_v).otherwise(tp)
     vwap2_val = pl.when(cum_v > 0.0).then(cum_pv2 / cum_v).otherwise(tp**2)
-    variance = (vwap2_val - vwap_val**2).clip(lower_bound=0.0)
-    std_val = variance.sqrt()
+    std_val = (vwap2_val - vwap_val**2).clip(lower_bound=0.0).sqrt()
     zscore_val = pl.when(std_val > 1e-12).then((c - vwap_val) / std_val).otherwise(0.0)
 
     return pl.struct(

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
+import inspect
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
 
 import polars as pl
 
@@ -20,12 +22,192 @@ from . import (
     volume,
 )
 
-if TYPE_CHECKING:
-    from .backtest import BacktestResult
-    from .core import IntoExpr
-    from .inference import FalsificationResult
-
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
+
+_EMPTY = inspect.Parameter.empty
+_PK = inspect.Parameter.POSITIONAL_OR_KEYWORD
+_SELF_PARAM = inspect.Parameter("self", _PK)
+_FRAME_CTRL_KEYS = frozenset({"alias", "unnest", "prefix", "group_by"})
+_EXPR_ALPHA_DEFAULTS: dict[str, str] = {
+    "open_": "open",
+    "high": "high",
+    "low": "low",
+    "volume": "volume",
+}
+_FRAME_ALPHA_DEFAULTS: dict[str, str] = {**_EXPR_ALPHA_DEFAULTS, "close": "close"}
+
+
+def _bind_expr(
+    fn: Callable[..., pl.Expr],
+    *,
+    self_param: str | None = "close",
+    renames: Mapping[str, str] | None = None,
+    defaults: Mapping[str, Any] | None = None,
+    params: Sequence[tuple[str, Any]] | None = None,
+) -> Callable[..., pl.Expr]:
+    """Build a TechnicalAnalysisExpr method forwarding ``self._expr`` to ``fn``."""
+    rename_map = dict(renames) if renames else {}
+    inv_renames = {v: k for k, v in rename_map.items()}
+    if params is not None:
+        mparams = [inspect.Parameter(n, _PK, default=d) for n, d in params]
+    else:
+        mparams = []
+        for fp in inspect.signature(fn).parameters.values():
+            if fp.name == self_param:
+                continue
+            m_name = rename_map.get(fp.name, fp.name)
+            dflt = (
+                defaults[m_name]
+                if (fp.default is _EMPTY and defaults and m_name in defaults)
+                else fp.default
+            )
+            mparams.append(inspect.Parameter(m_name, _PK, default=dflt))
+    msig = inspect.Signature(parameters=[_SELF_PARAM, *mparams])
+
+    def method(self: TechnicalAnalysisExpr, *args: Any, **kwargs: Any) -> pl.Expr:
+        bound = msig.bind(self, *args, **kwargs)
+        bound.apply_defaults()
+        call_kwargs: dict[str, Any] = {}
+        if self_param is not None:
+            call_kwargs[self_param] = self._expr
+        for m_name, val in list(bound.arguments.items())[1:]:
+            call_kwargs[inv_renames.get(m_name, m_name)] = val
+        return fn(**call_kwargs)
+
+    method.__name__ = fn.__name__
+    method.__qualname__ = f"TechnicalAnalysisExpr.{fn.__name__}"
+    method.__doc__ = fn.__doc__
+    method.__module__ = __name__
+    method.__signature__ = msig  # type: ignore[attr-defined]
+    return method
+
+
+def _bind_frame_passthrough(
+    fn: Callable[..., Any],
+    name: str | None = None,
+) -> tuple[str, Callable[..., Any]]:
+    """Build a TechnicalAnalysisFrame method forwarding ``self._df`` to ``fn``."""
+    meth_name = name or fn.__name__
+    fsig = inspect.signature(fn)
+    msig = fsig.replace(parameters=[_SELF_PARAM, *list(fsig.parameters.values())[1:]])
+
+    def method(self: TechnicalAnalysisFrame[Any], *args: Any, **kwargs: Any) -> Any:
+        return fn(self._df, *args, **kwargs)
+
+    method.__name__ = meth_name
+    method.__qualname__ = f"TechnicalAnalysisFrame.{meth_name}"
+    method.__doc__ = fn.__doc__
+    method.__module__ = __name__
+    method.__signature__ = msig  # type: ignore[attr-defined]
+    return meth_name, method
+
+
+@dataclass(frozen=True)
+class _FrameExprSpec:
+    fn: Callable[..., pl.Expr]
+    params: tuple[tuple[str, Any], ...]
+    renames: Mapping[str, str] | None = None
+    alias_fmt: str | Callable[[Mapping[str, Any]], str] | None = None
+
+
+def _col_period_spec(
+    fn: Callable[..., pl.Expr],
+    period: int,
+    alias_base: str | None = None,
+    col_target: str = "close",
+) -> _FrameExprSpec:
+    base = alias_base or fn.__name__
+    return _FrameExprSpec(
+        fn=fn,
+        params=(("period", period), ("col", "close"), ("alias", None), ("group_by", None)),
+        renames={"col": col_target},
+        alias_fmt=f"{base}_{{period}}",
+    )
+
+
+def _struct_spec(
+    fn: Callable[..., pl.Expr],
+    /,
+    *,
+    _alias: str | None = None,
+    _prefix: str | None = None,
+    _renames: Mapping[str, str] | None = None,
+    **params: Any,
+) -> _FrameExprSpec:
+    return _FrameExprSpec(
+        fn=fn,
+        params=(
+            *params.items(),
+            ("alias", _alias or fn.__name__),
+            ("unnest", False),
+            ("prefix", _prefix),
+            ("group_by", None),
+        ),
+        renames=_renames,
+    )
+
+
+def _scalar_spec(
+    fn: Callable[..., pl.Expr],
+    /,
+    *,
+    _alias_fmt: str | Callable[[Mapping[str, Any]], str] | None = None,
+    _alias: str | None = None,
+    _renames: Mapping[str, str] | None = None,
+    _has_gb: bool = True,
+    **params: Any,
+) -> _FrameExprSpec:
+    tail: tuple[tuple[str, Any], ...] = (
+        (("alias", _alias), ("group_by", None)) if _has_gb else (("alias", _alias),)
+    )
+    return _FrameExprSpec(
+        fn=fn,
+        params=(*params.items(), *tail),
+        renames=_renames,
+        alias_fmt=_alias_fmt,
+    )
+
+
+def _bind_frame_expr(spec: _FrameExprSpec) -> tuple[str, Callable[..., Any]]:
+    """Build a TechnicalAnalysisFrame indicator method backed by ``_apply_expr``."""
+    fn = spec.fn
+    meth_name = fn.__name__
+    rename_map = dict(spec.renames) if spec.renames else {}
+    msig = inspect.Signature(
+        parameters=[_SELF_PARAM, *(inspect.Parameter(n, _PK, default=d) for n, d in spec.params)]
+    )
+
+    def method(self: TechnicalAnalysisFrame[Any], *args: Any, **kwargs: Any) -> Any:
+        bound = msig.bind(self, *args, **kwargs)
+        bound.apply_defaults()
+        raw_args = dict(list(bound.arguments.items())[1:])
+        call_kwargs = {
+            rename_map.get(k, k): v for k, v in raw_args.items() if k not in _FRAME_CTRL_KEYS
+        }
+        alias_val = raw_args["alias"]
+        if spec.alias_fmt is not None:
+            fallback = (
+                spec.alias_fmt(raw_args)
+                if callable(spec.alias_fmt)
+                else spec.alias_fmt.format_map(raw_args)
+            )
+            alias_name = alias_val or fallback
+        else:
+            alias_name = alias_val
+        return self._apply_expr(
+            fn(**call_kwargs),
+            alias=alias_name,
+            unnest=raw_args.get("unnest", False),
+            prefix=raw_args.get("prefix"),
+            group_by=raw_args.get("group_by"),
+        )
+
+    method.__name__ = meth_name
+    method.__qualname__ = f"TechnicalAnalysisFrame.{meth_name}"
+    method.__doc__ = fn.__doc__
+    method.__module__ = __name__
+    method.__signature__ = msig  # type: ignore[attr-defined]
+    return meth_name, method
 
 
 @pl.api.register_expr_namespace("anta")
@@ -39,1674 +221,264 @@ class TechnicalAnalysisExpr:
     def __init__(self, expr: pl.Expr) -> None:
         self._expr = expr
 
-    # =========================================================================
-    # Trend Indicators (19)
-    # =========================================================================
-
-    def sma(self, period: int = 10) -> pl.Expr:
-        """Simple Moving Average (SMA)."""
-        return trend.sma(self._expr, period=period)
-
-    def ema(self, period: int = 10) -> pl.Expr:
-        """Exponential Moving Average (EMA)."""
-        return trend.ema(self._expr, period=period)
-
-    def wma(self, period: int = 10) -> pl.Expr:
-        """Weighted Moving Average (WMA)."""
-        return trend.wma(self._expr, period=period)
-
-    def hma(self, period: int = 10) -> pl.Expr:
-        """Hull Moving Average (HMA)."""
-        return trend.hma(self._expr, period=period)
-
-    def dema(self, period: int = 10) -> pl.Expr:
-        """Double Exponential Moving Average (DEMA)."""
-        return trend.dema(self._expr, period=period)
-
-    def tema(self, period: int = 10) -> pl.Expr:
-        """Triple Exponential Moving Average (TEMA)."""
-        return trend.tema(self._expr, period=period)
-
-    def zlema(self, period: int = 10) -> pl.Expr:
-        """Zero-Lag Exponential Moving Average (ZLEMA)."""
-        return trend.zlema(self._expr, period=period)
-
-    def vortex(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Vortex Indicator (VI)."""
-        return trend.vortex(high=high, low=low, close=self._expr, period=period)
-
-    def adx(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Average Directional Index (ADX) and (+DI, -DI)."""
-        return trend.adx(high=high, low=low, close=self._expr, period=period)
-
-    def aroon(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 25,
-    ) -> pl.Expr:
-        """Aroon Indicator and Oscillator."""
-        return trend.aroon(high=high, low=low, period=period)
-
-    def chop(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Choppiness Index (CHOP)."""
-        return trend.chop(high=high, low=low, close=self._expr, period=period)
-
-    def t3(self, period: int = 5, volume_factor: float = 0.7) -> pl.Expr:
-        """Tillson T3 Moving Average."""
-        return trend.t3(self._expr, period=period, volume_factor=volume_factor)
-
-    def alma(
-        self,
-        period: int = 9,
-        offset: float = 0.85,
-        sigma: float = 6.0,
-    ) -> pl.Expr:
-        """Arnaud Legoux Moving Average (ALMA)."""
-        return trend.alma(self._expr, period=period, offset=offset, sigma=sigma)
-
-    def mass_index(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        fast_period: int = 9,
-        slow_period: int = 25,
-    ) -> pl.Expr:
-        """Mass Index."""
-        return trend.mass_index(
-            high=high, low=low, fast_period=fast_period, slow_period=slow_period
-        )
-
-    def supertrend(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 10,
-        multiplier: float = 3.0,
-    ) -> pl.Expr:
-        """SuperTrend Indicator."""
-        return trend.supertrend(
-            high=high, low=low, close=self._expr, period=period, multiplier=multiplier
-        )
-
-    def psar(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        af_step: float = 0.02,
-        af_max: float = 0.2,
-    ) -> pl.Expr:
-        """Parabolic SAR (Stop and Reverse)."""
-        return trend.psar(high=high, low=low, af_step=af_step, af_max=af_max)
-
-    def kama(
-        self,
-        period: int = 10,
-        fast_span: int = 2,
-        slow_span: int = 30,
-    ) -> pl.Expr:
-        """Kaufman's Adaptive Moving Average (KAMA)."""
-        return trend.kama(self._expr, period=period, fast_span=fast_span, slow_span=slow_span)
-
-    def mcginley_dynamic(self, period: int = 10, k: float = 0.6) -> pl.Expr:
-        """McGinley Dynamic tracking average."""
-        return trend.mcginley_dynamic(self._expr, period=period, k=k)
-
-    def vidya(self, period: int = 9, cmo_period: int = 9) -> pl.Expr:
-        """Variable Index Dynamic Average (VIDYA)."""
-        return trend.vidya(self._expr, period=period, cmo_period=cmo_period)
-
-    def center_of_gravity(self, period: int = 10) -> pl.Expr:
-        """Center of Gravity (CG) Oscillator."""
-        return trend.center_of_gravity(self._expr, period=period)
-
-    def ichimoku(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        tenkan_period: int = 9,
-        kijun_period: int = 26,
-        senkou_b_period: int = 52,
-        displacement: int = 26,
-    ) -> pl.Expr:
-        """Ichimoku Kinko Hyo Cloud."""
-        return trend.ichimoku(
-            high=high,
-            low=low,
-            close=self._expr,
-            tenkan_period=tenkan_period,
-            kijun_period=kijun_period,
-            senkou_b_period=senkou_b_period,
-            displacement=displacement,
-        )
-
-    def pivot_points(self, high: IntoExpr, low: IntoExpr) -> pl.Expr:
-        """Floor Trader Standard Pivot Points."""
-        return trend.pivot_points(high=high, low=low, close=self._expr)
-
-    def fibonacci_pivots(self, high: IntoExpr, low: IntoExpr) -> pl.Expr:
-        """Fibonacci Pivot Points."""
-        return trend.fibonacci_pivots(high=high, low=low, close=self._expr)
-
-    def camarilla_pivots(self, high: IntoExpr, low: IntoExpr) -> pl.Expr:
-        """Camarilla Pivot Points."""
-        return trend.camarilla_pivots(high=high, low=low, close=self._expr)
-
-    def woodie_pivots(self, open_: IntoExpr, high: IntoExpr, low: IntoExpr) -> pl.Expr:
-        """Woodie's Pivot Points."""
-        return trend.woodie_pivots(open_=open_, high=high, low=low, close=self._expr)
-
-    def ssl_channel(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 10,
-    ) -> pl.Expr:
-        """SSL Channel (Securement Stop Loss Channel)."""
-        return trend.ssl_channel(high=high, low=low, close=self._expr, period=period)
-
-    def trend_intensity_index(
-        self,
-        period: int = 30,
-        signal_period: int | None = None,
-    ) -> pl.Expr:
-        """Trend Intensity Index (TII)."""
-        return trend.trend_intensity_index(
-            close=self._expr,
-            period=period,
-            signal_period=signal_period,
-        )
-
-    def heikin_ashi(
-        self,
-        open: IntoExpr,
-        high: IntoExpr,
-        low: IntoExpr,
-    ) -> pl.Expr:
-        """Heikin-Ashi Candlestick Transform."""
-        return trend.heikin_ashi(open=open, high=high, low=low, close=self._expr)
-
-    # =========================================================================
-    # Momentum Indicators (20)
-    # =========================================================================
-
-    def rsi(self, period: int = 14) -> pl.Expr:
-        """Relative Strength Index (RSI)."""
-        return momentum.rsi(self._expr, period=period)
-
-    def macd(
-        self,
-        fast_period: int = 12,
-        slow_period: int = 26,
-        signal_period: int = 9,
-    ) -> pl.Expr:
-        """Moving Average Convergence Divergence (MACD)."""
-        return momentum.macd(
-            self._expr,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            signal_period=signal_period,
-        )
-
-    def stochastic(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        k_period: int = 14,
-        d_period: int = 3,
-        smooth_k: int = 3,
-    ) -> pl.Expr:
-        """Stochastic Oscillator (%K, %D)."""
-        return momentum.stochastic(
-            high=high,
-            low=low,
-            close=self._expr,
-            k_period=k_period,
-            d_period=d_period,
-            smooth_k=smooth_k,
-        )
-
-    def williams_r(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Williams %R."""
-        return momentum.williams_r(
-            high=high,
-            low=low,
-            close=self._expr,
-            period=period,
-        )
-
-    def cci(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-        constant: float = 0.015,
-    ) -> pl.Expr:
-        """Commodity Channel Index (CCI)."""
-        return momentum.cci(
-            high=high,
-            low=low,
-            close=self._expr,
-            period=period,
-            constant=constant,
-        )
-
-    def roc(self, period: int = 10) -> pl.Expr:
-        """Rate of Change (ROC)."""
-        return momentum.roc(self._expr, period=period)
-
-    def stoch_rsi(
-        self,
-        rsi_period: int = 14,
-        stoch_period: int = 14,
-        k_period: int = 3,
-        d_period: int = 3,
-    ) -> pl.Expr:
-        """Stochastic RSI (StochRSI)."""
-        return momentum.stoch_rsi(
-            self._expr,
-            rsi_period=rsi_period,
-            stoch_period=stoch_period,
-            k_period=k_period,
-            d_period=d_period,
-        )
-
-    def stc(
-        self,
-        fast_period: int = 23,
-        slow_period: int = 50,
-        cycle_period: int = 10,
-        factor: float = 0.5,
-    ) -> pl.Expr:
-        """Schaff Trend Cycle (STC) Oscillator."""
-        return momentum.stc(
-            self._expr,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            cycle_period=cycle_period,
-            factor=factor,
-        )
-
-    def awesome_oscillator(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        fast_period: int = 5,
-        slow_period: int = 34,
-    ) -> pl.Expr:
-        """Awesome Oscillator (AO)."""
-        return momentum.awesome_oscillator(
-            high=high,
-            low=low,
-            fast_period=fast_period,
-            slow_period=slow_period,
-        )
-
-    def tsi(
-        self,
-        long_period: int = 25,
-        short_period: int = 13,
-    ) -> pl.Expr:
-        """True Strength Index (TSI)."""
-        return momentum.tsi(
-            self._expr,
-            long_period=long_period,
-            short_period=short_period,
-        )
-
-    def cmo(self, period: int = 14) -> pl.Expr:
-        """Chande Momentum Oscillator (CMO)."""
-        return momentum.cmo(self._expr, period=period)
-
-    def ppo(
-        self,
-        fast_period: int = 12,
-        slow_period: int = 26,
-        signal_period: int = 9,
-    ) -> pl.Expr:
-        """Percentage Price Oscillator (PPO)."""
-        return momentum.ppo(
-            self._expr,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            signal_period=signal_period,
-        )
-
-    def trix(
-        self,
-        period: int = 15,
-        signal_period: int = 9,
-    ) -> pl.Expr:
-        """Triple Exponential Average (TRIX) Oscillator."""
-        return momentum.trix(self._expr, period=period, signal_period=signal_period)
-
-    def coppock(
-        self,
-        wma_period: int = 10,
-        fast_roc: int = 11,
-        slow_roc: int = 14,
-    ) -> pl.Expr:
-        """Coppock Curve."""
-        return momentum.coppock(
-            self._expr, wma_period=wma_period, fast_roc=fast_roc, slow_roc=slow_roc
-        )
-
-    def ultimate_oscillator(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period1: int = 7,
-        period2: int = 14,
-        period3: int = 28,
-    ) -> pl.Expr:
-        """Ultimate Oscillator (UO)."""
-        return momentum.ultimate_oscillator(
-            high=high,
-            low=low,
-            close=self._expr,
-            period1=period1,
-            period2=period2,
-            period3=period3,
-        )
-
-    def fisher_transform(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 9,
-    ) -> pl.Expr:
-        """Fisher Transform."""
-        return momentum.fisher_transform(high=high, low=low, period=period)
-
-    def rvi(
-        self,
-        open: IntoExpr,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Relative Vigor Index (RVI)."""
-        return momentum.rvi(open=open, high=high, low=low, close=self._expr, period=period)
-
-    def kst(
-        self,
-        r1: int = 10,
-        r2: int = 15,
-        r3: int = 20,
-        r4: int = 30,
-        s1: int = 10,
-        s2: int = 10,
-        s3: int = 10,
-        s4: int = 15,
-        signal_period: int = 9,
-    ) -> pl.Expr:
-        """Know Sure Thing (KST)."""
-        return momentum.kst(
-            self._expr,
-            r1=r1,
-            r2=r2,
-            r3=r3,
-            r4=r4,
-            s1=s1,
-            s2=s2,
-            s3=s3,
-            s4=s4,
-            signal_period=signal_period,
-        )
-
-    def dpo(self, period: int = 20) -> pl.Expr:
-        """Detrended Price Oscillator (DPO)."""
-        return momentum.dpo(self._expr, period=period)
-
-    def bop(
-        self,
-        open: IntoExpr,
-        high: IntoExpr,
-        low: IntoExpr,
-    ) -> pl.Expr:
-        """Balance of Power (BOP)."""
-        return momentum.bop(open=open, high=high, low=low, close=self._expr)
-
-    def cfo(self, period: int = 14) -> pl.Expr:
-        """Chande Forecast Oscillator (CFO)."""
-        return momentum.cfo(self._expr, period=period)
-
-    def squeeze_momentum(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        bb_period: int = 20,
-        bb_mult: float = 2.0,
-        kc_period: int = 20,
-        kc_mult: float = 1.5,
-        mom_period: int | None = None,
-    ) -> pl.Expr:
-        """Squeeze Momentum Indicator (John Carter / LazyBear)."""
-        return momentum.squeeze_momentum(
-            high=high,
-            low=low,
-            close=self._expr,
-            bb_period=bb_period,
-            bb_mult=bb_mult,
-            kc_period=kc_period,
-            kc_mult=kc_mult,
-            mom_period=mom_period,
-        )
-
-    # =========================================================================
-    # Volatility Indicators (14)
-    # =========================================================================
-
-    def true_range(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-    ) -> pl.Expr:
-        """True Range (TR)."""
-        return volatility.true_range(high=high, low=low, close=self._expr)
-
-    def atr(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Average True Range (ATR)."""
-        return volatility.atr(high=high, low=low, close=self._expr, period=period)
-
-    def bollinger_bands(
-        self,
-        period: int = 20,
-        num_std: float = 2.0,
-    ) -> pl.Expr:
-        """Bollinger Bands."""
-        return volatility.bollinger_bands(self._expr, period=period, num_std=num_std)
-
-    def keltner_channels(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        ema_period: int = 20,
-        atr_period: int = 10,
-        multiplier: float = 2.0,
-    ) -> pl.Expr:
-        """Keltner Channels."""
-        return volatility.keltner_channels(
-            high=high,
-            low=low,
-            close=self._expr,
-            ema_period=ema_period,
-            atr_period=atr_period,
-            multiplier=multiplier,
-        )
-
-    def donchian_channels(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-    ) -> pl.Expr:
-        """Donchian Channels."""
-        return volatility.donchian_channels(high=high, low=low, period=period)
-
-    def stddev(self, period: int = 20) -> pl.Expr:
-        """Rolling Standard Deviation."""
-        return volatility.stddev(self._expr, period=period)
-
-    def ulcer_index(self, period: int = 14) -> pl.Expr:
-        """Ulcer Index (UI)."""
-        return volatility.ulcer_index(self._expr, period=period)
-
-    def chandelier_exit(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 22,
-        multiplier: float = 3.0,
-    ) -> pl.Expr:
-        """Chandelier Exit."""
-        return volatility.chandelier_exit(
-            high=high,
-            low=low,
-            close=self._expr,
-            period=period,
-            multiplier=multiplier,
-        )
-
-    def natr(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Normalized Average True Range (NATR)."""
-        return volatility.natr(high=high, low=low, close=self._expr, period=period)
-
-    def historical_volatility(
-        self,
-        period: int = 20,
-        trading_periods: int = 252,
-    ) -> pl.Expr:
-        """Annualized Historical Volatility (HV)."""
-        return volatility.historical_volatility(
-            self._expr, period=period, trading_periods=trading_periods
-        )
-
-    def parkinson_volatility(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-        trading_periods: int = 252,
-    ) -> pl.Expr:
-        """Parkinson Volatility."""
-        return volatility.parkinson_volatility(
-            high=high,
-            low=low,
-            period=period,
-            trading_periods=trading_periods,
-        )
-
-    def garman_klass_volatility(
-        self,
-        open: IntoExpr,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-        trading_periods: int = 252,
-    ) -> pl.Expr:
-        """Garman-Klass Volatility."""
-        return volatility.garman_klass_volatility(
-            open=open,
-            high=high,
-            low=low,
-            close=self._expr,
-            period=period,
-            trading_periods=trading_periods,
-        )
-
-    def rogers_satchell_volatility(
-        self,
-        open: IntoExpr,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-        trading_periods: int = 252,
-    ) -> pl.Expr:
-        """Rogers-Satchell Volatility."""
-        return volatility.rogers_satchell_volatility(
-            open=open,
-            high=high,
-            low=low,
-            close=self._expr,
-            period=period,
-            trading_periods=trading_periods,
-        )
-
-    def yang_zhang_volatility(
-        self,
-        open: IntoExpr,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-        trading_periods: int = 252,
-    ) -> pl.Expr:
-        """Yang-Zhang Volatility."""
-        return volatility.yang_zhang_volatility(
-            open=open,
-            high=high,
-            low=low,
-            close=self._expr,
-            period=period,
-            trading_periods=trading_periods,
-        )
-
-    def chaikin_volatility(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 10,
-        roc_period: int = 10,
-    ) -> pl.Expr:
-        """Chaikin's Volatility."""
-        return volatility.chaikin_volatility(
-            high=high, low=low, period=period, roc_period=roc_period
-        )
-
-    def donchian_width(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-    ) -> pl.Expr:
-        """Donchian Channel Width."""
-        return volatility.donchian_width(high=high, low=low, period=period)
-
-    def envelopes(self, period: int = 20, percentage: float = 0.025) -> pl.Expr:
-        """Moving Average Envelopes."""
-        return volatility.envelopes(self._expr, period=period, percentage=percentage)
-
-    def keltner_width(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        ema_period: int = 20,
-        atr_period: int = 10,
-        multiplier: float = 2.0,
-    ) -> pl.Expr:
-        """Normalized Keltner Channel Width (Squeeze metric)."""
-        return volatility.keltner_width(
-            high=high,
-            low=low,
-            close=self._expr,
-            ema_period=ema_period,
-            atr_period=atr_period,
-            multiplier=multiplier,
-        )
-
-    def bollinger_delta(self, period: int = 20, num_std: float = 2.0) -> pl.Expr:
-        """Bollinger Band Delta (Band Spread)."""
-        return volatility.bollinger_delta(self._expr, period=period, num_std=num_std)
-
-    def starc_bands(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        period: int = 20,
-        atr_period: int = 15,
-        multiplier: float = 2.0,
-    ) -> pl.Expr:
-        """STARC Bands (Stoller Average Range Channels)."""
-        return volatility.starc_bands(
-            high=high,
-            low=low,
-            close=self._expr,
-            period=period,
-            atr_period=atr_period,
-            multiplier=multiplier,
-        )
-
-    # =========================================================================
-    # Volume Indicators (14)
-    # =========================================================================
-
-    def obv(self, volume_col: IntoExpr) -> pl.Expr:
-        """On-Balance Volume (OBV)."""
-        return volume.obv(close=self._expr, volume=volume_col)
-
-    def vwap(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-        period: int | None = None,
-    ) -> pl.Expr:
-        """Volume-Weighted Average Price (VWAP)."""
-        return volume.vwap(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume_col,
-            period=period,
-        )
-
-    def vwap_bands(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-        period: int | None = None,
-        mult1: float = 1.0,
-        mult2: float = 2.0,
-        mult3: float = 3.0,
-    ) -> pl.Expr:
-        """Volume-Weighted Average Price with Standard Deviation Bands."""
-        return volume.vwap_bands(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume_col,
-            period=period,
-            mult1=mult1,
-            mult2=mult2,
-            mult3=mult3,
-        )
-
-    def session_vwap(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-        session_by: IntoExpr | Sequence[str | pl.Expr] | None = None,
-        mult1: float = 1.0,
-        mult2: float = 2.0,
-    ) -> pl.Expr:
-        """Session-Anchored VWAP with Standard Deviation Bands and Deviation Z-Score."""
-        return volume.session_vwap(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume_col,
-            session_by=session_by,
-            mult1=mult1,
-            mult2=mult2,
-        )
-
-    def vwma(self, volume_col: IntoExpr, period: int = 20) -> pl.Expr:
-        """Volume-Weighted Moving Average (VWMA)."""
-        return volume.vwma(close=self._expr, volume=volume_col, period=period)
-
-    def cmf(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-        period: int = 20,
-    ) -> pl.Expr:
-        """Chaikin Money Flow (CMF)."""
-        return volume.cmf(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume_col,
-            period=period,
-        )
-
-    def adl(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-    ) -> pl.Expr:
-        """Accumulation/Distribution Line (ADL)."""
-        return volume.adl(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume_col,
-        )
-
-    def mfi(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-        period: int = 14,
-    ) -> pl.Expr:
-        """Money Flow Index (MFI)."""
-        return volume.mfi(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume_col,
-            period=period,
-        )
-
-    def eom(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-        period: int = 14,
-        divisor: float = 100_000_000.0,
-    ) -> pl.Expr:
-        """Ease of Movement (EOM)."""
-        return volume.eom(
-            high=high,
-            low=low,
-            volume=volume_col,
-            period=period,
-            divisor=divisor,
-        )
-
-    def klinger(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        volume_col: IntoExpr,
-        fast_period: int = 34,
-        slow_period: int = 55,
-        signal_period: int = 13,
-    ) -> pl.Expr:
-        """Klinger Volume Oscillator."""
-        return volume.klinger(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume_col,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            signal_period=signal_period,
-        )
-
-    def nvi(
-        self,
-        volume_col: IntoExpr,
-        initial: float = 1000.0,
-    ) -> pl.Expr:
-        """Negative Volume Index (NVI)."""
-        return volume.nvi(close=self._expr, volume=volume_col, initial=initial)
-
-    def pvi(
-        self,
-        volume_col: IntoExpr,
-        initial: float = 1000.0,
-    ) -> pl.Expr:
-        """Positive Volume Index (PVI)."""
-        return volume.pvi(close=self._expr, volume=volume_col, initial=initial)
-
-    def pvt(self, volume_col: IntoExpr) -> pl.Expr:
-        """Price Volume Trend (PVT)."""
-        return volume.pvt(close=self._expr, volume=volume_col)
-
-    def force_index(self, volume_col: IntoExpr, period: int = 13) -> pl.Expr:
-        """Elder's Force Index (EFI)."""
-        return volume.force_index(close=self._expr, volume=volume_col, period=period)
-
-    def vpci(
-        self,
-        volume_col: IntoExpr,
-        period_short: int = 5,
-        period_long: int = 25,
-    ) -> pl.Expr:
-        """Volume Price Confirmation Indicator (VPCI)."""
-        return volume.vpci(
-            close=self._expr,
-            volume=volume_col,
-            period_short=period_short,
-            period_long=period_long,
-        )
-
-    def vr(self, volume_col: IntoExpr, period: int = 26) -> pl.Expr:
-        """Volume Ratio (VR)."""
-        return volume.vr(close=self._expr, volume=volume_col, period=period)
-
-    # =========================================================================
-    # Quantitative Statistics & Regression Transforms (12)
-    # =========================================================================
-
-    def zscore(self, period: int = 20) -> pl.Expr:
-        """Rolling Z-Score."""
-        return stats.zscore(self._expr, period=period)
-
-    def percentile_rank(self, period: int = 20) -> pl.Expr:
-        """Rolling Percentile Rank."""
-        return stats.percentile_rank(self._expr, period=period)
-
-    def skewness(self, period: int = 20, bias: bool = False) -> pl.Expr:
-        """Rolling Skewness (adjusted sample by default, bias=True for population)."""
-        return stats.skewness(self._expr, period=period, bias=bias)
-
-    def kurtosis(self, period: int = 20, bias: bool = False) -> pl.Expr:
-        """Rolling Excess Kurtosis (adjusted sample by default, bias=True for population)."""
-        return stats.kurtosis(self._expr, period=period, bias=bias)
-
-    def rolling_cov(self, other: IntoExpr, period: int = 20) -> pl.Expr:
-        """Rolling Covariance with another series."""
-        return stats.rolling_cov(self._expr, other, period=period)
-
-    def rolling_corr(self, other: IntoExpr, period: int = 20) -> pl.Expr:
-        """Rolling Correlation with another series."""
-        return stats.rolling_corr(self._expr, other, period=period)
-
-    def rolling_beta(self, benchmark_returns: IntoExpr, period: int = 60) -> pl.Expr:
-        """Rolling CAPM Beta relative to a benchmark."""
-        return stats.rolling_beta(self._expr, benchmark_returns, period=period)
-
-    def rolling_alpha(
-        self,
-        benchmark_returns: IntoExpr,
-        rf: float = 0.0,
-        period: int = 60,
-    ) -> pl.Expr:
-        """Rolling Jensen's Alpha relative to a benchmark."""
-        return stats.rolling_alpha(self._expr, benchmark_returns, rf=rf, period=period)
-
-    def linear_regression_slope(self, period: int = 14) -> pl.Expr:
-        """Rolling OLS Linear Regression Slope."""
-        return stats.linear_regression_slope(self._expr, period=period)
-
-    def linear_regression_intercept(self, period: int = 14) -> pl.Expr:
-        """Rolling OLS Linear Regression Intercept."""
-        return stats.linear_regression_intercept(self._expr, period=period)
-
-    def linear_regression_angle(self, period: int = 14) -> pl.Expr:
-        """Rolling Linear Regression Angle (degrees)."""
-        return stats.linear_regression_angle(self._expr, period=period)
-
-    def linear_regression_forecast(self, period: int = 14) -> pl.Expr:
-        """Rolling Linear Regression Forecast value."""
-        return stats.linear_regression_forecast(self._expr, period=period)
-
-    def linear_regression_r2(self, period: int = 14) -> pl.Expr:
-        """Rolling OLS R-Squared in [0.0, 1.0]."""
-        return stats.linear_regression_r2(self._expr, period=period)
-
-    def linear_regression_stderr(self, period: int = 14) -> pl.Expr:
-        """Rolling OLS standard error of the estimate."""
-        return stats.linear_regression_stderr(self._expr, period=period)
-
-    def frac_diff(self, d: float = 0.4, window: int = 20) -> pl.Expr:
-        """Fixed-Window Fractional Differentiation (FFD)."""
-        return stats.frac_diff(self._expr, d=d, window=window)
-
-    # =========================================================================
-    # Alpha Factor Primitives & Signal Transforms (12)
-    # =========================================================================
-
-    def ts_rank(self, period: int = 10) -> pl.Expr:
-        """Time-series Rank."""
-        return alpha.ts_rank(self._expr, period=period)
-
-    def ts_argmax(self, period: int = 10) -> pl.Expr:
-        """Time-series ArgMax (bars ago of maximum)."""
-        return alpha.ts_argmax(self._expr, period=period)
-
-    def ts_argmin(self, period: int = 10) -> pl.Expr:
-        """Time-series ArgMin (bars ago of minimum)."""
-        return alpha.ts_argmin(self._expr, period=period)
-
-    def decay_linear(self, period: int = 10) -> pl.Expr:
-        """Linearly Decayed Weighted Moving Average."""
-        return alpha.decay_linear(self._expr, period=period)
-
-    def ts_zscore(self, period: int = 20) -> pl.Expr:
-        """Time-series Rolling Z-Score."""
-        return alpha.ts_zscore(self._expr, period=period)
-
-    def returns_divergence(self, volume: IntoExpr, period: int = 14) -> pl.Expr:
-        """Price-Volume Returns Divergence."""
-        return alpha.returns_divergence(self._expr, volume=volume, period=period)
-
-    def hl_ratio(self, low: IntoExpr) -> pl.Expr:
-        """Log High-to-Low Ratio."""
-        return alpha.hl_ratio(high=self._expr, low=low)
-
-    def co_ratio(self, open_: IntoExpr) -> pl.Expr:
-        """Log Close-to-Open Ratio."""
-        return alpha.co_ratio(close=self._expr, open_=open_)
-
-    def volume_weighted_momentum(self, volume: IntoExpr, period: int = 10) -> pl.Expr:
-        """Volume-Weighted Momentum."""
-        return alpha.volume_weighted_momentum(self._expr, volume=volume, period=period)
-
-    def relative_spread(self, low: IntoExpr, close: IntoExpr) -> pl.Expr:
-        """Normalized Relative Spread ((High - Low) / Close)."""
-        return alpha.relative_spread(high=self._expr, low=low, close=close)
-
-    def twap(self, low: IntoExpr, close: IntoExpr, period: int = 20) -> pl.Expr:
-        """Rolling Time-Weighted Average Price (TWAP)."""
-        return alpha.twap(high=self._expr, low=low, close=close, period=period)
-
-    def entropy(self, period: int = 20, bins: int = 5) -> pl.Expr:
-        """Rolling Shannon Entropy of returns."""
-        return alpha.entropy(self._expr, period=period, bins=bins)
-
-    def fractal_dimension(self, low: IntoExpr, period: int = 20) -> pl.Expr:
-        """Ehlers' Fractal Dimension."""
-        return alpha.fractal_dimension(high=self._expr, low=low, period=period)
-
-    def hurst_exponent(self, period: int = 50) -> pl.Expr:
-        """Rolling Hurst Exponent."""
-        return alpha.hurst_exponent(close=self._expr, period=period)
-
-    def cs_rank(
-        self,
-        over: IntoExpr | Sequence[str] | None = None,
-        method: Literal["average", "min", "max", "dense", "ordinal", "random"] = "average",
-        percentile: bool = True,
-    ) -> pl.Expr:
-        """Cross-Sectional Rank (WorldQuant Alpha primitive 'rank(x)')."""
-        return alpha.cs_rank(self._expr, over=over, method=method, percentile=percentile)
-
-    def cs_zscore(
-        self,
-        over: IntoExpr | Sequence[str] | None = None,
-        clip_bound: float | None = None,
-    ) -> pl.Expr:
-        """Cross-Sectional Z-Score Standardization."""
-        return alpha.cs_zscore(self._expr, over=over, clip_bound=clip_bound)
-
-    def cs_winsorize(
-        self,
-        over: IntoExpr | Sequence[str] | None = None,
-        method: Literal["quantile", "zscore", "mad"] = "quantile",
-        lower: float = 0.01,
-        upper: float = 0.99,
-        threshold: float = 3.0,
-    ) -> pl.Expr:
-        """Cross-Sectional Winsorization (Outlier Clipping)."""
-        return alpha.cs_winsorize(
-            self._expr,
-            over=over,
-            method=method,
-            lower=lower,
-            upper=upper,
-            threshold=threshold,
-        )
-
-    def neutralize(
-        self,
-        by: IntoExpr | Sequence[str],
-        over: IntoExpr | Sequence[str] | None = None,
-        standardize: bool = False,
-    ) -> pl.Expr:
-        """Group / Industry Neutralization (WorldQuant Alpha primitive 'indneutralize(x, g)')."""
-        return alpha.neutralize(self._expr, by=by, over=over, standardize=standardize)
-
-    def orthogonalize(
-        self,
-        factors: IntoExpr | Sequence[IntoExpr],
-        over: IntoExpr | Sequence[str] | None = None,
-        standardize: bool = True,
-        ridge: float = 0.0,
-    ) -> pl.Expr:
-        """Cross-Sectional Multi-Factor OLS Orthogonalization."""
-        return alpha.orthogonalize(
-            self._expr,
-            factors=factors,
-            over=over,
-            standardize=standardize,
-            ridge=ridge,
-        )
-
-    def ts_scale(
-        self,
-        a: float = 1.0,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """Scale Primitive (WorldQuant Alpha primitive 'scale(x, a)')."""
-        return alpha.ts_scale(self._expr, a=a, over=over)
-
-    def ts_delta(self, period: int = 1) -> pl.Expr:
-        """Time-series Delta (WorldQuant Alpha primitive 'delta(x, d)')."""
-        return alpha.ts_delta(self._expr, period=period)
-
-    def ts_delay(self, period: int = 1) -> pl.Expr:
-        """Time-series Delay (WorldQuant Alpha primitive 'delay(x, d)')."""
-        return alpha.ts_delay(self._expr, period=period)
-
-    def signed_power(self, exponent: float = 2.0) -> pl.Expr:
-        """Signed Power (WorldQuant Alpha primitive 'signed_power(x, a)')."""
-        return alpha.signed_power(self._expr, exponent=exponent)
-
-    def ts_min(self, period: int = 10) -> pl.Expr:
-        """Time-series Rolling Minimum (WorldQuant Alpha primitive 'ts_min(x, d)')."""
-        return alpha.ts_min(self._expr, period=period)
-
-    def ts_max(self, period: int = 10) -> pl.Expr:
-        """Time-series Rolling Maximum (WorldQuant Alpha primitive 'ts_max(x, d)')."""
-        return alpha.ts_max(self._expr, period=period)
-
-    def ts_sum(self, period: int = 10) -> pl.Expr:
-        """Time-series Rolling Sum (WorldQuant Alpha primitive 'ts_sum(x, d)')."""
-        return alpha.ts_sum(self._expr, period=period)
-
-    def ts_std(self, period: int = 10) -> pl.Expr:
-        """Time-series Rolling Standard Deviation (WorldQuant Alpha primitive 'ts_std(x, d)')."""
-        return alpha.ts_std(self._expr, period=period)
-
-    def ts_correlation(self, other: IntoExpr, period: int = 10) -> pl.Expr:
-        """Time-series Correlation (WorldQuant Alpha primitive 'correlation(x, y, d)')."""
-        return alpha.ts_correlation(self._expr, other, period=period)
-
-    def ts_covariance(self, other: IntoExpr, period: int = 10) -> pl.Expr:
-        """Time-series Covariance (WorldQuant Alpha primitive 'covariance(x, y, d)')."""
-        return alpha.ts_covariance(self._expr, other, period=period)
-
-    def ts_product(self, period: int = 10) -> pl.Expr:
-        """Time-series Rolling Product (WorldQuant Alpha primitive 'product(x, d)')."""
-        return alpha.ts_product(self._expr, period=period)
-
-    def amihud_illiquidity(
-        self,
-        volume: IntoExpr,
-        period: int = 20,
-        scale: float = 1e6,
-    ) -> pl.Expr:
-        """Amihud (2002) Illiquidity Ratio."""
-        return alpha.amihud_illiquidity(
-            close=self._expr,
-            volume=volume,
-            period=period,
-            scale=scale,
-        )
-
-    def roll_spread(self, period: int = 20) -> pl.Expr:
-        """Roll (1984) Implicit Effective Bid-Ask Spread Estimator."""
-        return alpha.roll_spread(close=self._expr, period=period)
-
-    def corwin_schultz_spread(self, low: IntoExpr, period: int = 20) -> pl.Expr:
-        """Corwin & Schultz (2012) High-Low Effective Bid-Ask Spread Estimator."""
-        return alpha.corwin_schultz_spread(high=self._expr, low=low, period=period)
-
-    def kyle_lambda(
-        self,
-        volume: IntoExpr,
-        period: int = 20,
-        scale: float = 1e6,
-    ) -> pl.Expr:
-        """Kyle (1985) Price Impact Coefficient (Lambda)."""
-        return alpha.kyle_lambda(
-            close=self._expr,
-            volume=volume,
-            period=period,
-            scale=scale,
-        )
-
-    def vpin(
-        self,
-        volume: IntoExpr,
-        period: int = 20,
-    ) -> pl.Expr:
-        """Volume-Synchronized Probability of Informed Trading (VPIN)."""
-        return alpha.vpin(close=self._expr, volume=volume, period=period)
-
-    def ofi(
-        self,
-        bid_size: IntoExpr,
-        ask_price: IntoExpr,
-        ask_size: IntoExpr,
-        period: int = 1,
-    ) -> pl.Expr:
-        """Level-1 Order Flow Imbalance (OFI) with self as ``bid_price``."""
-        return alpha.ofi(
-            bid_price=self._expr,
-            bid_size=bid_size,
-            ask_price=ask_price,
-            ask_size=ask_size,
-            period=period,
-        )
-
-    def futures_basis(
-        self,
-        spot_close: IntoExpr,
-        days_to_expiry: IntoExpr | float | int | None = None,
-        period: int = 20,
-        annualization: float = 365.0,
-    ) -> pl.Expr:
-        """Index Futures vs. Underlying Spot Basis & Implied Carry Analytics."""
-        return alpha.futures_basis(
-            futures_close=self._expr,
-            spot_close=spot_close,
-            days_to_expiry=days_to_expiry,
-            period=period,
-            annualization=annualization,
-        )
-
-    def oi_regime(
-        self,
-        open_interest: IntoExpr,
-        period: int = 1,
-    ) -> pl.Expr:
-        """Futures Open Interest (OI) & Price Action Regime Classifier."""
-        return alpha.oi_regime(
-            close=self._expr,
-            open_interest=open_interest,
-            period=period,
-        )
-
-    def alpha_001(
-        self,
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #1."""
-        return alpha.alpha_001(close=self._expr, returns=returns, over=over)
-
-    def alpha_002(
-        self,
-        open_: IntoExpr = "open",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #2."""
-        return alpha.alpha_002(open_=open_, close=self._expr, volume=volume, over=over)
-
-    def alpha_003(
-        self,
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #3."""
-        return alpha.alpha_003(open_=self._expr, volume=volume, over=over)
-
-    def alpha_004(
-        self,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #4."""
-        return alpha.alpha_004(low=self._expr, over=over)
-
-    def alpha_005(
-        self,
-        open_: IntoExpr = "open",
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #5."""
-        return alpha.alpha_005(
-            open_=open_, high=high, low=low, close=self._expr, volume=volume, over=over
-        )
-
-    def alpha_006(
-        self,
-        volume: IntoExpr = "volume",
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #6."""
-        return alpha.alpha_006(open_=self._expr, volume=volume)
-
-    def alpha_007(
-        self,
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-        rank_period: int = 60,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #7."""
-        return alpha.alpha_007(
-            close=self._expr, volume=volume, adv_period=adv_period, rank_period=rank_period
-        )
-
-    def alpha_008(
-        self,
-        open_: IntoExpr = "open",
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #8."""
-        return alpha.alpha_008(open_=open_, close=self._expr, returns=returns, over=over)
-
-    def alpha_009(self) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #9."""
-        return alpha.alpha_009(close=self._expr)
-
-    def alpha_010(
-        self,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #10."""
-        return alpha.alpha_010(close=self._expr, over=over)
-
-    def alpha_011(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #11."""
-        return alpha.alpha_011(high=high, low=low, close=self._expr, volume=volume, over=over)
-
-    def alpha_012(
-        self,
-        volume: IntoExpr = "volume",
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #12."""
-        return alpha.alpha_012(close=self._expr, volume=volume)
-
-    def alpha_013(
-        self,
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #13."""
-        return alpha.alpha_013(close=self._expr, volume=volume, over=over)
-
-    def alpha_014(
-        self,
-        open_: IntoExpr = "open",
-        volume: IntoExpr = "volume",
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #14."""
-        return alpha.alpha_014(
-            open_=open_, close=self._expr, volume=volume, returns=returns, over=over
-        )
-
-    def alpha_015(
-        self,
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #15."""
-        return alpha.alpha_015(high=self._expr, volume=volume, over=over)
-
-    def alpha_016(
-        self,
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #16."""
-        return alpha.alpha_016(high=self._expr, volume=volume, over=over)
-
-    def alpha_017(
-        self,
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #17."""
-        return alpha.alpha_017(close=self._expr, volume=volume, adv_period=adv_period, over=over)
-
-    def alpha_018(
-        self,
-        open_: IntoExpr = "open",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #18."""
-        return alpha.alpha_018(open_=open_, close=self._expr, over=over)
-
-    def alpha_019(
-        self,
-        returns: IntoExpr | None = None,
-        sum_period: int = 250,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #19."""
-        return alpha.alpha_019(close=self._expr, returns=returns, sum_period=sum_period, over=over)
-
-    def alpha_020(
-        self,
-        open_: IntoExpr = "open",
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #20."""
-        return alpha.alpha_020(open_=open_, high=high, low=low, close=self._expr, over=over)
-
-    def alpha_021(
-        self,
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #21."""
-        return alpha.alpha_021(close=self._expr, volume=volume, adv_period=adv_period)
-
-    def alpha_022(
-        self,
-        high: IntoExpr = "high",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #22."""
-        return alpha.alpha_022(high=high, close=self._expr, volume=volume, over=over)
-
-    def alpha_023(
-        self,
-        period: int = 20,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #23."""
-        return alpha.alpha_023(high=self._expr, period=period)
-
-    def alpha_024(
-        self,
-        period: int = 100,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #24."""
-        return alpha.alpha_024(close=self._expr, period=period)
-
-    def alpha_025(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        volume: IntoExpr = "volume",
-        returns: IntoExpr | None = None,
-        adv_period: int = 20,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #25."""
-        return alpha.alpha_025(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume,
-            returns=returns,
-            adv_period=adv_period,
-            over=over,
-        )
-
-    def alpha_026(
-        self,
-        volume: IntoExpr = "volume",
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #26."""
-        return alpha.alpha_026(high=self._expr, volume=volume)
-
-    def alpha_027(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #27."""
-        return alpha.alpha_027(high=high, low=low, close=self._expr, volume=volume, over=over)
-
-    def alpha_028(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #28."""
-        return alpha.alpha_028(
-            high=high,
-            low=low,
-            close=self._expr,
-            volume=volume,
-            adv_period=adv_period,
-            over=over,
-        )
-
-    def alpha_029(
-        self,
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #29."""
-        return alpha.alpha_029(close=self._expr, returns=returns, over=over)
-
-    def alpha_030(
-        self,
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #30."""
-        return alpha.alpha_030(close=self._expr, volume=volume, over=over)
-
-    def alpha_041(
-        self,
-        low: IntoExpr,
-        close: IntoExpr,
-        volume: IntoExpr,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #41."""
-        return alpha.alpha_041(high=self._expr, low=low, close=close, volume=volume)
-
-    def alpha_054(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        close: IntoExpr,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #54."""
-        return alpha.alpha_054(open_=self._expr, high=high, low=low, close=close)
-
-    def alpha_101(
-        self,
-        high: IntoExpr,
-        low: IntoExpr,
-        close: IntoExpr,
-    ) -> pl.Expr:
-        """WorldQuant Formulaic Alpha #101."""
-        return alpha.alpha_101(open_=self._expr, high=high, low=low, close=close)
-
-    # =========================================================================
-    # Performance & Risk Evaluation Metrics (7)
-    # =========================================================================
-
-    def drawdown_series(self, is_returns: bool = True) -> pl.Expr:
-        """Underwater Drawdown Series from period returns or equity curve."""
-        return evaluation.drawdown_series(self._expr, is_returns=is_returns)
-
-    def max_drawdown(self, is_returns: bool = True) -> pl.Expr:
-        """Maximum Drawdown (MDD) scalar expression."""
-        return evaluation.max_drawdown(self._expr, is_returns=is_returns)
-
-    def sharpe_ratio(
-        self,
-        risk_free_rate: float = 0.0,
-        annualization: float = 252.0,
-    ) -> pl.Expr:
-        """Annualized Sharpe Ratio scalar expression."""
-        return evaluation.sharpe_ratio(
-            self._expr, risk_free_rate=risk_free_rate, annualization=annualization
-        )
-
-    def sortino_ratio(
-        self,
-        risk_free_rate: float = 0.0,
-        annualization: float = 252.0,
-    ) -> pl.Expr:
-        """Annualized Sortino Ratio scalar expression."""
-        return evaluation.sortino_ratio(
-            self._expr, risk_free_rate=risk_free_rate, annualization=annualization
-        )
-
-    def calmar_ratio(self, annualization: float = 252.0) -> pl.Expr:
-        """Calmar Ratio (Annualized Return / |Max Drawdown|) scalar expression."""
-        return evaluation.calmar_ratio(self._expr, annualization=annualization)
-
-    def profit_factor(self) -> pl.Expr:
-        """Profit Factor (Gross Profit / |Gross Loss|) scalar expression."""
-        return evaluation.profit_factor(self._expr)
-
-    def win_rate(self, include_zeros: bool = False) -> pl.Expr:
-        """Win Rate (fraction of positive returns) scalar expression."""
-        return evaluation.win_rate(self._expr, include_zeros=include_zeros)
-
-    def probabilistic_sharpe_ratio(
-        self,
-        benchmark_sr: float = 0.0,
-        risk_free_rate: float = 0.0,
-        annualization: float = 252.0,
-    ) -> pl.Expr:
-        """Probabilistic Sharpe Ratio (PSR) scalar expression in [0.0, 1.0]."""
-        return evaluation.probabilistic_sharpe_ratio(
-            self._expr,
-            benchmark_sr=benchmark_sr,
-            risk_free_rate=risk_free_rate,
-            annualization=annualization,
-        )
-
-    def deflated_sharpe_ratio(
-        self,
-        n_trials: int = 10,
-        trials_sr_std: float = 0.5,
-        risk_free_rate: float = 0.0,
-        annualization: float = 252.0,
-    ) -> pl.Expr:
-        """Deflated Sharpe Ratio (DSR) scalar expression in [0.0, 1.0]."""
-        return evaluation.deflated_sharpe_ratio(
-            self._expr,
-            n_trials=n_trials,
-            trials_sr_std=trials_sr_std,
-            risk_free_rate=risk_free_rate,
-            annualization=annualization,
-        )
-
-    def triple_barrier_labels(
-        self,
-        volatility: IntoExpr | float | int | None = None,
-        horizon: int = 10,
-        pt_mult: float = 2.0,
-        sl_mult: float = 2.0,
-        min_ret: float = 0.0,
-        vol_period: int = 20,
-        side: IntoExpr | None = None,
-    ) -> pl.Expr:
-        """AFML Triple-Barrier Method & Meta-Labeling returns a Struct of (label, touch_bars, realized_return, meta_label)."""
-        return evaluation.triple_barrier_labels(
-            self._expr,
-            volatility=volatility,
-            horizon=horizon,
-            pt_mult=pt_mult,
-            sl_mult=sl_mult,
-            min_ret=min_ret,
-            vol_period=vol_period,
-            side=side,
-        )
-
-    def trend_scanning_labels(
-        self,
-        min_window: int = 5,
-        max_window: int = 20,
-        step: int = 1,
-    ) -> pl.Expr:
-        """AFML Trend-Scanning Labels returns a Struct of (label, t_value, optimal_window, ret)."""
-        return evaluation.trend_scanning_labels(
-            self._expr,
-            min_window=min_window,
-            max_window=max_window,
-            step=step,
-        )
-
-    def crosses_above(
-        self,
-        other: IntoExpr | float | int,
-        over: str | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """Return True on bars where this expression crosses above ``other`` (column or threshold)."""
-        return backtest.crosses_above(self._expr, other, over=over)
-
-    def crosses_below(
-        self,
-        other: IntoExpr | float | int,
-        over: str | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """Return True on bars where this expression crosses below ``other`` (column or threshold)."""
-        return backtest.crosses_below(self._expr, other, over=over)
-
-    def signals_to_positions(
-        self,
-        exits: IntoExpr,
-        short_entries: IntoExpr | None = None,
-        short_exits: IntoExpr | None = None,
-        over: str | Sequence[str] | None = None,
-    ) -> pl.Expr:
-        """Convert entry trigger expression and ``exits`` into a continuous position series."""
-        return backtest.signals_to_positions(
-            entries=self._expr,
-            exits=exits,
-            short_entries=short_entries,
-            short_exits=short_exits,
-            over=over,
+    bollinger_bands = _bind_expr(
+        volatility.bollinger_bands,
+        params=(("period", 20), ("num_std", 2.0)),
+    )
+    keltner_channels = _bind_expr(
+        volatility.keltner_channels,
+        params=(
+            ("high", _EMPTY),
+            ("low", _EMPTY),
+            ("ema_period", 20),
+            ("atr_period", 10),
+            ("multiplier", 2.0),
+        ),
+    )
+
+
+_EXPR_CLOSE_FUNCS: tuple[Callable[..., pl.Expr], ...] = (
+    trend.sma,
+    trend.ema,
+    trend.wma,
+    trend.hma,
+    trend.dema,
+    trend.tema,
+    trend.zlema,
+    trend.vortex,
+    trend.adx,
+    trend.chop,
+    trend.t3,
+    trend.alma,
+    trend.supertrend,
+    trend.kama,
+    trend.mcginley_dynamic,
+    trend.vidya,
+    trend.center_of_gravity,
+    trend.ichimoku,
+    trend.pivot_points,
+    trend.fibonacci_pivots,
+    trend.camarilla_pivots,
+    trend.woodie_pivots,
+    trend.ssl_channel,
+    trend.trend_intensity_index,
+    trend.heikin_ashi,
+    momentum.rsi,
+    momentum.macd,
+    momentum.stochastic,
+    momentum.williams_r,
+    momentum.cci,
+    momentum.roc,
+    momentum.stoch_rsi,
+    momentum.stc,
+    momentum.tsi,
+    momentum.cmo,
+    momentum.ppo,
+    momentum.trix,
+    momentum.coppock,
+    momentum.ultimate_oscillator,
+    momentum.rvi,
+    momentum.kst,
+    momentum.dpo,
+    momentum.bop,
+    momentum.cfo,
+    momentum.squeeze_momentum,
+    volatility.true_range,
+    volatility.atr,
+    volatility.stddev,
+    volatility.ulcer_index,
+    volatility.chandelier_exit,
+    volatility.natr,
+    volatility.historical_volatility,
+    volatility.garman_klass_volatility,
+    volatility.rogers_satchell_volatility,
+    volatility.yang_zhang_volatility,
+    volatility.envelopes,
+    volatility.keltner_width,
+    volatility.bollinger_delta,
+    volatility.starc_bands,
+    stats.zscore,
+    stats.percentile_rank,
+    stats.skewness,
+    stats.kurtosis,
+    stats.linear_regression_slope,
+    stats.linear_regression_intercept,
+    stats.linear_regression_angle,
+    stats.linear_regression_forecast,
+    stats.linear_regression_r2,
+    stats.linear_regression_stderr,
+    stats.frac_diff,
+    alpha.ts_rank,
+    alpha.ts_argmax,
+    alpha.ts_argmin,
+    alpha.decay_linear,
+    alpha.ts_zscore,
+    alpha.returns_divergence,
+    alpha.co_ratio,
+    alpha.volume_weighted_momentum,
+    alpha.entropy,
+    alpha.hurst_exponent,
+    alpha.amihud_illiquidity,
+    alpha.roll_spread,
+    alpha.kyle_lambda,
+    alpha.vpin,
+    alpha.oi_regime,
+    alpha.alpha_001,
+    alpha.alpha_009,
+    alpha.alpha_010,
+    alpha.alpha_019,
+    alpha.alpha_024,
+    alpha.alpha_029,
+    evaluation.triple_barrier_labels,
+    evaluation.trend_scanning_labels,
+)
+
+_EXPR_GROUP_BINDINGS: tuple[
+    tuple[
+        str | None,
+        Mapping[str, str] | None,
+        Mapping[str, Any] | None,
+        Sequence[Callable[..., pl.Expr]],
+    ],
+    ...,
+] = (
+    ("close", None, None, _EXPR_CLOSE_FUNCS),
+    (
+        None,
+        None,
+        None,
+        (
+            trend.aroon,
+            trend.mass_index,
+            trend.psar,
+            momentum.awesome_oscillator,
+            momentum.fisher_transform,
+            volatility.donchian_channels,
+            volatility.parkinson_volatility,
+            volatility.chaikin_volatility,
+            volatility.donchian_width,
+        ),
+    ),
+    (
+        "close",
+        None,
+        _EXPR_ALPHA_DEFAULTS,
+        (
+            alpha.alpha_002,
+            alpha.alpha_005,
+            alpha.alpha_007,
+            alpha.alpha_008,
+            alpha.alpha_011,
+            alpha.alpha_012,
+            alpha.alpha_013,
+            alpha.alpha_014,
+            alpha.alpha_017,
+            alpha.alpha_018,
+            alpha.alpha_020,
+            alpha.alpha_021,
+            alpha.alpha_022,
+            alpha.alpha_025,
+            alpha.alpha_027,
+            alpha.alpha_028,
+            alpha.alpha_030,
+        ),
+    ),
+    (
+        "close",
+        {"volume": "volume_col"},
+        None,
+        (
+            volume.obv,
+            volume.vwap,
+            volume.vwap_bands,
+            volume.session_vwap,
+            volume.vwma,
+            volume.cmf,
+            volume.adl,
+            volume.mfi,
+            volume.klinger,
+            volume.nvi,
+            volume.pvi,
+            volume.pvt,
+            volume.force_index,
+            volume.vpci,
+            volume.vr,
+        ),
+    ),
+    (None, {"volume": "volume_col"}, None, (volume.eom,)),
+    (
+        "x",
+        {"y": "other"},
+        None,
+        (stats.rolling_cov, stats.rolling_corr, alpha.ts_correlation, alpha.ts_covariance),
+    ),
+    ("asset_returns", None, None, (stats.rolling_beta, stats.rolling_alpha)),
+    (
+        "high",
+        None,
+        None,
+        (
+            alpha.hl_ratio,
+            alpha.relative_spread,
+            alpha.twap,
+            alpha.fractal_dimension,
+            alpha.corwin_schultz_spread,
+            alpha.alpha_023,
+            alpha.alpha_041,
+        ),
+    ),
+    ("high", None, _EXPR_ALPHA_DEFAULTS, (alpha.alpha_015, alpha.alpha_016, alpha.alpha_026)),
+    (
+        "expr",
+        None,
+        None,
+        (
+            alpha.cs_rank,
+            alpha.cs_zscore,
+            alpha.cs_winsorize,
+            alpha.neutralize,
+            alpha.orthogonalize,
+            alpha.ts_scale,
+            alpha.ts_delta,
+            alpha.ts_delay,
+            alpha.signed_power,
+            alpha.ts_min,
+            alpha.ts_max,
+            alpha.ts_sum,
+            alpha.ts_std,
+            alpha.ts_product,
+        ),
+    ),
+    ("bid_price", None, None, (alpha.ofi,)),
+    ("futures_close", None, None, (alpha.futures_basis,)),
+    ("open_", None, _EXPR_ALPHA_DEFAULTS, (alpha.alpha_003, alpha.alpha_006)),
+    ("open_", None, None, (alpha.alpha_054, alpha.alpha_101)),
+    ("low", None, None, (alpha.alpha_004,)),
+    ("returns_or_equity", None, None, (evaluation.drawdown_series, evaluation.max_drawdown)),
+    (
+        "returns",
+        None,
+        None,
+        (
+            evaluation.sharpe_ratio,
+            evaluation.sortino_ratio,
+            evaluation.calmar_ratio,
+            evaluation.profit_factor,
+            evaluation.win_rate,
+            evaluation.probabilistic_sharpe_ratio,
+            evaluation.deflated_sharpe_ratio,
+        ),
+    ),
+    ("a", {"b": "other"}, None, (backtest.crosses_above, backtest.crosses_below)),
+    ("entries", None, None, (backtest.signals_to_positions,)),
+)
+
+for _self_p, _renames, _defaults, _fns in _EXPR_GROUP_BINDINGS:
+    for _fn in _fns:
+        setattr(
+            TechnicalAnalysisExpr,
+            _fn.__name__,
+            _bind_expr(_fn, self_param=_self_p, renames=_renames, defaults=_defaults),
         )
 
 
@@ -1723,195 +495,6 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
 
     def __init__(self, df: FrameType) -> None:
         self._df = df
-
-    # =========================================================================
-    # Resampling & Validation
-    # =========================================================================
-
-    def resample(
-        self,
-        every: str,
-        time_col: str = "timestamp",
-        group_by: str | Sequence[str] | None = None,
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        close_col: str = "close",
-        volume_col: str | None = "volume",
-        closed: Literal["left", "right"] = "left",
-        label: Literal["left", "right", "datapoint"] = "left",
-        additional_aggs: Sequence[pl.Expr] | None = None,
-        sort: bool = True,
-    ) -> FrameType:
-        """Resample lower-timeframe OHLCV data into higher-timeframe bars.
-
-        Supports single-asset and multi-ticker datasets (`group_by='symbol'`).
-        """
-        return resample.resample_ohlcv(
-            self._df,
-            every=every,
-            time_col=time_col,
-            group_by=group_by,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            close_col=close_col,
-            volume_col=volume_col,
-            closed=closed,
-            label=label,
-            additional_aggs=additional_aggs,
-            sort=sort,
-        )
-
-    def validate_ohlcv(
-        self,
-        time_col: str | None = "timestamp",
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        close_col: str = "close",
-        volume_col: str | None = "volume",
-        group_by: str | Sequence[str] | None = None,
-        check_data: bool = True,
-        return_report: bool = False,
-    ) -> FrameType | dict[str, Any]:
-        """Validate OHLCV schema, structural integrity, and price consistency."""
-        return resample.validate_ohlcv(
-            self._df,
-            time_col=time_col,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            close_col=close_col,
-            volume_col=volume_col,
-            group_by=group_by,
-            check_data=check_data,
-            return_report=return_report,
-        )
-
-    def resample_volume_bars(
-        self,
-        threshold: float,
-        volume_col: str = "volume",
-        time_col: str | None = "timestamp",
-        group_by: str | Sequence[str] | None = None,
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        close_col: str = "close",
-        label: Literal["left", "right"] = "right",
-        additional_aggs: Sequence[pl.Expr] | None = None,
-        sort: bool = True,
-    ) -> FrameType:
-        """Resample tick or lower-timeframe OHLCV data into Information-Driven Volume Bars."""
-        return resample.resample_volume_bars(
-            self._df,
-            threshold=threshold,
-            volume_col=volume_col,
-            time_col=time_col,
-            group_by=group_by,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            close_col=close_col,
-            label=label,
-            additional_aggs=additional_aggs,
-            sort=sort,
-        )
-
-    def resample_dollar_bars(
-        self,
-        threshold: float,
-        close_col: str = "close",
-        volume_col: str = "volume",
-        multiplier: float = 1.0,
-        time_col: str | None = "timestamp",
-        group_by: str | Sequence[str] | None = None,
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        label: Literal["left", "right"] = "right",
-        additional_aggs: Sequence[pl.Expr] | None = None,
-        sort: bool = True,
-    ) -> FrameType:
-        """Resample tick or lower-timeframe OHLCV data into Information-Driven Dollar Value Bars."""
-        return resample.resample_dollar_bars(
-            self._df,
-            threshold=threshold,
-            close_col=close_col,
-            volume_col=volume_col,
-            multiplier=multiplier,
-            time_col=time_col,
-            group_by=group_by,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            label=label,
-            additional_aggs=additional_aggs,
-            sort=sort,
-        )
-
-    def resample_imbalance_bars(
-        self,
-        threshold: float,
-        close_col: str = "close",
-        volume_col: str | None = "volume",
-        time_col: str | None = "timestamp",
-        group_by: str | Sequence[str] | None = None,
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        label: Literal["left", "right"] = "right",
-        additional_aggs: Sequence[pl.Expr] | None = None,
-        sort: bool = True,
-    ) -> FrameType:
-        """Resample tick or lower-timeframe OHLCV data into Tick or Volume Imbalance Bars."""
-        return resample.resample_imbalance_bars(
-            self._df,
-            threshold=threshold,
-            close_col=close_col,
-            volume_col=volume_col,
-            time_col=time_col,
-            group_by=group_by,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            label=label,
-            additional_aggs=additional_aggs,
-            sort=sort,
-        )
-
-    def stitch_futures_roll(
-        self,
-        contract_col: str = "contract",
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        close_col: str = "close",
-        method: Literal["back_adjust", "forward_adjust", "ratio"] = "back_adjust",
-        roll_measure: Literal["open_to_close", "close_to_close"] = "open_to_close",
-        group_by: str | Sequence[str] | None = None,
-        time_col: str | None = "timestamp",
-        sort: bool = True,
-    ) -> FrameType:
-        """Stitch discrete futures contracts into a continuous roll-adjusted price series."""
-        return resample.stitch_futures_roll(
-            self._df,
-            contract_col=contract_col,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            close_col=close_col,
-            method=method,
-            roll_measure=roll_measure,
-            group_by=group_by,
-            time_col=time_col,
-            sort=sort,
-        )
-
-    # =========================================================================
-    # Batch Indicator Builders
-    # =========================================================================
 
     def add_indicators(
         self,
@@ -2031,1924 +614,466 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
                 return df_res.unnest(alias)
         return df_res
 
-    # =========================================================================
-    # Trend Indicators
-    # =========================================================================
 
-    def sma(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Simple Moving Average (SMA)."""
-        alias_name = alias or f"sma_{period}"
-        return self._apply_expr(trend.sma(col, period=period), alias_name, group_by=group_by)
-
-    def ema(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Exponential Moving Average (EMA)."""
-        alias_name = alias or f"ema_{period}"
-        return self._apply_expr(trend.ema(col, period=period), alias_name, group_by=group_by)
-
-    def wma(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Weighted Moving Average (WMA)."""
-        alias_name = alias or f"wma_{period}"
-        return self._apply_expr(trend.wma(col, period=period), alias_name, group_by=group_by)
-
-    def hma(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Hull Moving Average (HMA)."""
-        alias_name = alias or f"hma_{period}"
-        return self._apply_expr(trend.hma(col, period=period), alias_name, group_by=group_by)
-
-    def dema(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Double Exponential Moving Average (DEMA)."""
-        alias_name = alias or f"dema_{period}"
-        return self._apply_expr(trend.dema(col, period=period), alias_name, group_by=group_by)
-
-    def tema(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Triple Exponential Moving Average (TEMA)."""
-        alias_name = alias or f"tema_{period}"
-        return self._apply_expr(trend.tema(col, period=period), alias_name, group_by=group_by)
-
-    def zlema(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Zero-Lag Exponential Moving Average (ZLEMA)."""
-        alias_name = alias or f"zlema_{period}"
-        return self._apply_expr(trend.zlema(col, period=period), alias_name, group_by=group_by)
-
-    def supertrend(
-        self,
-        period: int = 10,
-        multiplier: float = 3.0,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "supertrend",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """SuperTrend Indicator."""
-        expr = trend.supertrend(
-            high=high, low=low, close=close, period=period, multiplier=multiplier
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def ssl_channel(
-        self,
-        period: int = 10,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "ssl_channel",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """SSL Channel (Securement Stop Loss Channel)."""
-        expr = trend.ssl_channel(high=high, low=low, close=close, period=period)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def adx(
-        self,
-        period: int = 14,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "adx",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Average Directional Index (ADX) and (+DI, -DI)."""
-        expr = trend.adx(high=high, low=low, close=close, period=period)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def aroon(
-        self,
-        period: int = 25,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        alias: str = "aroon",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Aroon Indicator and Oscillator."""
-        expr = trend.aroon(high=high, low=low, period=period)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def trend_intensity_index(
-        self,
-        period: int = 30,
-        signal_period: int | None = None,
-        col: IntoExpr = "close",
-        alias: str = "tii",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Trend Intensity Index (TII)."""
-        expr = trend.trend_intensity_index(close=col, period=period, signal_period=signal_period)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def heikin_ashi(
-        self,
-        open: IntoExpr = "open",
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "heikin_ashi",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Heikin-Ashi Candlestick Transform."""
-        expr = trend.heikin_ashi(open=open, high=high, low=low, close=close)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    # =========================================================================
-    # Momentum Indicators
-    # =========================================================================
-
-    def rsi(
-        self,
-        period: int = 14,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Relative Strength Index (RSI)."""
-        alias_name = alias or f"rsi_{period}"
-        return self._apply_expr(momentum.rsi(col, period=period), alias_name, group_by=group_by)
-
-    def macd(
-        self,
-        fast_period: int = 12,
-        slow_period: int = 26,
-        signal_period: int = 9,
-        col: IntoExpr = "close",
-        alias: str = "macd",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Moving Average Convergence Divergence (MACD)."""
-        expr = momentum.macd(
-            col,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            signal_period=signal_period,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def stochastic(
-        self,
-        k_period: int = 14,
-        d_period: int = 3,
-        smooth_k: int = 3,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "stochastic",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Stochastic Oscillator (%K, %D)."""
-        expr = momentum.stochastic(
-            high=high,
-            low=low,
-            close=close,
-            k_period=k_period,
-            d_period=d_period,
-            smooth_k=smooth_k,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def stoch_rsi(
-        self,
-        rsi_period: int = 14,
-        stoch_period: int = 14,
-        k_period: int = 3,
-        d_period: int = 3,
-        col: IntoExpr = "close",
-        alias: str = "stoch_rsi",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Stochastic RSI (StochRSI)."""
-        expr = momentum.stoch_rsi(
-            col,
-            rsi_period=rsi_period,
-            stoch_period=stoch_period,
-            k_period=k_period,
-            d_period=d_period,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def stc(
-        self,
-        fast_period: int = 23,
-        slow_period: int = 50,
-        cycle_period: int = 10,
-        factor: float = 0.5,
-        col: IntoExpr = "close",
-        alias: str = "stc",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Schaff Trend Cycle (STC) Oscillator."""
-        expr = momentum.stc(
-            col,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            cycle_period=cycle_period,
-            factor=factor,
-        )
-        return self._apply_expr(expr, alias=alias, group_by=group_by)
-
-    def squeeze_momentum(
-        self,
-        bb_period: int = 20,
-        bb_mult: float = 2.0,
-        kc_period: int = 20,
-        kc_mult: float = 1.5,
-        mom_period: int | None = None,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "squeeze_momentum",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Squeeze Momentum Indicator (John Carter / LazyBear)."""
-        expr = momentum.squeeze_momentum(
-            high=high,
-            low=low,
-            close=close,
-            bb_period=bb_period,
-            bb_mult=bb_mult,
-            kc_period=kc_period,
-            kc_mult=kc_mult,
-            mom_period=mom_period,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def williams_r(
-        self,
-        period: int = 14,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Williams %R."""
-        alias_name = alias or f"williams_r_{period}"
-        return self._apply_expr(
-            momentum.williams_r(high=high, low=low, close=close, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def cci(
-        self,
-        period: int = 20,
-        constant: float = 0.015,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Commodity Channel Index (CCI)."""
-        alias_name = alias or f"cci_{period}"
-        return self._apply_expr(
-            momentum.cci(high=high, low=low, close=close, period=period, constant=constant),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def roc(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Rate of Change (ROC)."""
-        alias_name = alias or f"roc_{period}"
-        return self._apply_expr(momentum.roc(col, period=period), alias_name, group_by=group_by)
-
-    def trix(
-        self,
-        period: int = 15,
-        signal_period: int = 9,
-        col: IntoExpr = "close",
-        alias: str = "trix",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Triple Exponential Average (TRIX) Oscillator."""
-        expr = momentum.trix(col, period=period, signal_period=signal_period)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    # =========================================================================
-    # Volatility Indicators
-    # =========================================================================
-
-    def bollinger_bands(
-        self,
-        period: int = 20,
-        num_std: float = 2.0,
-        col: IntoExpr = "close",
-        alias: str = "bollinger_bands",
-        unnest: bool = False,
-        prefix: str | None = "bb_",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Bollinger Bands."""
-        expr = volatility.bollinger_bands(col, period=period, num_std=num_std)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def keltner_channels(
-        self,
-        ema_period: int = 20,
-        atr_period: int = 10,
-        multiplier: float = 2.0,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "keltner_channels",
-        unnest: bool = False,
-        prefix: str | None = "kc_",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Keltner Channels."""
-        expr = volatility.keltner_channels(
-            high=high,
-            low=low,
-            close=close,
-            ema_period=ema_period,
-            atr_period=atr_period,
-            multiplier=multiplier,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def donchian_channels(
-        self,
-        period: int = 20,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        alias: str = "donchian_channels",
-        unnest: bool = False,
-        prefix: str | None = "dc_",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Donchian Channels."""
-        expr = volatility.donchian_channels(high=high, low=low, period=period)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def atr(
-        self,
-        period: int = 14,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Average True Range (ATR)."""
-        alias_name = alias or f"atr_{period}"
-        return self._apply_expr(
-            volatility.atr(high=high, low=low, close=close, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def true_range(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """True Range (TR)."""
-        alias_name = alias or "true_range"
-        return self._apply_expr(
-            volatility.true_range(high=high, low=low, close=close),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def stddev(
-        self,
-        period: int = 20,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Rolling Standard Deviation."""
-        alias_name = alias or f"stddev_{period}"
-        return self._apply_expr(
-            volatility.stddev(col, period=period), alias_name, group_by=group_by
-        )
-
-    # =========================================================================
-    # Volume Indicators
-    # =========================================================================
-
-    def obv(
-        self,
-        close: IntoExpr = "close",
-        volume_col: IntoExpr = "volume",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """On-Balance Volume (OBV)."""
-        alias_name = alias or "obv"
-        return self._apply_expr(
-            volume.obv(close=close, volume=volume_col), alias_name, group_by=group_by
-        )
-
-    def vwap(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume_col: IntoExpr = "volume",
-        period: int | None = None,
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Volume-Weighted Average Price (VWAP)."""
-        alias_name = alias or "vwap"
-        return self._apply_expr(
-            volume.vwap(high=high, low=low, close=close, volume=volume_col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def vwap_bands(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume_col: IntoExpr = "volume",
-        period: int | None = None,
-        mult1: float = 1.0,
-        mult2: float = 2.0,
-        mult3: float = 3.0,
-        alias: str = "vwap_bands",
-        unnest: bool = False,
-        prefix: str | None = "vwap_",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Volume-Weighted Average Price with Standard Deviation Bands."""
-        expr = volume.vwap_bands(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume_col,
-            period=period,
-            mult1=mult1,
-            mult2=mult2,
-            mult3=mult3,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def session_vwap(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume_col: IntoExpr = "volume",
-        session_by: IntoExpr | Sequence[str | pl.Expr] | None = None,
-        mult1: float = 1.0,
-        mult2: float = 2.0,
-        alias: str = "session_vwap_bands",
-        unnest: bool = False,
-        prefix: str | None = "session_",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Session-Anchored VWAP with Standard Deviation Bands and Deviation Z-Score."""
-        expr = volume.session_vwap(
-            high=high,
-            low=low,
-            close=close,
-            volume=volume_col,
-            session_by=session_by,
-            mult1=mult1,
-            mult2=mult2,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def cmf(
-        self,
-        period: int = 20,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume_col: IntoExpr = "volume",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Chaikin Money Flow (CMF)."""
-        alias_name = alias or f"cmf_{period}"
-        return self._apply_expr(
-            volume.cmf(high=high, low=low, close=close, volume=volume_col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def mfi(
-        self,
-        period: int = 14,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume_col: IntoExpr = "volume",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Money Flow Index (MFI)."""
-        alias_name = alias or f"mfi_{period}"
-        return self._apply_expr(
-            volume.mfi(high=high, low=low, close=close, volume=volume_col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    # =========================================================================
-    # Stats & Alpha Indicators
-    # =========================================================================
-
-    def zscore(
-        self,
-        period: int = 20,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Rolling Z-Score."""
-        alias_name = alias or f"zscore_{period}"
-        return self._apply_expr(stats.zscore(col, period=period), alias_name, group_by=group_by)
-
-    def percentile_rank(
-        self,
-        period: int = 20,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Rolling Percentile Rank."""
-        alias_name = alias or f"percentile_rank_{period}"
-        return self._apply_expr(
-            stats.percentile_rank(col, period=period), alias_name, group_by=group_by
-        )
-
-    def frac_diff(
-        self,
-        d: float = 0.4,
-        window: int = 20,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Fixed-Window Fractional Differentiation (FFD)."""
-        alias_name = alias or f"frac_diff_{window}"
-        return self._apply_expr(
-            stats.frac_diff(col, d=d, window=window), alias_name, group_by=group_by
-        )
-
-    def ts_rank(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Rank."""
-        alias_name = alias or f"ts_rank_{period}"
-        return self._apply_expr(alpha.ts_rank(col, period=period), alias_name, group_by=group_by)
-
-    def fractal_dimension(
-        self,
-        period: int = 20,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Ehlers' Fractal Dimension."""
-        alias_name = alias or f"fractal_dimension_{period}"
-        return self._apply_expr(
-            alpha.fractal_dimension(high=high, low=low, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def hurst_exponent(
-        self,
-        period: int = 50,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Rolling Hurst Exponent."""
-        alias_name = alias or f"hurst_{period}"
-        return self._apply_expr(
-            alpha.hurst_exponent(close=col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def cs_rank(
-        self,
-        col: IntoExpr = "close",
-        over: IntoExpr | Sequence[str] | None = None,
-        method: Literal["average", "min", "max", "dense", "ordinal", "random"] = "average",
-        percentile: bool = True,
-        alias: str | None = None,
-    ) -> FrameType:
-        """Cross-Sectional Rank (WorldQuant Alpha primitive 'rank(x)')."""
-        alias_name = alias or "cs_rank"
-        return self._apply_expr(
-            alpha.cs_rank(col, over=over, method=method, percentile=percentile),
-            alias_name,
-        )
-
-    def neutralize(
-        self,
-        col: IntoExpr = "close",
-        by: IntoExpr | Sequence[str] = "sector",
-        over: IntoExpr | Sequence[str] | None = None,
-        standardize: bool = False,
-        alias: str | None = None,
-    ) -> FrameType:
-        """Group / Industry Neutralization (WorldQuant Alpha primitive 'indneutralize(x, g)')."""
-        alias_name = alias or "neutralized"
-        return self._apply_expr(
-            alpha.neutralize(col, by=by, over=over, standardize=standardize),
-            alias_name,
-        )
-
-    def ts_scale(
-        self,
-        col: IntoExpr = "close",
-        a: float = 1.0,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str | None = None,
-    ) -> FrameType:
-        """Scale Primitive (WorldQuant Alpha primitive 'scale(x, a)')."""
-        alias_name = alias or "scaled"
-        return self._apply_expr(
-            alpha.ts_scale(col, a=a, over=over),
-            alias_name,
-        )
-
-    def ts_delta(
-        self,
-        period: int = 1,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Delta (WorldQuant Alpha primitive 'delta(x, d)')."""
-        alias_name = alias or f"delta_{period}"
-        return self._apply_expr(
-            alpha.ts_delta(col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_delay(
-        self,
-        period: int = 1,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Delay (WorldQuant Alpha primitive 'delay(x, d)')."""
-        alias_name = alias or f"delay_{period}"
-        return self._apply_expr(
-            alpha.ts_delay(col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def signed_power(
-        self,
-        exponent: float = 2.0,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Signed Power (WorldQuant Alpha primitive 'signed_power(x, a)')."""
-        alias_name = alias or f"signed_power_{exponent}"
-        return self._apply_expr(
-            alpha.signed_power(col, exponent=exponent),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_min(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Rolling Minimum (WorldQuant Alpha primitive 'ts_min(x, d)')."""
-        alias_name = alias or f"ts_min_{period}"
-        return self._apply_expr(
-            alpha.ts_min(col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_max(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Rolling Maximum (WorldQuant Alpha primitive 'ts_max(x, d)')."""
-        alias_name = alias or f"ts_max_{period}"
-        return self._apply_expr(
-            alpha.ts_max(col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_sum(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Rolling Sum (WorldQuant Alpha primitive 'ts_sum(x, d)')."""
-        alias_name = alias or f"ts_sum_{period}"
-        return self._apply_expr(
-            alpha.ts_sum(col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_std(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Rolling Standard Deviation (WorldQuant Alpha primitive 'ts_std(x, d)')."""
-        alias_name = alias or f"ts_std_{period}"
-        return self._apply_expr(
-            alpha.ts_std(col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_correlation(
-        self,
-        other: IntoExpr,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Correlation (WorldQuant Alpha primitive 'correlation(x, y, d)')."""
-        alias_name = alias or f"ts_corr_{period}"
-        return self._apply_expr(
-            alpha.ts_correlation(col, other, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_covariance(
-        self,
-        other: IntoExpr,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Covariance (WorldQuant Alpha primitive 'covariance(x, y, d)')."""
-        alias_name = alias or f"ts_cov_{period}"
-        return self._apply_expr(
-            alpha.ts_covariance(col, other, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ts_product(
-        self,
-        period: int = 10,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Time-series Rolling Product (WorldQuant Alpha primitive 'product(x, d)')."""
-        alias_name = alias or f"ts_prod_{period}"
-        return self._apply_expr(
-            alpha.ts_product(col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def cs_zscore(
-        self,
-        col: IntoExpr = "close",
-        over: IntoExpr | Sequence[str] | None = None,
-        clip_bound: float | None = None,
-        alias: str = "cs_zscore",
-    ) -> FrameType:
-        """Cross-Sectional Z-Score Standardization."""
-        return self._apply_expr(
-            alpha.cs_zscore(col, over=over, clip_bound=clip_bound),
-            alias,
-        )
-
-    def cs_winsorize(
-        self,
-        col: IntoExpr = "close",
-        over: IntoExpr | Sequence[str] | None = None,
-        method: Literal["quantile", "zscore", "mad"] = "quantile",
-        lower: float = 0.01,
-        upper: float = 0.99,
-        threshold: float = 3.0,
-        alias: str = "cs_winsorized",
-    ) -> FrameType:
-        """Cross-Sectional Winsorization (Outlier Clipping)."""
-        return self._apply_expr(
-            alpha.cs_winsorize(
-                col,
-                over=over,
-                method=method,
-                lower=lower,
-                upper=upper,
-                threshold=threshold,
-            ),
-            alias,
-        )
-
-    def orthogonalize(
-        self,
-        col: IntoExpr,
-        factors: IntoExpr | Sequence[IntoExpr],
-        over: IntoExpr | Sequence[str] | None = None,
-        standardize: bool = True,
-        ridge: float = 0.0,
-        alias: str = "orthogonalized",
-    ) -> FrameType:
-        """Cross-Sectional Multi-Factor OLS Orthogonalization."""
-        return self._apply_expr(
-            alpha.orthogonalize(
-                col,
-                factors=factors,
-                over=over,
-                standardize=standardize,
-                ridge=ridge,
-            ),
-            alias,
-        )
-
-    def amihud_illiquidity(
-        self,
-        period: int = 20,
-        scale: float = 1e6,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Amihud (2002) Illiquidity Ratio."""
-        alias_name = alias or f"amihud_{period}"
-        return self._apply_expr(
-            alpha.amihud_illiquidity(close=close, volume=volume, period=period, scale=scale),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def roll_spread(
-        self,
-        period: int = 20,
-        col: IntoExpr = "close",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Roll (1984) Implicit Effective Bid-Ask Spread Estimator."""
-        alias_name = alias or f"roll_spread_{period}"
-        return self._apply_expr(
-            alpha.roll_spread(close=col, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def corwin_schultz_spread(
-        self,
-        period: int = 20,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Corwin & Schultz (2012) High-Low Effective Bid-Ask Spread Estimator."""
-        alias_name = alias or f"cs_spread_{period}"
-        return self._apply_expr(
-            alpha.corwin_schultz_spread(high=high, low=low, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def kyle_lambda(
-        self,
-        period: int = 20,
-        scale: float = 1e6,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Kyle (1985) Price Impact Coefficient (Lambda)."""
-        alias_name = alias or f"kyle_lambda_{period}"
-        return self._apply_expr(
-            alpha.kyle_lambda(close=close, volume=volume, period=period, scale=scale),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def vpin(
-        self,
-        period: int = 20,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Volume-Synchronized Probability of Informed Trading (VPIN)."""
-        alias_name = alias or f"vpin_{period}"
-        return self._apply_expr(
-            alpha.vpin(close=close, volume=volume, period=period),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def ofi(
-        self,
-        bid_price: IntoExpr = "bid_price",
-        bid_size: IntoExpr = "bid_size",
-        ask_price: IntoExpr = "ask_price",
-        ask_size: IntoExpr = "ask_size",
-        period: int = 1,
-        alias: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Level-1 Order Flow Imbalance (OFI)."""
-        alias_name = alias or (f"ofi_{period}" if period > 1 else "ofi")
-        return self._apply_expr(
-            alpha.ofi(
-                bid_price=bid_price,
-                bid_size=bid_size,
-                ask_price=ask_price,
-                ask_size=ask_size,
-                period=period,
-            ),
-            alias_name,
-            group_by=group_by,
-        )
-
-    def futures_basis(
-        self,
-        futures_close: IntoExpr = "close",
-        spot_close: IntoExpr = "spot_close",
-        days_to_expiry: IntoExpr | float | int | None = None,
-        period: int = 20,
-        annualization: float = 365.0,
-        alias: str = "futures_basis",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Index Futures vs. Underlying Spot Basis & Implied Carry Analytics."""
-        expr = alpha.futures_basis(
-            futures_close=futures_close,
-            spot_close=spot_close,
-            days_to_expiry=days_to_expiry,
-            period=period,
-            annualization=annualization,
-        )
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def oi_regime(
-        self,
-        close: IntoExpr = "close",
-        open_interest: IntoExpr = "open_interest",
-        period: int = 1,
-        alias: str = "oi_regime",
-        unnest: bool = False,
-        prefix: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Futures Open Interest (OI) & Price Action Regime Classifier."""
-        expr = alpha.oi_regime(close=close, open_interest=open_interest, period=period)
-        return self._apply_expr(expr, alias=alias, unnest=unnest, prefix=prefix, group_by=group_by)
-
-    def alpha_001(
-        self,
-        close: IntoExpr = "close",
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_001",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #1."""
-        return self._apply_expr(
-            alpha.alpha_001(close=close, returns=returns, over=over),
-            alias,
-        )
-
-    def alpha_002(
-        self,
-        open_: IntoExpr = "open",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_002",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #2."""
-        return self._apply_expr(
-            alpha.alpha_002(open_=open_, close=close, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_003(
-        self,
-        open_: IntoExpr = "open",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_003",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #3."""
-        return self._apply_expr(
-            alpha.alpha_003(open_=open_, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_004(
-        self,
-        low: IntoExpr = "low",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_004",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #4."""
-        return self._apply_expr(
-            alpha.alpha_004(low=low, over=over),
-            alias,
-        )
-
-    def alpha_005(
-        self,
-        open_: IntoExpr = "open",
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_005",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #5."""
-        return self._apply_expr(
-            alpha.alpha_005(open_=open_, high=high, low=low, close=close, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_006(
-        self,
-        open_: IntoExpr = "open",
-        volume: IntoExpr = "volume",
-        alias: str = "alpha_006",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #6."""
-        return self._apply_expr(
-            alpha.alpha_006(open_=open_, volume=volume),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_007(
-        self,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-        rank_period: int = 60,
-        alias: str = "alpha_007",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #7."""
-        return self._apply_expr(
-            alpha.alpha_007(
-                close=close, volume=volume, adv_period=adv_period, rank_period=rank_period
-            ),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_008(
-        self,
-        open_: IntoExpr = "open",
-        close: IntoExpr = "close",
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_008",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #8."""
-        return self._apply_expr(
-            alpha.alpha_008(open_=open_, close=close, returns=returns, over=over),
-            alias,
-        )
-
-    def alpha_009(
-        self,
-        close: IntoExpr = "close",
-        alias: str = "alpha_009",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #9."""
-        return self._apply_expr(
-            alpha.alpha_009(close=close),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_010(
-        self,
-        close: IntoExpr = "close",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_010",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #10."""
-        return self._apply_expr(
-            alpha.alpha_010(close=close, over=over),
-            alias,
-        )
-
-    def alpha_011(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_011",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #11."""
-        return self._apply_expr(
-            alpha.alpha_011(high=high, low=low, close=close, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_012(
-        self,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        alias: str = "alpha_012",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #12."""
-        return self._apply_expr(
-            alpha.alpha_012(close=close, volume=volume),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_013(
-        self,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_013",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #13."""
-        return self._apply_expr(
-            alpha.alpha_013(close=close, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_014(
-        self,
-        open_: IntoExpr = "open",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_014",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #14."""
-        return self._apply_expr(
-            alpha.alpha_014(open_=open_, close=close, volume=volume, returns=returns, over=over),
-            alias,
-        )
-
-    def alpha_015(
-        self,
-        high: IntoExpr = "high",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_015",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #15."""
-        return self._apply_expr(
-            alpha.alpha_015(high=high, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_016(
-        self,
-        high: IntoExpr = "high",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_016",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #16."""
-        return self._apply_expr(
-            alpha.alpha_016(high=high, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_017(
-        self,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_017",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #17."""
-        return self._apply_expr(
-            alpha.alpha_017(close=close, volume=volume, adv_period=adv_period, over=over),
-            alias,
-        )
-
-    def alpha_018(
-        self,
-        open_: IntoExpr = "open",
-        close: IntoExpr = "close",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_018",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #18."""
-        return self._apply_expr(
-            alpha.alpha_018(open_=open_, close=close, over=over),
-            alias,
-        )
-
-    def alpha_019(
-        self,
-        close: IntoExpr = "close",
-        returns: IntoExpr | None = None,
-        sum_period: int = 250,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_019",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #19."""
-        return self._apply_expr(
-            alpha.alpha_019(close=close, returns=returns, sum_period=sum_period, over=over),
-            alias,
-        )
-
-    def alpha_020(
-        self,
-        open_: IntoExpr = "open",
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_020",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #20."""
-        return self._apply_expr(
-            alpha.alpha_020(open_=open_, high=high, low=low, close=close, over=over),
-            alias,
-        )
-
-    def alpha_021(
-        self,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-        alias: str = "alpha_021",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #21."""
-        return self._apply_expr(
-            alpha.alpha_021(close=close, volume=volume, adv_period=adv_period),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_022(
-        self,
-        high: IntoExpr = "high",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_022",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #22."""
-        return self._apply_expr(
-            alpha.alpha_022(high=high, close=close, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_023(
-        self,
-        high: IntoExpr = "high",
-        period: int = 20,
-        alias: str = "alpha_023",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #23."""
-        return self._apply_expr(
-            alpha.alpha_023(high=high, period=period),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_024(
-        self,
-        close: IntoExpr = "close",
-        period: int = 100,
-        alias: str = "alpha_024",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #24."""
-        return self._apply_expr(
-            alpha.alpha_024(close=close, period=period),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_025(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        returns: IntoExpr | None = None,
-        adv_period: int = 20,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_025",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #25."""
-        return self._apply_expr(
-            alpha.alpha_025(
-                high=high,
-                low=low,
-                close=close,
-                volume=volume,
-                returns=returns,
-                adv_period=adv_period,
-                over=over,
-            ),
-            alias,
-        )
-
-    def alpha_026(
-        self,
-        high: IntoExpr = "high",
-        volume: IntoExpr = "volume",
-        alias: str = "alpha_026",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #26."""
-        return self._apply_expr(
-            alpha.alpha_026(high=high, volume=volume),
-            alias,
-            group_by=group_by,
-        )
-
-    def alpha_027(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_027",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #27."""
-        return self._apply_expr(
-            alpha.alpha_027(high=high, low=low, close=close, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_028(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        adv_period: int = 20,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_028",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #28."""
-        return self._apply_expr(
-            alpha.alpha_028(
-                high=high,
-                low=low,
-                close=close,
-                volume=volume,
-                adv_period=adv_period,
-                over=over,
-            ),
-            alias,
-        )
-
-    def alpha_029(
-        self,
-        close: IntoExpr = "close",
-        returns: IntoExpr | None = None,
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_029",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #29."""
-        return self._apply_expr(
-            alpha.alpha_029(close=close, returns=returns, over=over),
-            alias,
-        )
-
-    def alpha_030(
-        self,
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        over: IntoExpr | Sequence[str] | None = None,
-        alias: str = "alpha_030",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #30."""
-        return self._apply_expr(
-            alpha.alpha_030(close=close, volume=volume, over=over),
-            alias,
-        )
-
-    def alpha_041(
-        self,
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        volume: IntoExpr = "volume",
-        alias: str = "alpha_041",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #41."""
-        return self._apply_expr(
-            alpha.alpha_041(high=high, low=low, close=close, volume=volume),
-            alias,
-        )
-
-    def alpha_054(
-        self,
-        open_: IntoExpr = "open",
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "alpha_054",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #54."""
-        return self._apply_expr(
-            alpha.alpha_054(open_=open_, high=high, low=low, close=close),
-            alias,
-        )
-
-    def alpha_101(
-        self,
-        open_: IntoExpr = "open",
-        high: IntoExpr = "high",
-        low: IntoExpr = "low",
-        close: IntoExpr = "close",
-        alias: str = "alpha_101",
-    ) -> FrameType:
-        """WorldQuant Formulaic Alpha #101."""
-        return self._apply_expr(
-            alpha.alpha_101(open_=open_, high=high, low=low, close=close),
-            alias,
-        )
-
-    # =========================================================================
-    # Factor Evaluation & Vectorized Backtesting
-    # =========================================================================
-
-    def drawdown_series(
-        self,
-        col: IntoExpr = "close",
-        is_returns: bool = False,
-        alias: str = "drawdown",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Append underwater drawdown series column."""
-        return self._apply_expr(
-            evaluation.drawdown_series(col, is_returns=is_returns),
-            alias,
-            group_by=group_by,
-        )
-
-    def triple_barrier_labels(
-        self,
-        close: IntoExpr = "close",
-        volatility: IntoExpr | float | int | None = None,
-        horizon: int = 10,
-        pt_mult: float = 2.0,
-        sl_mult: float = 2.0,
-        min_ret: float = 0.0,
-        vol_period: int = 20,
-        side: IntoExpr | None = None,
-        alias: str = "triple_barrier",
-        unnest: bool = False,
-        prefix: str | None = "tb_",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Append AFML Triple-Barrier Method & Meta-Labeling columns."""
-        return self._apply_expr(
-            evaluation.triple_barrier_labels(
-                close,
-                volatility=volatility,
-                horizon=horizon,
-                pt_mult=pt_mult,
-                sl_mult=sl_mult,
-                min_ret=min_ret,
-                vol_period=vol_period,
-                side=side,
-            ),
-            alias,
-            unnest=unnest,
-            prefix=prefix,
-            group_by=group_by,
-        )
-
-    def trend_scanning_labels(
-        self,
-        close: IntoExpr = "close",
-        min_window: int = 5,
-        max_window: int = 20,
-        step: int = 1,
-        alias: str = "trend_scan",
-        unnest: bool = False,
-        prefix: str | None = "ts_label_",
-        group_by: str | Sequence[str] | None = None,
-    ) -> FrameType:
-        """Append AFML Trend-Scanning Label columns."""
-        return self._apply_expr(
-            evaluation.trend_scanning_labels(
-                close,
-                min_window=min_window,
-                max_window=max_window,
-                step=step,
-            ),
-            alias,
-            unnest=unnest,
-            prefix=prefix,
-            group_by=group_by,
-        )
-
-    def forward_returns(
-        self,
-        close_col: str = "close",
-        periods: Sequence[int] = (1, 5, 10),
-        group_by: str | Sequence[str] | None = None,
-        prefix: str = "fwd_ret_",
-    ) -> FrameType:
-        """Compute multi-horizon forward returns for alpha factor evaluation."""
-        return evaluation.forward_returns(
-            self._df,
-            close_col=close_col,
-            periods=periods,
-            group_by=group_by,
-            prefix=prefix,
-        )
-
-    def information_coefficient(
-        self,
-        factor_col: str,
-        return_col: str,
-        group_by: str | Sequence[str] | None = None,
-        method: Literal["spearman", "pearson"] = "spearman",
-    ) -> pl.DataFrame:
-        """Compute cross-sectional Information Coefficient (IC) or Rank IC series."""
-        return evaluation.information_coefficient(
-            self._df,
-            factor_col=factor_col,
-            return_col=return_col,
-            group_by=group_by,
-            method=method,
-        )
-
-    def ic_summary(
-        self,
-        factor_col: str,
-        return_col: str,
-        group_by: str | Sequence[str] | None = None,
-        method: Literal["spearman", "pearson"] = "spearman",
-        nw_lags: int | None = None,
-    ) -> dict[str, float]:
-        """Compute Information Coefficient (IC) summary metrics (mean, std, ICIR, t-stat, nw_t_stat, hit rate)."""
-        return evaluation.ic_summary(
-            self._df,
-            factor_col=factor_col,
-            return_col=return_col,
-            group_by=group_by,
-            method=method,
-            nw_lags=nw_lags,
-        )
-
-    def ic_decay(
-        self,
-        factor_col: str,
-        close_col: str = "close",
-        horizons: Sequence[int] = (1, 2, 3, 5, 10, 20),
-        asset_col: str | Sequence[str] | None = None,
-        group_by: str | Sequence[str] | None = None,
-        method: Literal["spearman", "pearson"] = "spearman",
-    ) -> pl.DataFrame:
-        """Compute Multi-Horizon Information Coefficient (IC) Decay and Alpha Half-Life."""
-        return evaluation.ic_decay(
-            self._df,
-            factor_col=factor_col,
-            close_col=close_col,
-            horizons=horizons,
-            asset_col=asset_col,
-            group_by=group_by,
-            method=method,
-        )
-
-    def quantile_analysis(
-        self,
-        factor_col: str,
-        return_col: str,
-        quantiles: int = 5,
-        group_by: str | Sequence[str] | None = None,
-        annualization: float = 252.0,
-    ) -> pl.DataFrame:
-        """Group observations into N factor quantiles and compute return & risk metrics per bucket."""
-        return evaluation.quantile_analysis(
-            self._df,
-            factor_col=factor_col,
-            return_col=return_col,
-            quantiles=quantiles,
-            group_by=group_by,
-            annualization=annualization,
-        )
-
-    def factor_turnover(
-        self,
-        factor_col: str,
-        asset_col: str = "ticker",
-        time_col: str = "timestamp",
-        lag: int = 1,
-    ) -> pl.DataFrame:
-        """Compute factor rank autocorrelation and signal turnover across time."""
-        return evaluation.factor_turnover(
-            self._df,
-            factor_col=factor_col,
-            asset_col=asset_col,
-            time_col=time_col,
-            lag=lag,
-        )
-
-    def ic_matrix(
-        self,
-        factor_cols: Sequence[str],
-        return_col: str,
-        group_by: str | Sequence[str],
-        method: Literal["spearman", "pearson"] = "spearman",
-    ) -> pl.DataFrame:
-        """Compute a wide (T, K) DataFrame of per-period Information Coefficients across K factors."""
-        return inference.ic_matrix(
-            self._df,
-            factor_cols=factor_cols,
-            return_col=return_col,
-            group_by=group_by,
-            method=method,
-        )
-
-    def long_short_returns(
-        self,
-        factor_cols: Sequence[str],
-        return_col: str,
-        group_by: str | Sequence[str],
-        quantiles: int = 5,
-        mode: Literal["long_short", "top_minus_mean"] = "long_short",
-    ) -> pl.DataFrame:
-        """Compute a wide (T, K) DataFrame of per-period quantile spread returns across K factors."""
-        return inference.long_short_returns(
-            self._df,
-            factor_cols=factor_cols,
-            return_col=return_col,
-            group_by=group_by,
-            quantiles=quantiles,
-            mode=mode,
-        )
-
-    def falsify_factors(
-        self,
-        factor_cols: Sequence[str],
-        return_col: str,
-        group_by: str | Sequence[str],
-        horizon: int = 1,
-        method: Literal["spearman", "pearson"] = "spearman",
-        n_boot: int = 1000,
-        mean_block: float | None = None,
-        fdr_q: float = 0.10,
-        fwer_alpha: float = 0.05,
-        prior: Literal["zero", "grand_mean"] = "zero",
-        seed: int | None = None,
-    ) -> FalsificationResult:
-        """Run the multi-factor statistical falsification funnel across candidate alpha columns."""
-        return inference.falsify_factors(
-            self._df,
-            factor_cols=factor_cols,
-            return_col=return_col,
-            group_by=group_by,
-            horizon=horizon,
-            method=method,
-            n_boot=n_boot,
-            mean_block=mean_block,
-            fdr_q=fdr_q,
-            fwer_alpha=fwer_alpha,
-            prior=prior,
-            seed=seed,
-        )
-
-    def sweep_robustness(
-        self,
-        signals: Mapping[str, IntoExpr],
-        time_col: str | None = None,
-        n_splits: int = 16,
-        n_boot: int = 1000,
-        seed: int | None = None,
-        **backtest_kwargs: Any,
-    ) -> dict[str, object]:
-        """Evaluate a parameter sweep jointly via CSCV PBO, Hansen SPA, and Romano-Wolf."""
-        return inference.sweep_robustness(
-            self._df,
-            signals=signals,
-            time_col=time_col,
-            n_splits=n_splits,
-            n_boot=n_boot,
-            seed=seed,
-            **backtest_kwargs,
-        )
-
-    def backtest(
-        self,
-        signal: IntoExpr = "signal",
-        close_col: str = "close",
-        return_col: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-        time_col: str | None = None,
-        fee_rate: float = 0.0,
-        slippage_rate: float = 0.0,
-        signal_lag: int = 1,
-        initial_capital: float = 1.0,
-        annualization: float = 252.0,
-        risk_free_rate: float = 0.0,
-        compound: bool = True,
-        aggregate_portfolio: bool = True,
-        entries: IntoExpr | None = None,
-        exits: IntoExpr | None = None,
-        short_entries: IntoExpr | None = None,
-        short_exits: IntoExpr | None = None,
-        weight_scheme: Literal["raw", "dollar_neutral", "long_only", "equal_weight"] = "raw",
-        execution_price: Literal["close", "open", "twap", "vwap"] = "close",
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        flat_mask: IntoExpr | None = None,
-        vol_target: float | None = None,
-        vol_lookback: int = 20,
-        max_leverage: float = 2.0,
-        no_trade_buffer: float = 0.0,
-    ) -> BacktestResult:
-        """Run a lightweight vectorized backtest with fee/slippage deduction and tearsheet summary."""
-        return backtest.vectorized_backtest(
-            self._df,
-            signal=signal,
-            close_col=close_col,
-            return_col=return_col,
-            group_by=group_by,
-            time_col=time_col,
-            fee_rate=fee_rate,
-            slippage_rate=slippage_rate,
-            signal_lag=signal_lag,
-            initial_capital=initial_capital,
-            annualization=annualization,
-            risk_free_rate=risk_free_rate,
-            compound=compound,
-            aggregate_portfolio=aggregate_portfolio,
-            entries=entries,
-            exits=exits,
-            short_entries=short_entries,
-            short_exits=short_exits,
-            weight_scheme=weight_scheme,
-            execution_price=execution_price,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            flat_mask=flat_mask,
-            vol_target=vol_target,
-            vol_lookback=vol_lookback,
-            max_leverage=max_leverage,
-            no_trade_buffer=no_trade_buffer,
-        )
-
-    def parameter_sweep(
-        self,
-        signals: Mapping[str, IntoExpr],
-        close_col: str = "close",
-        return_col: str | None = None,
-        group_by: str | Sequence[str] | None = None,
-        time_col: str | None = None,
-        fee_rate: float = 0.0,
-        slippage_rate: float = 0.0,
-        signal_lag: int = 1,
-        initial_capital: float = 1.0,
-        annualization: float = 252.0,
-        risk_free_rate: float = 0.0,
-        weight_scheme: Literal["raw", "dollar_neutral", "long_only", "equal_weight"] = "raw",
-        execution_price: Literal["close", "open", "twap", "vwap"] = "close",
-        open_col: str = "open",
-        high_col: str = "high",
-        low_col: str = "low",
-        flat_mask: IntoExpr | None = None,
-        vol_target: float | None = None,
-        vol_lookback: int = 20,
-        max_leverage: float = 2.0,
-        no_trade_buffer: float = 0.0,
-    ) -> pl.DataFrame:
-        """Evaluate a grid of candidate signals and compute Deflated Sharpe Ratios across trials."""
-        return backtest.parameter_sweep(
-            self._df,
-            signals=signals,
-            close_col=close_col,
-            return_col=return_col,
-            group_by=group_by,
-            time_col=time_col,
-            fee_rate=fee_rate,
-            slippage_rate=slippage_rate,
-            signal_lag=signal_lag,
-            initial_capital=initial_capital,
-            annualization=annualization,
-            risk_free_rate=risk_free_rate,
-            weight_scheme=weight_scheme,
-            execution_price=execution_price,
-            open_col=open_col,
-            high_col=high_col,
-            low_col=low_col,
-            flat_mask=flat_mask,
-            vol_target=vol_target,
-            vol_lookback=vol_lookback,
-            max_leverage=max_leverage,
-            no_trade_buffer=no_trade_buffer,
-        )
+_FRAME_PASSTHROUGHS: tuple[tuple[Callable[..., Any], str | None], ...] = (
+    (resample.resample_ohlcv, "resample"),
+    (resample.validate_ohlcv, None),
+    (resample.resample_volume_bars, None),
+    (resample.resample_dollar_bars, None),
+    (resample.resample_imbalance_bars, None),
+    (resample.stitch_futures_roll, None),
+    (evaluation.forward_returns, None),
+    (evaluation.information_coefficient, None),
+    (evaluation.ic_summary, None),
+    (evaluation.ic_decay, None),
+    (evaluation.quantile_analysis, None),
+    (evaluation.factor_turnover, None),
+    (inference.ic_matrix, None),
+    (inference.long_short_returns, None),
+    (inference.falsify_factors, None),
+    (inference.sweep_robustness, None),
+    (backtest.vectorized_backtest, "backtest"),
+    (backtest.parameter_sweep, None),
+)
+
+for _p_fn, _p_alias in _FRAME_PASSTHROUGHS:
+    _m_name, _m_fn = _bind_frame_passthrough(_p_fn, _p_alias)
+    setattr(TechnicalAnalysisFrame, _m_name, _m_fn)
+
+_ALPHA_FUNCS: tuple[Callable[..., pl.Expr], ...] = (
+    alpha.alpha_001,
+    alpha.alpha_002,
+    alpha.alpha_003,
+    alpha.alpha_004,
+    alpha.alpha_005,
+    alpha.alpha_006,
+    alpha.alpha_007,
+    alpha.alpha_008,
+    alpha.alpha_009,
+    alpha.alpha_010,
+    alpha.alpha_011,
+    alpha.alpha_012,
+    alpha.alpha_013,
+    alpha.alpha_014,
+    alpha.alpha_015,
+    alpha.alpha_016,
+    alpha.alpha_017,
+    alpha.alpha_018,
+    alpha.alpha_019,
+    alpha.alpha_020,
+    alpha.alpha_021,
+    alpha.alpha_022,
+    alpha.alpha_023,
+    alpha.alpha_024,
+    alpha.alpha_025,
+    alpha.alpha_026,
+    alpha.alpha_027,
+    alpha.alpha_028,
+    alpha.alpha_029,
+    alpha.alpha_030,
+    alpha.alpha_041,
+    alpha.alpha_054,
+    alpha.alpha_101,
+)
+_ALPHA_FRAME_GROUP_BY = frozenset(
+    {
+        "alpha_006",
+        "alpha_007",
+        "alpha_009",
+        "alpha_012",
+        "alpha_021",
+        "alpha_023",
+        "alpha_024",
+        "alpha_026",
+    }
+)
+
+
+def _make_alpha_frame_spec(fn: Callable[..., pl.Expr]) -> _FrameExprSpec:
+    p_list: list[tuple[str, Any]] = [
+        (
+            p.name,
+            _FRAME_ALPHA_DEFAULTS.get(p.name, p.default) if p.default is _EMPTY else p.default,
+        )
+        for p in inspect.signature(fn).parameters.values()
+    ]
+    p_list.append(("alias", fn.__name__))
+    if fn.__name__ in _ALPHA_FRAME_GROUP_BY:
+        p_list.append(("group_by", None))
+    return _FrameExprSpec(fn=fn, params=tuple(p_list))
+
+
+_FRAME_EXPR_SPECS: tuple[_FrameExprSpec, ...] = (
+    # Trend
+    _col_period_spec(trend.sma, 10),
+    _col_period_spec(trend.ema, 10),
+    _col_period_spec(trend.wma, 10),
+    _col_period_spec(trend.hma, 10),
+    _col_period_spec(trend.dema, 10),
+    _col_period_spec(trend.tema, 10),
+    _col_period_spec(trend.zlema, 10),
+    _struct_spec(
+        trend.supertrend, period=10, multiplier=3.0, high="high", low="low", close="close"
+    ),
+    _struct_spec(trend.ssl_channel, period=10, high="high", low="low", close="close"),
+    _struct_spec(trend.adx, period=14, high="high", low="low", close="close"),
+    _struct_spec(trend.aroon, period=25, high="high", low="low"),
+    _struct_spec(
+        trend.trend_intensity_index,
+        _alias="tii",
+        _renames={"col": "close"},
+        period=30,
+        signal_period=None,
+        col="close",
+    ),
+    _struct_spec(trend.heikin_ashi, open="open", high="high", low="low", close="close"),
+    # Momentum
+    _col_period_spec(momentum.rsi, 14),
+    _struct_spec(
+        momentum.macd,
+        _renames={"col": "close"},
+        fast_period=12,
+        slow_period=26,
+        signal_period=9,
+        col="close",
+    ),
+    _struct_spec(
+        momentum.stochastic,
+        k_period=14,
+        d_period=3,
+        smooth_k=3,
+        high="high",
+        low="low",
+        close="close",
+    ),
+    _struct_spec(
+        momentum.stoch_rsi,
+        _renames={"col": "close"},
+        rsi_period=14,
+        stoch_period=14,
+        k_period=3,
+        d_period=3,
+        col="close",
+    ),
+    _scalar_spec(
+        momentum.stc,
+        _alias="stc",
+        _renames={"col": "close"},
+        fast_period=23,
+        slow_period=50,
+        cycle_period=10,
+        factor=0.5,
+        col="close",
+    ),
+    _struct_spec(
+        momentum.squeeze_momentum,
+        bb_period=20,
+        bb_mult=2.0,
+        kc_period=20,
+        kc_mult=1.5,
+        mom_period=None,
+        high="high",
+        low="low",
+        close="close",
+    ),
+    _scalar_spec(
+        momentum.williams_r,
+        _alias_fmt="williams_r_{period}",
+        period=14,
+        high="high",
+        low="low",
+        close="close",
+    ),
+    _scalar_spec(
+        momentum.cci,
+        _alias_fmt="cci_{period}",
+        period=20,
+        constant=0.015,
+        high="high",
+        low="low",
+        close="close",
+    ),
+    _col_period_spec(momentum.roc, 10),
+    _struct_spec(momentum.trix, _renames={"col": "close"}, period=15, signal_period=9, col="close"),
+    # Volatility
+    _struct_spec(
+        volatility.bollinger_bands,
+        _prefix="bb_",
+        _renames={"col": "close"},
+        period=20,
+        num_std=2.0,
+        col="close",
+    ),
+    _struct_spec(
+        volatility.keltner_channels,
+        _prefix="kc_",
+        ema_period=20,
+        atr_period=10,
+        multiplier=2.0,
+        high="high",
+        low="low",
+        close="close",
+    ),
+    _struct_spec(volatility.donchian_channels, _prefix="dc_", period=20, high="high", low="low"),
+    _scalar_spec(
+        volatility.atr, _alias_fmt="atr_{period}", period=14, high="high", low="low", close="close"
+    ),
+    _scalar_spec(
+        volatility.true_range, _alias_fmt="true_range", high="high", low="low", close="close"
+    ),
+    _col_period_spec(volatility.stddev, 20),
+    # Volume
+    _scalar_spec(
+        volume.obv,
+        _alias_fmt="obv",
+        _renames={"volume_col": "volume"},
+        close="close",
+        volume_col="volume",
+    ),
+    _scalar_spec(
+        volume.vwap,
+        _alias_fmt="vwap",
+        _renames={"volume_col": "volume"},
+        high="high",
+        low="low",
+        close="close",
+        volume_col="volume",
+        period=None,
+    ),
+    _struct_spec(
+        volume.vwap_bands,
+        _prefix="vwap_",
+        _renames={"volume_col": "volume"},
+        high="high",
+        low="low",
+        close="close",
+        volume_col="volume",
+        period=None,
+        mult1=1.0,
+        mult2=2.0,
+        mult3=3.0,
+    ),
+    _struct_spec(
+        volume.session_vwap,
+        _alias="session_vwap_bands",
+        _prefix="session_",
+        _renames={"volume_col": "volume"},
+        high="high",
+        low="low",
+        close="close",
+        volume_col="volume",
+        session_by=None,
+        mult1=1.0,
+        mult2=2.0,
+    ),
+    _scalar_spec(
+        volume.cmf,
+        _alias_fmt="cmf_{period}",
+        _renames={"volume_col": "volume"},
+        period=20,
+        high="high",
+        low="low",
+        close="close",
+        volume_col="volume",
+    ),
+    _scalar_spec(
+        volume.mfi,
+        _alias_fmt="mfi_{period}",
+        _renames={"volume_col": "volume"},
+        period=14,
+        high="high",
+        low="low",
+        close="close",
+        volume_col="volume",
+    ),
+    # Statistics
+    _col_period_spec(stats.zscore, 20),
+    _col_period_spec(stats.percentile_rank, 20),
+    _scalar_spec(
+        stats.frac_diff,
+        _alias_fmt="frac_diff_{window}",
+        _renames={"col": "close"},
+        d=0.4,
+        window=20,
+        col="close",
+    ),
+    # Alpha & Microstructure
+    _col_period_spec(alpha.ts_rank, 10),
+    _scalar_spec(
+        alpha.fractal_dimension,
+        _alias_fmt="fractal_dimension_{period}",
+        period=20,
+        high="high",
+        low="low",
+    ),
+    _col_period_spec(alpha.hurst_exponent, 50, alias_base="hurst"),
+    _scalar_spec(
+        alpha.cs_rank,
+        _alias_fmt="cs_rank",
+        _renames={"col": "expr"},
+        _has_gb=False,
+        col="close",
+        over=None,
+        method="average",
+        percentile=True,
+    ),
+    _scalar_spec(
+        alpha.neutralize,
+        _alias_fmt="neutralized",
+        _renames={"col": "expr"},
+        _has_gb=False,
+        col="close",
+        by="sector",
+        over=None,
+        standardize=False,
+    ),
+    _scalar_spec(
+        alpha.ts_scale,
+        _alias_fmt="scaled",
+        _renames={"col": "expr"},
+        _has_gb=False,
+        col="close",
+        a=1.0,
+        over=None,
+    ),
+    _col_period_spec(alpha.ts_delta, 1, alias_base="delta", col_target="expr"),
+    _col_period_spec(alpha.ts_delay, 1, alias_base="delay", col_target="expr"),
+    _scalar_spec(
+        alpha.signed_power,
+        _alias_fmt="signed_power_{exponent}",
+        _renames={"col": "expr"},
+        exponent=2.0,
+        col="close",
+    ),
+    _col_period_spec(alpha.ts_min, 10, col_target="expr"),
+    _col_period_spec(alpha.ts_max, 10, col_target="expr"),
+    _col_period_spec(alpha.ts_sum, 10, col_target="expr"),
+    _col_period_spec(alpha.ts_std, 10, col_target="expr"),
+    _scalar_spec(
+        alpha.ts_correlation,
+        _alias_fmt="ts_corr_{period}",
+        _renames={"col": "x", "other": "y"},
+        other=_EMPTY,
+        period=10,
+        col="close",
+    ),
+    _scalar_spec(
+        alpha.ts_covariance,
+        _alias_fmt="ts_cov_{period}",
+        _renames={"col": "x", "other": "y"},
+        other=_EMPTY,
+        period=10,
+        col="close",
+    ),
+    _col_period_spec(alpha.ts_product, 10, alias_base="ts_prod", col_target="expr"),
+    _scalar_spec(
+        alpha.cs_zscore,
+        _alias="cs_zscore",
+        _renames={"col": "expr"},
+        _has_gb=False,
+        col="close",
+        over=None,
+        clip_bound=None,
+    ),
+    _scalar_spec(
+        alpha.cs_winsorize,
+        _alias="cs_winsorized",
+        _renames={"col": "expr"},
+        _has_gb=False,
+        col="close",
+        over=None,
+        method="quantile",
+        lower=0.01,
+        upper=0.99,
+        threshold=3.0,
+    ),
+    _scalar_spec(
+        alpha.orthogonalize,
+        _alias="orthogonalized",
+        _renames={"col": "expr"},
+        _has_gb=False,
+        col=_EMPTY,
+        factors=_EMPTY,
+        over=None,
+        standardize=True,
+        ridge=0.0,
+    ),
+    _scalar_spec(
+        alpha.amihud_illiquidity,
+        _alias_fmt="amihud_{period}",
+        period=20,
+        scale=1_000_000.0,
+        close="close",
+        volume="volume",
+    ),
+    _col_period_spec(alpha.roll_spread, 20),
+    _scalar_spec(
+        alpha.corwin_schultz_spread,
+        _alias_fmt="cs_spread_{period}",
+        period=20,
+        high="high",
+        low="low",
+    ),
+    _scalar_spec(
+        alpha.kyle_lambda,
+        _alias_fmt="kyle_lambda_{period}",
+        period=20,
+        scale=1_000_000.0,
+        close="close",
+        volume="volume",
+    ),
+    _scalar_spec(alpha.vpin, _alias_fmt="vpin_{period}", period=20, close="close", volume="volume"),
+    _scalar_spec(
+        alpha.ofi,
+        _alias_fmt=lambda a: f"ofi_{a['period']}" if a["period"] > 1 else "ofi",
+        bid_price="bid_price",
+        bid_size="bid_size",
+        ask_price="ask_price",
+        ask_size="ask_size",
+        period=1,
+    ),
+    _struct_spec(
+        alpha.futures_basis,
+        futures_close="close",
+        spot_close="spot_close",
+        days_to_expiry=None,
+        period=20,
+        annualization=365.0,
+    ),
+    _struct_spec(alpha.oi_regime, close="close", open_interest="open_interest", period=1),
+    *(_make_alpha_frame_spec(fn) for fn in _ALPHA_FUNCS),
+    # Evaluation & Labeling
+    _scalar_spec(
+        evaluation.drawdown_series,
+        _alias="drawdown",
+        _renames={"col": "returns_or_equity"},
+        col="close",
+        is_returns=False,
+    ),
+    _struct_spec(
+        evaluation.triple_barrier_labels,
+        _alias="triple_barrier",
+        _prefix="tb_",
+        close="close",
+        volatility=None,
+        horizon=10,
+        pt_mult=2.0,
+        sl_mult=2.0,
+        min_ret=0.0,
+        vol_period=20,
+        side=None,
+    ),
+    _struct_spec(
+        evaluation.trend_scanning_labels,
+        _alias="trend_scan",
+        _prefix="ts_label_",
+        close="close",
+        min_window=5,
+        max_window=20,
+        step=1,
+    ),
+)
+
+for _spec in _FRAME_EXPR_SPECS:
+    _m_name, _m_fn = _bind_frame_expr(_spec)
+    setattr(TechnicalAnalysisFrame, _m_name, _m_fn)

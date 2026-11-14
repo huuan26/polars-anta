@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "polars-anta"
-version = "0.3.1"
-description = "Build alpha signals in Polars and falsify them: bootstrap, FDR, Romano–Wolf, SPA, PBO and empirical-Bayes shrinkage on top of 219 vectorized indicators."
+version = "0.4.0"
+description = "Build alpha signals in Polars and falsify them: bootstrap, FDR, Romano-Wolf, SPA, PBO and empirical-Bayes shrinkage on top of 223 vectorized indicators."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }

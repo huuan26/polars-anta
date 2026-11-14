@@ -8,13 +8,13 @@
   </div>
 
   <div class="anta-hero-subtitle">
-    An open-source Python library for quantitative research, built on Polars. Combine 219 high-performance primitives for technical indicators, formulaic alphas, microstructure and backtesting with statistical falsification tools: stationary block bootstrap, Benjamini-Hochberg FDR, Romano-Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting, and transaction-cost accounting.
+    An open-source Python library for quantitative research, built on Polars. Combine 223 high-performance primitives for technical indicators, formulaic alphas, microstructure and backtesting with statistical falsification tools: stationary block bootstrap, Benjamini-Hochberg FDR, Romano-Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting, and transaction-cost accounting.
   </div>
 
   <div class="anta-cta-group">
     <a href="research/factor-zoo/" class="md-button md-button--primary anta-btn-primary">Read the Factor Zoo Case Study</a>
     <a href="getting-started/" class="md-button anta-btn-secondary">Get Started in 60s</a>
-    <a href="indicators/" class="md-button anta-btn-secondary">Explore 219-Function API Catalog</a>
+    <a href="indicators/" class="md-button anta-btn-secondary">Explore 223-Function API Catalog</a>
   </div>
 </div>
 
@@ -35,7 +35,7 @@
     <div class="anta-metric-desc">0 long-only Q5 strategies survive 60 bps execution costs</div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">219</div>
+    <div class="anta-metric-value">223</div>
     <div class="anta-metric-label">Public Functions</div>
     <div class="anta-metric-desc">Pure Polars expressions with zero C compiler dependencies</div>
   </div>
@@ -355,7 +355,7 @@ Measured across **1,000,000 bars** (single-asset random walk) and a **500 ticker
 | [**Factor Zoo Empirical Study**](research/factor-zoo.md) | Pre-specified falsification of 150 technical and formulaic signals on Vietnamese equities (`HOSE`, 2014 to 2026) |
 | [**Quantitative Theory and Workflows**](guides/quant-theory-and-workflows.md) | Deep-dive into the mathematics and theory of AFML labeling, FFD, microstructure bars, Gram-Schmidt orthogonalization, Newey-West HAC, and PSR/DSR |
 | [**Architecture and Mathematical Proofs**](architecture.md) | Step-by-step algebraic proofs of the WMA-SMA OLS identity, Wilder RMA recurrences, and zero-copy `sliding_window_view` vectorization |
-| [**API Reference and Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 219 public functions |
+| [**API Reference and Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 223 public functions |
 | [**Getting Started Guide**](getting-started.md) | Installation, expression syntax, `pl.Struct` unnesting, and fluent DataFrame chaining |
 | [**Multi-Asset Universe Guide**](guides/multi-asset.md) | Scaling indicators and cross-sectional factors across hundreds of symbols with `.over("ticker")` |
 | [**Information Bars, Roll and Resampling**](guides/resampling-and-dataframe-api.md) | Calendar/Volume/Dollar/Imbalance bars, continuous futures stitching (`stitch_futures_roll`), and OHLCV validation |

@@ -119,6 +119,10 @@ All scalar risk metrics operate natively inside `df.select(...)`, `df.group_by("
 | `calmar_ratio(returns, annualization=252.0)` | $\text{Calmar} = \frac{\mathbb{E}[r] \cdot N_{\text{ann}}}{\vert \text{MDD}\vert }$ |
 | `profit_factor(returns)` | $\text{PF} = \frac{\sum_{r_t > 0} r_t}{\sum_{r_t < 0} \vert r_t\vert }$ |
 | `win_rate(returns, include_zeros=False)` | $\text{WR} = \frac{\sum \mathbb{I}_{\{r_t > 0\}}}{\sum \mathbb{I}_{\{r_t \neq 0\}}}$ |
+| `value_at_risk(returns, cutoff=0.05)` | $\text{VaR}_{\alpha}(r) = Q_{\alpha}(r)$ |
+| `conditional_var(returns, cutoff=0.05)` | $\text{CVaR}_{\alpha}(r) = \mathbb{E}[r \mid r \le \text{VaR}_{\alpha}(r)]$ |
+| `omega_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | $\Omega(\theta) = \frac{\sum \max(0,\, r_t - \theta)}{\sum \max(0,\, \theta - r_t)}, \quad \theta = \frac{r_f}{N_{\text{ann}}}$ |
+| `tail_ratio(returns, cutoff=0.05)` | $\text{TailRatio}_{\alpha}(r) = \frac{\vert Q_{1 - \alpha}(r)\vert }{\vert Q_{\alpha}(r)\vert }$ |
 | `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, ...)` | $\text{PSR}(\text{SR}^{\ast}) = \Phi\left(\frac{\widehat{\text{SR}} - \text{SR}^{\ast}}{\sqrt{\frac{1 - \hat{\gamma}_3 \widehat{\text{SR}} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{\text{SR}}^2}{T - 1}}}\right) \in [0, 1]$ |
 | `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | $\text{PSR}(\text{SR}^{\ast}_N)$ where $\text{SR}^{\ast}_N = \sigma_{\{SR\}}\left[(1-\gamma)\Phi^{-1}(1-\frac{1}{N}) + \gamma\Phi^{-1}(1-\frac{1}{Ne})\right]$ |
 

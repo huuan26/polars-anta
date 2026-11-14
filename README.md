@@ -14,7 +14,7 @@
 
 `polars-anta` is an open-source Python library for quantitative research, built on [Polars](https://pola.rs/). It combines two things in one package:
 
-1. **Signal building blocks.** 219 functions for technical indicators, formulaic alphas, market microstructure features, factor evaluation and vectorized backtesting, all written as native Polars expressions.
+1. **Signal building blocks.** 223 functions for technical indicators, formulaic alphas, market microstructure features, factor evaluation and vectorized backtesting, all written as native Polars expressions.
 2. **Tools to falsify those signals.** Block bootstrap tests, multiple-testing corrections (Benjamini-Hochberg, Romano-Wolf), Hansen's SPA test, probability of backtest overfitting, empirical-Bayes shrinkage and transaction-cost breakeven analysis.
 
 The motivation is simple: when you test hundreds of signals, many of them will look significant by chance. `polars-anta` is designed to help you find out which ones actually survive. The name stands for **A**lpha and **N**umerical **T**echnical **A**nalysis.
@@ -322,7 +322,7 @@ print(bt.trades())  # Round-trip trade ledger with PnL, holding_bars, MAE and MF
 
 ## API reference
 
-All 219 public functions (221 exports in `__all__`, including `BacktestResult` and `FalsificationResult`) are exported at the top level (`import polars_anta as pa`) and registered on the `.anta` and `.ta` namespaces. Expand a module below for its function signatures, or visit the [online API reference](https://huuan26.github.io/polars-anta/indicators/).
+All 223 public functions (225 exports in `__all__`, including `BacktestResult` and `FalsificationResult`) are exported at the top level (`import polars_anta as pa`) and registered on the `.anta` and `.ta` namespaces. Expand a module below for its function signatures, or visit the [online API reference](https://huuan26.github.io/polars-anta/indicators/).
 
 <details>
 <summary><strong>1. Trend and overlays</strong>: <code>polars_anta.trend</code> (<a href="docs/indicators/trend.md">detailed docs</a>)</summary>
@@ -549,6 +549,10 @@ All 219 public functions (221 exports in `__all__`, including `BacktestResult` a
 | `calmar_ratio(returns, annualization=252.0)` | Performance Metric | Annualized Return divided by \|MDD\| |
 | `profit_factor(returns)` | Performance Metric | Gross Profit divided by \|Gross Loss\| |
 | `win_rate(returns, include_zeros=False)` | Performance Metric | Proportion of active periods with positive returns |
+| `value_at_risk(returns, cutoff=0.05)` | Performance Metric | Historical Value at Risk (VaR) at left-tail probability `cutoff` |
+| `conditional_var(returns, cutoff=0.05)` | Performance Metric | Conditional Value at Risk / Expected Shortfall (mean return at or below VaR) |
+| `omega_ratio(returns, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Probability-weighted ratio of gains to losses around de-annualized threshold |
+| `tail_ratio(returns, cutoff=0.05)` | Performance Metric | Right-tail to left-tail magnitude ratio \|Q(1 - cutoff)\| / \|Q(cutoff)\| |
 | `probabilistic_sharpe_ratio(returns, benchmark_sr=0.0, risk_free_rate=0.0, annualization=252.0)` | Performance Metric | Skewness and Kurtosis Adjusted Probabilistic Sharpe Ratio (PSR in [0, 1]) |
 | `deflated_sharpe_ratio(returns, n_trials=10, trials_sr_std=0.5, ...)` | Performance Metric | Multiple-Testing Deflated Sharpe Ratio (DSR in [0, 1], Bailey and López de Prado 2014) |
 | `crosses_above(a, b, over=None)` / `crosses_below(a, b, over=None)` | Backtesting | Boolean crossover and crossunder detection against another series or scalar threshold |

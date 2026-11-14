@@ -264,6 +264,7 @@ _EXPR_CLOSE_FUNCS: tuple[Callable[..., pl.Expr], ...] = (
     trend.trend_intensity_index,
     trend.heikin_ashi,
     momentum.rsi,
+    momentum.connors_rsi,
     momentum.macd,
     momentum.stochastic,
     momentum.williams_r,
@@ -733,6 +734,15 @@ _FRAME_EXPR_SPECS: tuple[_FrameExprSpec, ...] = (
     _struct_spec(trend.heikin_ashi, open="open", high="high", low="low", close="close"),
     # Momentum
     _col_period_spec(momentum.rsi, 14),
+    _scalar_spec(
+        momentum.connors_rsi,
+        _alias="connors_rsi",
+        _renames={"col": "close"},
+        rsi_period=3,
+        streak_period=2,
+        rank_period=100,
+        col="close",
+    ),
     _struct_spec(
         momentum.macd,
         _renames={"col": "close"},

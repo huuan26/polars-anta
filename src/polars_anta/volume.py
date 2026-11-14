@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 import polars as pl
 
-from .core import IntoExpr, check_period, check_periods, parse_expr
+from .core import IntoExpr, check_period, check_periods, parse_expr, wilder_smooth
 from .trend import ema, sma
 
 __all__ = [
@@ -26,6 +26,8 @@ __all__ = [
     "force_index",
     "vpci",
     "vr",
+    "twiggs_money_flow",
+    "bw_mfi",
 ]
 
 
@@ -457,6 +459,62 @@ def vr(
 
     den = sum_down + 0.5 * sum_flat
     return pl.when(den > 0.0).then(100.0 * (sum_up + 0.5 * sum_flat) / den).otherwise(100.0)
+
+
+def twiggs_money_flow(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    period: int = 21,
+) -> pl.Expr:
+    """Twiggs Money Flow (TMF).
+
+    Gap-aware variant of Chaikin Money Flow: the intraday range is replaced by
+    True Range and the numerator and denominator are smoothed with Wilder's EMA.
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param volume: volume column or expression
+    :param period: smoothing period (default 21)
+    :return: Polars expression
+    """
+    check_period(period)
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    c = parse_expr(close)
+    vol = parse_expr(volume)
+    prev_close = c.shift(1)
+    true_high = pl.max_horizontal(hi, prev_close)
+    true_low = pl.min_horizontal(lo, prev_close)
+    spread = true_high - true_low
+    adv = pl.when(spread == 0).then(0.0).otherwise(vol * (2 * c - true_low - true_high) / spread)
+    return wilder_smooth(adv, period) / wilder_smooth(vol, period)
+
+
+def bw_mfi(
+    high: IntoExpr,
+    low: IntoExpr,
+    volume: IntoExpr,
+    scale: float = 1e6,
+) -> pl.Expr:
+    """Bill Williams' Market Facilitation Index (BW MFI).
+
+    Price range per unit of volume, scaled for readability:
+    (high - low) / volume * scale. Zero volume yields 0.
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param volume: volume column or expression
+    :param scale: multiplier applied to the raw ratio (default 1e6)
+    :return: Polars expression
+    """
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    vol = parse_expr(volume)
+    ratio = (hi - lo) / vol * scale
+    return pl.when(vol == 0).then(0.0).otherwise(ratio)
 
 
 def session_vwap(

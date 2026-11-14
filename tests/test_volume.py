@@ -7,6 +7,7 @@ import pytest
 
 from polars_anta.volume import (
     adl,
+    bw_mfi,
     cmf,
     eom,
     force_index,
@@ -17,6 +18,7 @@ from polars_anta.volume import (
     pvi,
     pvt,
     session_vwap,
+    twiggs_money_flow,
     vpci,
     vr,
     vwap,
@@ -224,3 +226,87 @@ def test_session_vwap():
 
     with pytest.raises(ValueError, match="band multipliers"):
         session_vwap("high", "low", "close", "volume", mult1=0.0)
+
+
+def test_twiggs_money_flow_matches_manual(sample_ohlcv_df: pl.DataFrame):
+    from polars_anta.core import wilder_smooth
+
+    period = 21
+    result = sample_ohlcv_df.select(
+        twiggs_money_flow("high", "low", "close", "volume", period=period).alias("tmf")
+    )["tmf"].to_list()
+
+    prev_close = pl.col("close").shift(1)
+    true_high = pl.max_horizontal(pl.col("high"), prev_close)
+    true_low = pl.min_horizontal(pl.col("low"), prev_close)
+    spread = true_high - true_low
+    adv = (
+        pl.when(spread == 0)
+        .then(0.0)
+        .otherwise(pl.col("volume") * (2 * pl.col("close") - true_low - true_high) / spread)
+    )
+    expected = sample_ohlcv_df.select(
+        (wilder_smooth(adv, period) / wilder_smooth(pl.col("volume"), period)).alias("tmf")
+    )["tmf"].to_list()
+
+    assert result == pytest.approx(expected)
+    assert all(x is None or -1.0 <= x <= 1.0 for x in result)
+
+
+def test_twiggs_money_flow_zero_true_range():
+    df = pl.DataFrame(
+        {
+            "high": [10.0, 10.0, 10.0],
+            "low": [10.0, 10.0, 10.0],
+            "close": [10.0, 10.0, 10.0],
+            "volume": [100.0, 100.0, 100.0],
+        }
+    )
+    vals = df.select(twiggs_money_flow("high", "low", "close", "volume", period=3).alias("t"))[
+        "t"
+    ].to_list()
+    assert all(x == 0.0 for x in vals)
+
+
+def test_bw_mfi_formula(sample_ohlcv_df: pl.DataFrame):
+    result = sample_ohlcv_df.select(bw_mfi("high", "low", "volume").alias("bw"))["bw"].to_list()
+    expected = sample_ohlcv_df.select(
+        ((pl.col("high") - pl.col("low")) / pl.col("volume") * 1e6).alias("bw")
+    )["bw"].to_list()
+    assert result == pytest.approx(expected)
+
+    scaled = sample_ohlcv_df.select(bw_mfi("high", "low", "volume", scale=1.0).alias("bw"))[
+        "bw"
+    ].to_list()
+    assert scaled == pytest.approx([x / 1e6 for x in expected])
+
+
+def test_bw_mfi_zero_volume_is_zero():
+    df = pl.DataFrame({"high": [10.0, 11.0], "low": [9.0, 10.0], "volume": [0.0, 100.0]})
+    vals = df.select(bw_mfi("high", "low", "volume").alias("bw"))["bw"].to_list()
+    assert vals[0] == 0.0
+    assert vals[1] == pytest.approx(10_000.0)
+
+
+def test_twiggs_money_flow_rejects_non_positive_period(sample_ohlcv_df: pl.DataFrame):
+    with pytest.raises(ValueError):
+        twiggs_money_flow("high", "low", "close", "volume", period=0)
+
+
+def test_twiggs_and_bw_mfi_namespaces(sample_ohlcv_df: pl.DataFrame):
+    direct_tmf = sample_ohlcv_df.select(
+        twiggs_money_flow("high", "low", "close", "volume").alias("tmf")
+    )["tmf"].to_list()
+    expr_tmf = sample_ohlcv_df.select(
+        pl.col("close").anta.twiggs_money_flow(high="high", low="low", volume="volume").alias("tmf")
+    )["tmf"].to_list()
+    assert direct_tmf == pytest.approx(expr_tmf)
+
+    direct_bw = sample_ohlcv_df.select(bw_mfi("high", "low", "volume").alias("bw"))["bw"].to_list()
+    expr_bw = sample_ohlcv_df.select(
+        pl.col("high").anta.bw_mfi(low="low", volume="volume").alias("bw")
+    )["bw"].to_list()
+    assert direct_bw == pytest.approx(expr_bw)
+
+    assert "twiggs_money_flow_21" in sample_ohlcv_df.anta.twiggs_money_flow().columns
+    assert "bw_mfi" in sample_ohlcv_df.ta.bw_mfi().columns

@@ -207,6 +207,8 @@ _EXPR_GROUP_BINDINGS: tuple[
             volume.vr,
         ),
     ),
+    ("close", None, None, (volume.twiggs_money_flow,)),
+    ("high", None, None, (volume.bw_mfi,)),
     (None, {"volume": "volume_col"}, None, (volume.eom,)),
     (
         "x",

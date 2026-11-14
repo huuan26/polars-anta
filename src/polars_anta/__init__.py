@@ -26,7 +26,7 @@ from .trend import *  # noqa: F403
 from .volatility import *  # noqa: F403
 from .volume import *  # noqa: F403
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 __all__ = [
     *trend.__all__,

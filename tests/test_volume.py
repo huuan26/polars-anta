@@ -5,8 +5,10 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
+from polars_anta.trend import ema
 from polars_anta.volume import (
     adl,
+    chaikin_oscillator,
     cmf,
     eom,
     force_index,
@@ -17,6 +19,7 @@ from polars_anta.volume import (
     pvi,
     pvt,
     session_vwap,
+    volume_oscillator,
     vpci,
     vr,
     vwap,
@@ -224,3 +227,77 @@ def test_session_vwap():
 
     with pytest.raises(ValueError, match="band multipliers"):
         session_vwap("high", "low", "close", "volume", mult1=0.0)
+
+
+def test_chaikin_oscillator_matches_ema_of_adl(sample_ohlcv_df: pl.DataFrame):
+    result = sample_ohlcv_df.select(
+        chaikin_oscillator("high", "low", "close", "volume").alias("chaikin")
+    )["chaikin"].to_list()
+
+    expected = sample_ohlcv_df.select(
+        (
+            ema(adl("high", "low", "close", "volume"), 3)
+            - ema(adl("high", "low", "close", "volume"), 10)
+        ).alias("expected")
+    )["expected"].to_list()
+
+    assert len(result) == len(sample_ohlcv_df)
+    assert all(x is not None for x in result)
+    assert result == pytest.approx(expected)
+    # A constant ADL (close exactly at the bar midpoint) would make this vacuous.
+    assert max(abs(x) for x in result) > 0.0
+    assert len(set(result)) > 1
+
+
+def test_volume_oscillator_formula(sample_ohlcv_df: pl.DataFrame):
+    result = sample_ohlcv_df.select(volume_oscillator("volume").alias("vo"))["vo"].to_list()
+
+    expected = sample_ohlcv_df.select(
+        ((ema("volume", 5) - ema("volume", 10)) / ema("volume", 10) * 100).alias("expected")
+    )["expected"].to_list()
+
+    assert result == pytest.approx(expected)
+    assert all(x is not None for x in result)
+
+
+def test_volume_oscillator_custom_periods(sample_ohlcv_df: pl.DataFrame):
+    fast_slow = sample_ohlcv_df.select(
+        volume_oscillator("volume", fast_period=3, slow_period=6).alias("vo")
+    )["vo"].to_list()
+    default = sample_ohlcv_df.select(volume_oscillator("volume").alias("vo"))["vo"].to_list()
+
+    assert fast_slow != default
+
+
+@pytest.mark.parametrize("fast,slow", [(0, 10), (5, 0), (-1, 10)])
+def test_oscillators_reject_non_positive_periods(
+    sample_ohlcv_df: pl.DataFrame, fast: int, slow: int
+):
+    with pytest.raises(ValueError):
+        chaikin_oscillator("high", "low", "close", "volume", fast_period=fast, slow_period=slow)
+    with pytest.raises(ValueError):
+        volume_oscillator("volume", fast_period=fast, slow_period=slow)
+
+
+def test_oscillators_in_namespaces(sample_ohlcv_df: pl.DataFrame):
+    direct_chaikin = sample_ohlcv_df.select(
+        chaikin_oscillator("high", "low", "close", "volume").alias("chaikin")
+    )["chaikin"].to_list()
+    expr_chaikin = sample_ohlcv_df.select(
+        pl.col("close")
+        .anta.chaikin_oscillator(high="high", low="low", volume="volume")
+        .alias("chaikin")
+    )["chaikin"].to_list()
+    assert direct_chaikin == pytest.approx(expr_chaikin)
+
+    direct_vo = sample_ohlcv_df.select(volume_oscillator("volume").alias("vo"))["vo"].to_list()
+    expr_vo = sample_ohlcv_df.select(pl.col("volume").anta.volume_oscillator().alias("vo"))[
+        "vo"
+    ].to_list()
+    assert direct_vo == pytest.approx(expr_vo)
+
+    frame_out = sample_ohlcv_df.anta.volume_oscillator()
+    assert "volume_oscillator_5_10" in frame_out.columns
+
+    frame_chaikin = sample_ohlcv_df.anta.chaikin_oscillator()
+    assert "chaikin_oscillator_3_10" in frame_chaikin.columns

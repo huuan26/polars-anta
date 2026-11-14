@@ -207,6 +207,8 @@ _EXPR_GROUP_BINDINGS: tuple[
             volume.vr,
         ),
     ),
+    ("close", None, None, (volume.chaikin_oscillator,)),
+    ("volume", None, None, (volume.volume_oscillator,)),
     (None, {"volume": "volume_col"}, None, (volume.eom,)),
     (
         "x",

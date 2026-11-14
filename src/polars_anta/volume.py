@@ -17,6 +17,8 @@ __all__ = [
     "vwma",
     "cmf",
     "adl",
+    "chaikin_oscillator",
+    "volume_oscillator",
     "mfi",
     "eom",
     "klinger",
@@ -193,6 +195,54 @@ def adl(
     """
     mfv, _ = _money_flow_volume(high, low, close, volume)
     return mfv.cum_sum()
+
+
+def chaikin_oscillator(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    volume: IntoExpr,
+    fast_period: int = 3,
+    slow_period: int = 10,
+) -> pl.Expr:
+    """Chaikin Oscillator.
+
+    Momentum of the Accumulation/Distribution Line:
+    EMA(ADL, fast_period) - EMA(ADL, slow_period).
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param volume: volume column or expression
+    :param fast_period: fast EMA period (default 3)
+    :param slow_period: slow EMA period (default 10)
+    :return: Polars expression
+    """
+    check_periods(fast_period, slow_period)
+    adl_line = adl(high, low, close, volume)
+    return ema(adl_line, fast_period) - ema(adl_line, slow_period)
+
+
+def volume_oscillator(
+    volume: IntoExpr,
+    fast_period: int = 5,
+    slow_period: int = 10,
+) -> pl.Expr:
+    """Volume Oscillator.
+
+    Percentage difference between two volume EMAs:
+    (EMA(volume, fast_period) - EMA(volume, slow_period)) / EMA(volume, slow_period) * 100.
+
+    :param volume: volume column or expression
+    :param fast_period: fast EMA period (default 5)
+    :param slow_period: slow EMA period (default 10)
+    :return: Polars expression
+    """
+    check_periods(fast_period, slow_period)
+    vol = parse_expr(volume)
+    fast = ema(vol, fast_period)
+    slow = ema(vol, slow_period)
+    return (fast - slow) / slow * 100
 
 
 def cmf(

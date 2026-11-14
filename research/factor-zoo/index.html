@@ -1,0 +1,3060 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="ANTA (Alpha & Numerical Technical Analysis) - Quantitative technical analysis, cross-sectional alpha research, and vectorized backtesting in Polars.">
+      
+      
+        <meta name="author" content="An Phan (Phan Bùi Hữu Ân)">
+      
+      
+        <link rel="canonical" href="https://huuan26.github.io/polars-anta/research/factor-zoo/">
+      
+      
+        <link rel="prev" href="../../benchmarks/">
+      
+      
+        <link rel="next" href="../../contributing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Factor Zoo Study - polars-anta</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#how-many-technical-and-formulaic-alphas-survive-multiple-testing-and-transaction-cost-falsification-on-vietnamese-equities" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="polars-anta" class="md-header__button md-logo" aria-label="polars-anta" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            polars-anta
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Factor Zoo Study
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/huuan26/polars-anta" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huuan26/polars-anta
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../indicators/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/quant-theory-and-workflows/" class="md-tabs__link">
+          
+  
+  
+  Guides & Quantitative Theory
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="polars-anta" class="md-nav__button md-logo" aria-label="polars-anta" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    polars-anta
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/huuan26/polars-anta" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huuan26/polars-anta
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Catalog & Module Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/trend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trend & Overlays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/momentum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Momentum Oscillators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/volatility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volatility & Channels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/volume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volume & Money Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics & OLS Regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/alpha/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alpha & Microstructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/evaluation-and-backtest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factor Evaluation & Backtesting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistical Inference & Falsification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides & Quantitative Theory
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides & Quantitative Theory
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/quant-theory-and-workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quantitative Theory & Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/multi-asset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Asset & Cross-Sectional Scaling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/resampling-and-dataframe-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Information Bars, Roll & Resampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture & Mathematical Proofs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factor Zoo Study
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factor Zoo Study
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-tldr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. TL;DR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Motivation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-pre-specified-analysis-plan-anti-data-mining-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Pre-Specified Analysis Plan &amp; Anti-Data-Mining Protocol
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Pre-Specified Analysis Plan &amp; Anti-Data-Mining Protocol">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-deviations-from-the-analysis-plan-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Deviations from the Analysis Plan &amp; Timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-data-point-in-time-universe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Data &amp; Point-in-Time Universe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Data &amp; Point-in-Time Universe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-source-sample-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Source &amp; Sample Period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-pre-specified-3-step-cleaning-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Pre-Specified 3-Step Cleaning Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-point-in-time-liquid-investable-universe-in_universe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Point-in-Time Liquid Investable Universe (in_universe)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-signal-registry-scale-free-normalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Signal Registry &amp; Scale-Free Normalization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-statistical-economic-methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Statistical &amp; Economic Methodology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-confirmatory-empirical-results-h-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Confirmatory Empirical Results (\(h = 5\))
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Confirmatory Empirical Results (\(h = 5\))">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-the-two-track-falsification-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 The Two-Track Falsification Funnel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.1 The Two-Track Falsification Funnel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#track-a-statistical-predictability-funnel-cross-sectional-rank-ic-h-5-days" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, \(h = 5\) Days)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#track-b-economic-implementability-funnel-long-only-q5-vs-equal-weight-universe-hose-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-why-91-of-150-signals-pass-raw-p-le-005-effective-independent-tests-n_texteff-600" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Why 91 of 150 Signals Pass Raw \(p \le 0.05\): Effective Independent Tests (\(N_{\text{eff}} = 6.00\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-breakdown-by-signal-family-discovery-20142021-h-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Breakdown by Signal Family (Discovery 2014–2021, \(h = 5\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-transaction-cost-falsification-stage-why-high-ic-signals-fail-long-only-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Transaction-Cost Falsification Stage: Why High-IC Signals Fail Long-Only Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-locked-holdout-replication-2022-01-01-to-2026-11-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 Locked Holdout Replication (2022-01-01 to 2026-11-10)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-robustness-exploratory-analysis-non-confirmatory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Robustness &amp; Exploratory Analysis (Non-Confirmatory)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Robustness &amp; Exploratory Analysis (Non-Confirmatory)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-sub-period-liquidity-tier-and-price-limit-robustness-discovery-h-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 Sub-Period, Liquidity-Tier, and Price-Limit Robustness (Discovery \(h = 5\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-exploratory-return-horizons-h-1-and-h-20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 Exploratory Return Horizons (\(h = 1\) and \(h = 20\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-exploratory-post-holdout-analyses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3 Exploratory Post-Holdout Analyses
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8.3 Exploratory Post-Holdout Analyses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#831-unique-signal-sensitivity-146-signals-incremental-predictability-beyond-5-day-reversal-rev_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3.1 Unique-Signal Sensitivity (146 Signals) &amp; Incremental Predictability Beyond 5-Day Reversal (rev_5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#832-q1q5-quintile-active-return-decomposition-why-long-only-q5-fails-despite-high-rank-ic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3.2 Q1–Q5 Quintile Active Return Decomposition: Why Long-Only Q5 Fails Despite High Rank IC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#833-breakeven-transaction-cost-survival-curve-060-bps-round-trip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3.3 Breakeven Transaction-Cost Survival Curve (0–60 bps Round-Trip)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-reproduce-this-study" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Reproduce This Study
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. References
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-a-excluded-library-exports-10-export-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix A. Excluded Library Exports (10 Export Groups)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-tldr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. TL;DR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Motivation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-pre-specified-analysis-plan-anti-data-mining-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Pre-Specified Analysis Plan &amp; Anti-Data-Mining Protocol
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Pre-Specified Analysis Plan &amp; Anti-Data-Mining Protocol">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-deviations-from-the-analysis-plan-timeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Deviations from the Analysis Plan &amp; Timeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-data-point-in-time-universe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Data &amp; Point-in-Time Universe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Data &amp; Point-in-Time Universe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-source-sample-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Source &amp; Sample Period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-pre-specified-3-step-cleaning-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Pre-Specified 3-Step Cleaning Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-point-in-time-liquid-investable-universe-in_universe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3 Point-in-Time Liquid Investable Universe (in_universe)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-signal-registry-scale-free-normalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Signal Registry &amp; Scale-Free Normalization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-statistical-economic-methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Statistical &amp; Economic Methodology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-confirmatory-empirical-results-h-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Confirmatory Empirical Results (\(h = 5\))
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Confirmatory Empirical Results (\(h = 5\))">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-the-two-track-falsification-funnel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 The Two-Track Falsification Funnel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.1 The Two-Track Falsification Funnel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#track-a-statistical-predictability-funnel-cross-sectional-rank-ic-h-5-days" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, \(h = 5\) Days)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#track-b-economic-implementability-funnel-long-only-q5-vs-equal-weight-universe-hose-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-why-91-of-150-signals-pass-raw-p-le-005-effective-independent-tests-n_texteff-600" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 Why 91 of 150 Signals Pass Raw \(p \le 0.05\): Effective Independent Tests (\(N_{\text{eff}} = 6.00\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-breakdown-by-signal-family-discovery-20142021-h-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 Breakdown by Signal Family (Discovery 2014–2021, \(h = 5\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-transaction-cost-falsification-stage-why-high-ic-signals-fail-long-only-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 Transaction-Cost Falsification Stage: Why High-IC Signals Fail Long-Only Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-locked-holdout-replication-2022-01-01-to-2026-11-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5 Locked Holdout Replication (2022-01-01 to 2026-11-10)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-robustness-exploratory-analysis-non-confirmatory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Robustness &amp; Exploratory Analysis (Non-Confirmatory)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Robustness &amp; Exploratory Analysis (Non-Confirmatory)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-sub-period-liquidity-tier-and-price-limit-robustness-discovery-h-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 Sub-Period, Liquidity-Tier, and Price-Limit Robustness (Discovery \(h = 5\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-exploratory-return-horizons-h-1-and-h-20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 Exploratory Return Horizons (\(h = 1\) and \(h = 20\))
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-exploratory-post-holdout-analyses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3 Exploratory Post-Holdout Analyses
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8.3 Exploratory Post-Holdout Analyses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#831-unique-signal-sensitivity-146-signals-incremental-predictability-beyond-5-day-reversal-rev_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3.1 Unique-Signal Sensitivity (146 Signals) &amp; Incremental Predictability Beyond 5-Day Reversal (rev_5)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#832-q1q5-quintile-active-return-decomposition-why-long-only-q5-fails-despite-high-rank-ic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3.2 Q1–Q5 Quintile Active Return Decomposition: Why Long-Only Q5 Fails Despite High Rank IC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#833-breakeven-transaction-cost-survival-curve-060-bps-round-trip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3.3 Breakeven Transaction-Cost Survival Curve (0–60 bps Round-Trip)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Limitations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-reproduce-this-study" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Reproduce This Study
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. References
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#appendix-a-excluded-library-exports-10-export-groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Appendix A. Excluded Library Exports (10 Export Groups)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="how-many-technical-and-formulaic-alphas-survive-multiple-testing-and-transaction-cost-falsification-on-vietnamese-equities">How Many Technical and Formulaic Alphas Survive Multiple-Testing and Transaction-Cost Falsification on Vietnamese Equities?<a class="headerlink" href="#how-many-technical-and-formulaic-alphas-survive-multiple-testing-and-transaction-cost-falsification-on-vietnamese-equities" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Pre-Specified Empirical Study (<code>polars-anta</code> Factor Zoo)</strong>
+<strong>Analysis-Plan Commit</strong>: <code>4c1a4b559d22a1367ce46b513ab7ff1079fff360</code> (<a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/PREREGISTRATION.md"><code>PREREGISTRATION.md</code></a>)
+<strong>Signal Registry SHA-256</strong>: <code>8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c</code> (<span class="arithmatex">\(K = 150\)</span> signals, <span class="arithmatex">\(146\)</span> unique)</p>
+</blockquote>
+<hr />
+<h2 id="1-tldr">1. TL;DR<a class="headerlink" href="#1-tldr" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>150 signals collapse to ~6 effective independent dimensions (<span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span>)</strong>: Out of <strong>150</strong> pre-specified daily OHLCV signals (<strong>146</strong> unique after accounting for <strong>4</strong> exact duplicate pairs) evaluated at default parameters on the point-in-time top-150 liquid Ho Chi Minh Stock Exchange (<code>HOSE</code>) universe during Discovery (<code>2014-01-01</code> to <code>2021-12-31</code>, <span class="arithmatex">\(1{,}998\)</span> trading days, <span class="arithmatex">\(h = 5\)</span> open-to-open days), <strong>91</strong> pass raw Stationary Bootstrap <span class="arithmatex">\(p \le 0.05\)</span> (<strong>95</strong> have Newey–West <span class="arithmatex">\(|t| \ge 1.96\)</span>, vs. <span class="arithmatex">\(7.5\)</span> expected by chance under independence). Eigenvalue decomposition of the <span class="arithmatex">\(150 \times 150\)</span> daily IC correlation matrix reveals an effective independent test count of <strong><span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span></strong> (<span class="arithmatex">\(\lambda_1 = 55.21\)</span>, top 5 principal components explain <strong><span class="arithmatex">\(66.6\%\)</span></strong> of variance; <strong><span class="arithmatex">\(N_{\text{eff}} = 6.13\)</span></strong> across the <strong>146</strong> unique signals).</li>
+<li><strong>The dominant short-horizon reversal factor is statistically genuine and replicates out of sample</strong>: After joint multiple-testing correction and OLS-CUSUM structural stability screening, <strong>94</strong> signals pass Benjamini–Hochberg FDR (<span class="arithmatex">\(q \le 0.10\)</span>), <strong>71</strong> pass Romano–Wolf stepdown FWER (<span class="arithmatex">\(\alpha \le 0.05\)</span>), and <strong>64</strong> are classified as structurally stable (<code>robust</code>) while <strong>14</strong> are flagged as <code>decaying</code>. In the locked Holdout sample (<code>2022-01-01</code> to <code>2026-11-10</code>, <span class="arithmatex">\(1{,}202\)</span> valid <span class="arithmatex">\(5\)</span>-day return sessions), cross-sectional Rank IC correlates at <strong><span class="arithmatex">\(r = 0.77\)</span></strong> (<span class="arithmatex">\(0.7675\)</span>) with Discovery across all 150 signals, and <strong>38 of the 64</strong> (<code>59.4%</code>) <code>robust</code> discovery signals replicate under Romano–Wolf FWER (<span class="arithmatex">\(p_{\text{RW}} \le 0.05\)</span>) with a median IC retention ratio of <strong><span class="arithmatex">\(97.6\%\)</span></strong> (<span class="arithmatex">\(0.9764\)</span>).</li>
+<li><strong>Zero standalone single-factor strategies survive long-only execution after retail <code>HOSE</code> costs</strong>: When the <strong>80</strong> non-decaying discovery survivors (<code>64 robust + 16 fdr_only</code>) are implemented as 5-day rebalanced, equal-weighted long-only top-quintile (Q5) portfolios against the equal-weight universe under retail <code>HOSE</code> execution frictions (<code>0.15%</code>/side brokerage + <code>0.10%</code>/side slippage + <code>0.10%</code> statutory sell tax = <code>30 bps</code> per unit of L1 weight turnover <span class="arithmatex">\(\sum_i |w_{i,t} - w_{i,t-1}|\)</span>, or <code>60 bps</code> round-trip replacement cost), the top-6 <span class="arithmatex">\(|t_{\text{NW}}|\)</span> fast mean-reversion signals face 5-day L1 turnover of <code>1.28–1.74</code> (<code>63.8%–87.2%</code> one-way) and breakeven cost ceilings of only <code>-6.7–20.5 bps</code> round-trip (<code>5.7–20.5 bps</code> among the 5 with positive gross Q5 excess). Only <strong>2</strong> slower momentum signals (<code>trix_15</code> at <span class="arithmatex">\(+8.37\%/\text{yr}\)</span>, raw <span class="arithmatex">\(p = 0.0170\)</span>; <code>tsi</code> at <span class="arithmatex">\(+7.65\%/\text{yr}\)</span>, raw <span class="arithmatex">\(p = 0.0320\)</span>) clear the cost hurdle at unadjusted <span class="arithmatex">\(p \le 0.05\)</span>, <strong>0</strong> survive Benjamini–Hochberg adjustment (<span class="arithmatex">\(q \le 0.10\)</span>) across the 80 cost-stage candidates, and <strong>0</strong> survive in the locked Holdout.</li>
+<li><strong>Exploratory post-holdout diagnostics explain the gap between statistical IC and long-only net returns (§8.3)</strong>: (a) Cross-sectionally orthogonalizing all 150 signals against 5-day close-to-close return reversal (<code>rev_5_rank</code>) raises <span class="arithmatex">\(N_{\text{eff}}\)</span> from <strong><span class="arithmatex">\(6.00\)</span></strong> to <strong><span class="arithmatex">\(9.37\)</span></strong> and leaves <strong>91</strong> <code>robust</code> discovery signals, <strong>40</strong> of which replicate in Holdout under Romano–Wolf <span class="arithmatex">\(p_{\text{RW}} \le 0.05\)</span>; (b) Q1–Q5 active return decomposition shows that <strong><span class="arithmatex">\(65.5\%\)</span></strong> of the top-10 signals' <span class="arithmatex">\(\text{Q5} - \text{Q1}\)</span> spread in Discovery (<strong><span class="arithmatex">\(90.0\%\)</span></strong> in Holdout) originates in the <strong>short leg (Q1 underperformance)</strong>, which cannot be shorted on <code>HOSE</code>; and (c) evaluating round-trip costs across <code>0–60 bps</code> shows that <strong>0</strong> standalone 5-day Q5 strategies survive BH <span class="arithmatex">\(q \le 0.10\)</span> at any cost <span class="arithmatex">\(\ge 30\text{ bps}\)</span> round-trip in Discovery or <span class="arithmatex">\(\ge 10\text{ bps}\)</span> in Holdout.</li>
+</ul>
+<hr />
+<h2 id="2-motivation">2. Motivation<a class="headerlink" href="#2-motivation" title="Permanent link">&para;</a></h2>
+<p>Modern empirical asset pricing faces a well-documented <strong>Factor Zoo</strong> problem: when researchers test hundreds of correlated technical indicators and formulaic alphas on the same historical panel, conventional single-hypothesis <span class="arithmatex">\(t\)</span>-thresholds (<span class="arithmatex">\(|t| \ge 1.96\)</span>) produce massive false-discovery rates (Harvey, Liu &amp; Zhu 2016; Chordia, Goyal &amp; Saretto 2020). While recent work shows that many equity anomalies share a common statistical component that replicates better than naive uniform priors suggest once shrunken via Empirical Bayes (Jensen, Kelly &amp; Pedersen 2023), a critical gap remains between <strong>frictionless cross-sectional predictability</strong> (Rank IC) and <strong>net-of-cost implementability</strong> in emerging markets (Hou, Xue &amp; Zhang 2020; Novy-Marx &amp; Velikov 2016).</p>
+<p>Rather than marketing <code>polars-anta</code> as a collection of <em>"200+ fast alpha indicators"</em>, this study subjects the library's entire daily-OHLCV indicator and WorldQuant formulaic alpha catalog (<span class="arithmatex">\(K = 150\)</span> scale-free signals) to a <strong>pre-specified statistical and economic falsification funnel</strong> on Vietnamese equities (<code>HOSE</code>), using the inference machinery built into <code>polars_anta.inference</code>.</p>
+<hr />
+<h2 id="3-pre-specified-analysis-plan-anti-data-mining-protocol">3. Pre-Specified Analysis Plan &amp; Anti-Data-Mining Protocol<a class="headerlink" href="#3-pre-specified-analysis-plan-anti-data-mining-protocol" title="Permanent link">&para;</a></h2>
+<p>To constrain hindsight bias, parameter tuning, and post-hoc threshold selection, the experimental design was specified and committed prior to running the discovery and holdout pipelines:</p>
+<ul>
+<li><strong>Analysis Plan Document</strong>: <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/PREREGISTRATION.md"><code>research/factor_zoo/PREREGISTRATION.md</code></a></li>
+<li><strong>Frozen Configuration</strong>: <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/config.py"><code>research/factor_zoo/config.py</code></a></li>
+<li><strong>Frozen Signal Registry</strong>: <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/registry.py"><code>research/factor_zoo/registry.py</code></a></li>
+<li><strong>Git Analysis-Plan Commit Hash</strong>: <code>4c1a4b559d22a1367ce46b513ab7ff1079fff360</code></li>
+<li><strong>Registry Canonical SHA-256</strong>: <code>8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c</code></li>
+<li><strong>Programmatic Holdout Guard</strong>: <code>verify_preregistration_guard()</code> in <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/pipeline.py"><code>research/factor_zoo/pipeline.py</code></a> refuses to execute <code>--stage holdout</code> unless <code>--unlock-holdout</code> is explicitly passed, <code>PREREGISTRATION.md</code> is committed to Git, and <code>git status --porcelain</code> confirms zero uncommitted modifications to <code>PREREGISTRATION.md</code>, <code>config.py</code>, and <code>registry.py</code>.</li>
+</ul>
+<h3 id="31-deviations-from-the-analysis-plan-timeline">3.1 Deviations from the Analysis Plan &amp; Timeline<a class="headerlink" href="#31-deviations-from-the-analysis-plan-timeline" title="Permanent link">&para;</a></h3>
+<p>Because the analysis plan was committed in the same repository session as data caching and pipeline execution rather than registered on an external third-party registry prior to data access, we refer to the protocol throughout this report as a <strong>pre-specified analysis plan</strong> and disclose the complete execution timeline and all deviations below (auto-derived from <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/results/audit/timeline.txt"><code>results/audit/timeline.txt</code></a>):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Commit / Event</th>
+<th style="text-align: left;">Timestamp (<code>+07:00</code>)</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>DATA_CACHE</code></td>
+<td style="text-align: left;"><code>2026-11-10 23:41:01 +07:00</code></td>
+<td style="text-align: left;">research/data/vn_daily.meta.json CreationTime (raw HOSE OHLCV panel cached)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>66bcaf0</code></td>
+<td style="text-align: left;"><code>2026-11-10 23:42:23 +0700</code></td>
+<td style="text-align: left;">research: data loader and point-in-time universe</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>c0df52e</code></td>
+<td style="text-align: left;"><code>2026-11-10 23:48:37 +0700</code></td>
+<td style="text-align: left;">research: signal registry</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>4c1a4b5</code></td>
+<td style="text-align: left;"><code>2026-11-10 23:50:27 +0700</code></td>
+<td style="text-align: left;">research: pre-register factor zoo study (registry sha256=8aa3c11b97810083b875084d38cfda6df1994de38ec9b077faeaf46dc31c948c)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>c793a02</code></td>
+<td style="text-align: left;"><code>2026-11-11 00:09:34 +0700</code></td>
+<td style="text-align: left;">research: discovery pipeline and results</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>4caec78</code></td>
+<td style="text-align: left;"><code>2026-11-11 00:11:39 +0700</code></td>
+<td style="text-align: left;">research: holdout evaluation (unlocked after pre-registration 4c1a4b5)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dacd8dc</code></td>
+<td style="text-align: left;"><code>2026-11-11 00:16:37 +0700</code></td>
+<td style="text-align: left;">docs(research): factor zoo report</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Disclosed Deviations:</strong></p>
+<ol>
+<li><strong>Data cached prior to analysis-plan commit (<code>DATA_CACHE</code> vs. <code>4c1a4b5</code>)</strong>: The raw <code>HOSE</code> daily OHLCV panel (<code>research/data/vn_daily.parquet</code>, spanning <code>2012-03-19</code> to <code>2026-11-10</code> including the holdout period) was fetched and cached at <code>2026-11-10 23:41:01 +07:00</code>, approximately 9 minutes before the analysis-plan commit <code>4c1a4b5</code> (<code>2026-11-10 23:50:27 +0700</code>).</li>
+<li><strong>Internal review checkpoints bypassed during batch execution (<code>4c1a4b5</code> <span class="arithmatex">\(\to\)</span> <code>c793a02</code> <span class="arithmatex">\(\to\)</span> <code>4caec78</code>)</strong>: Internal review checkpoints between data collection, analysis-plan lock (<code>4c1a4b5</code>), Discovery execution (<code>c793a02</code> at <code>2026-11-11 00:09:34 +0700</code>), and Holdout unlock (<code>4caec78</code> at <code>2026-11-11 00:11:39 +0700</code>) were bypassed during batch execution; the holdout evaluation was executed 2 minutes after the Discovery commit without an intervening manual review pause.</li>
+<li><strong>Cost-stage candidate filter aligned with written specification prior to commit (<code>c793a02</code>)</strong>: During the first uncommitted run of the Discovery script, the cost-stage candidate filter selected signals with <code>p_rw &lt;= 0.05 OR q_bh &lt;= 0.10</code> (94 signals, including 14 signals classified as <code>decaying</code>). Before committing Discovery in <code>c793a02</code>, the filter was updated to match the written specification (<code>verdict in {"robust", "fdr_only"}</code>), <strong>reducing</strong> the number of evaluated cost-stage candidates from <strong>94</strong> to <strong>80</strong> and leaving the confirmatory conclusion unchanged (<strong>0</strong> survivors after Benjamini–Hochberg FDR <span class="arithmatex">\(q \le 0.10\)</span>).</li>
+<li><strong>Unadjusted cost-stage <span class="arithmatex">\(p \le 0.05\)</span> diagnostic count added post-hoc (<code>c793a02</code>)</strong>: The intermediate count of cost-stage candidates achieving unadjusted one-sided bootstrap <span class="arithmatex">\(p \le 0.05\)</span> (<code>n_cost_raw_p05 = 2</code>: <code>trix_15</code>, <code>tsi</code>) was added in <code>c793a02</code> for diagnostic visibility; it is not a survival criterion in <code>PREREGISTRATION.md</code> (which requires BH <span class="arithmatex">\(q \le 0.10\)</span>).</li>
+<li><strong>Four exact duplicate signal pairs in the frozen registry (<code>c0df52e</code>)</strong>: Post-hoc auditing (<a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/results/audit/duplicate_signals.json"><code>results/audit/duplicate_signals.json</code></a>) identified <strong>4</strong> exact duplicate pairs (<span class="arithmatex">\(\max |\Delta \text{IC}_t| = 0.0\)</span>, <span class="arithmatex">\(\text{corr} = 1.0\)</span>) among the 150 registered entries, yielding <strong>146</strong> unique signals (<code>wma_10</code> <span class="arithmatex">\(\equiv\)</span> <code>decay_linear_10</code>, <code>pivot_classic</code> <span class="arithmatex">\(\equiv\)</span> <code>pivot_fibonacci</code>, <code>atr_14_norm</code> <span class="arithmatex">\(\equiv\)</span> <code>natr_14</code>, and <code>zscore_20</code> <span class="arithmatex">\(\equiv\)</span> <code>ts_zscore_20</code>), plus <strong>12</strong> near-duplicate pairs with <span class="arithmatex">\(|\text{corr}| &gt; 0.99\)</span>. To preserve the frozen SHA-256 hash of <code>registry.py</code>, all 150 entries remain in the primary tables, and an exploratory 146-unique-signal sensitivity check is reported in §8.3.</li>
+<li><strong>Correction of earlier Appendix A (<code>dacd8dc</code> <span class="arithmatex">\(\to\)</span> <code>8efa20c</code>)</strong>: An earlier version of Appendix A in commit <code>dacd8dc</code> listed library functions that do not exist; it has been replaced in commit <code>8efa20c</code> by a table generated directly from <code>EXCLUDED_SIGNALS</code> in <code>registry.py</code> (<strong>10</strong> export groups).</li>
+<li><strong>Post-hoc confirmation of <code>HOSE</code> execution and market parameters (<code>4c1a4b5</code>)</strong>: The <code>HOSE</code> execution cost and market structure constants in <code>config.py</code> (<code>0.15%</code>/side brokerage, <code>0.10%</code>/side slippage, <code>0.10%</code> sell tax, no short selling, <span class="arithmatex">\(\pm 7.0\%\)</span> daily price limit) were initialized from standard retail schedules at commit <code>4c1a4b5</code> and formally confirmed by the author post-hoc on <code>2026-11-11</code>.</li>
+</ol>
+<hr />
+<h2 id="4-data-point-in-time-universe">4. Data &amp; Point-in-Time Universe<a class="headerlink" href="#4-data-point-in-time-universe" title="Permanent link">&para;</a></h2>
+<h3 id="41-source-sample-period">4.1 Source &amp; Sample Period<a class="headerlink" href="#41-source-sample-period" title="Permanent link">&para;</a></h3>
+<p>Daily OHLCV bars were retrieved from public Vietnamese equity market endpoints—primary <code>VNDirect</code> (<code>api-finfo.vndirect.com.vn</code> ticker directory and <code>dchart-api.vndirect.com.vn</code> daily history) with <code>SSI iBoard</code> (<code>iboard-query.ssi.com.vn</code>) as automatic fallback—for all <strong>392</strong> three-letter common equity tickers listed on the Ho Chi Minh Stock Exchange (<code>HOSE</code>), spanning <code>2012-03-19</code> through <code>2026-11-10</code> (<strong>1,138,548</strong> raw ticker-day observations). The period <code>2012-03-19</code> to <code>2013-12-31</code> serves strictly as a warm-up buffer for rolling lookback windows and the 250-day listing-age filter.</p>
+<h3 id="42-pre-specified-3-step-cleaning-pipeline">4.2 Pre-Specified 3-Step Cleaning Pipeline<a class="headerlink" href="#42-pre-specified-3-step-cleaning-pipeline" title="Permanent link">&para;</a></h3>
+<p>Executed deterministically in <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/data.py"><code>research/factor_zoo/data.py</code></a>:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Cleaning Step</th>
+<th style="text-align: left;">Rule</th>
+<th style="text-align: right;">Rows Removed</th>
+<th style="text-align: right;">Remaining Rows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>0. Raw Feed</strong></td>
+<td style="text-align: left;">392 <code>HOSE</code> 3-letter common stock tickers (<code>2012-03-19</code>–<code>2026-11-10</code>)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;"><code>1,138,548</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>1. OHLCV Structural Audit</strong></td>
+<td style="text-align: left;"><code>polars_anta.validate_ohlcv</code>: drop rows violating <span class="arithmatex">\(H_t \ge \max(O_t, C_t, L_t)\)</span>, <span class="arithmatex">\(L_t \le \min(O_t, C_t, H_t)\)</span>, or positive price/volume invariants (<code>high_lt_open = 1,078</code>, <code>low_gt_close = 886</code>, <code>low_gt_open = 771</code>, <code>high_lt_close = 411</code>, <code>high_lt_low = 1</code>)</td>
+<td style="text-align: right;"><code>2,888</code></td>
+<td style="text-align: right;"><code>1,135,660</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>2. Zero-Volume Filter</strong></td>
+<td style="text-align: left;">Drop non-trading / halted sessions with <code>volume &lt;= 0</code></td>
+<td style="text-align: right;"><code>46,474</code></td>
+<td style="text-align: right;"><code>1,089,186</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>3. Price-Limit Jump Filter</strong></td>
+<td style="text-align: left;">Drop daily close-to-close jumps $</td>
+<td style="text-align: right;">C_t / C_{t-1} - 1</td>
+<td style="text-align: right;">&gt; 7.5\%$ (<code>HOSE</code> <span class="arithmatex">\(\pm 7.0\%\)</span> limit <span class="arithmatex">\(+ 0.5\%\)</span> tolerance) to remove unadjusted split/dividend discontinuities</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-point-in-time-liquid-investable-universe-in_universe">4.3 Point-in-Time Liquid Investable Universe (<code>in_universe</code>)<a class="headerlink" href="#43-point-in-time-liquid-investable-universe-in_universe" title="Permanent link">&para;</a></h3>
+<p>On each trading date <span class="arithmatex">\(t \in [\text{2014-01-02}, \text{2026-11-10}]\)</span> (<strong>3,206</strong> trading days), a stock enters the investable cross-section if and only if using information available at <span class="arithmatex">\(\text{close}_t\)</span>:
+1. Cumulative trading history is at least <strong>250</strong> valid sessions,
+2. Closing price <span class="arithmatex">\(C_{i,t} \ge \mathbf{5{,}000\text{ VND}}\)</span>, and
+3. 60-session rolling median daily traded value (<span class="arithmatex">\(\text{close} \times \text{volume}\)</span>) ranks in the <strong>top 150</strong> eligible stocks on date <span class="arithmatex">\(t\)</span>.</p>
+<p>This yields <strong>463,707</strong> ticker-day observations across <strong>364</strong> unique tickers (median <strong>150.0</strong> stocks/day, max <strong>150</strong>, min <strong>17</strong> on the first days of 2014):
+- <strong>Discovery Sample (<code>2014-01-02</code> to <code>2021-12-31</code>)</strong>: <strong>1,998</strong> trading days, <strong>282,507</strong> universe rows, <strong>340</strong> unique tickers.
+- <strong>Locked Holdout Sample (<code>2022-01-01</code> to <code>2026-11-10</code>)</strong>: <strong>1,208</strong> trading days (<strong>1,202</strong> sessions with complete 5-day forward open-to-open returns), <strong>181,200</strong> universe rows, <strong>250</strong> unique tickers.</p>
+<hr />
+<h2 id="5-signal-registry-scale-free-normalization">5. Signal Registry &amp; Scale-Free Normalization<a class="headerlink" href="#5-signal-registry-scale-free-normalization" title="Permanent link">&para;</a></h2>
+<p>All <strong>150</strong> daily-OHLCV-compatible signals in <code>polars-anta</code> are evaluated at their <strong>exact library default parameters</strong> (<code>0</code> hyperparameter sweeps):</p>
+<ul>
+<li><strong>Scale-Free Transformation</strong>: Price-level overlays (moving averages, bands, stops, pivots, channels) are mapped to dimensionless ratios relative to <code>close</code> (e.g., <code>close / sma(close, 10) - 1</code>, Bollinger <code>percent_b</code>, <code>(close - supertrend) / close</code>, <code>(close - pivot_p) / close</code>). Multi-field <code>pl.Struct</code> indicators select one canonical primary component (see <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/registry.py"><code>registry.py</code></a>).</li>
+<li><strong>Cross-Sectional Ranking</strong>: Each signal is computed per ticker (<code>.over("ticker")</code>) and then mapped to a uniform cross-sectional percentile rank within the active universe on each day <span class="arithmatex">\(t\)</span> via <code>cs_rank(..., over="date")</code>.</li>
+<li><strong>Two-Sided Testing</strong>: Every signal is tested once (<code>alternative="two-sided"</code>), preventing researcher degrees of freedom in flipping factor signs.</li>
+</ul>
+<hr />
+<h2 id="6-statistical-economic-methodology">6. Statistical &amp; Economic Methodology<a class="headerlink" href="#6-statistical-economic-methodology" title="Permanent link">&para;</a></h2>
+<p>Full mathematical formulations and Monte Carlo size/power validations of the inference estimators are documented in <a href="../../indicators/inference/"><code>docs/indicators/inference.md</code></a> and <a href="../../assets/inference_size_power/"><code>docs/assets/inference_size_power.md</code></a>.</p>
+<ol>
+<li><strong>Target Return</strong>: Next-day open-to-open return over <span class="arithmatex">\(h = 5\)</span> trading sessions, <span class="arithmatex">\(r_{i,t,5} = \text{open}_{i,t+6}/\text{open}_{i,t+1} - 1\)</span>. Signals observed at <span class="arithmatex">\(\text{close}_t\)</span> are assumed executed at <span class="arithmatex">\(\text{open}_{t+1}\)</span> (zero look-ahead bias).</li>
+<li><strong>Cross-Sectional Information Coefficient (<code>ic_matrix</code>)</strong>: Daily cross-sectional Spearman rank correlation <span class="arithmatex">\(\text{IC}_{k,t}\)</span> between factor <span class="arithmatex">\(k\)</span>'s universe rank at <span class="arithmatex">\(\text{close}_t\)</span> and <span class="arithmatex">\(r_{i,t,5}\)</span>.</li>
+<li><strong>Autocorrelation-Robust Inference (<code>falsify_factors</code>)</strong>: Because overlapping 5-day forward returns induce <span class="arithmatex">\(\text{MA}(4)\)</span> serial correlation in daily <span class="arithmatex">\(\text{IC}_{k,t}\)</span>, standard errors use the Bartlett-kernel Newey–West HAC estimator with <span class="arithmatex">\(L = 4\)</span> lags, and resampling uses the Politis–Romano (1994) Stationary Bootstrap with geometric block lengths (<span class="arithmatex">\(\text{mean\_block} = \max(5, T^{1/3}) = 12.60\)</span>, <span class="arithmatex">\(B = 2{,}000\)</span>, <code>seed = 20261110</code>).</li>
+<li><strong>Multiple-Testing Control (<code>adjust_pvalues</code>, <code>romano_wolf</code>)</strong>:</li>
+<li><strong>Benjamini–Hochberg (1995) FDR</strong> at <span class="arithmatex">\(q = 0.10\)</span> across all <span class="arithmatex">\(K = 150\)</span> signals.</li>
+<li><strong>Romano–Wolf (2005, 2016) Stepdown FWER</strong> at <span class="arithmatex">\(\alpha = 0.05\)</span>, resampling all <span class="arithmatex">\(K = 150\)</span> IC series using identical stationary block bootstrap indices to preserve the cross-factor dependence structure.</li>
+<li><strong>Empirical-Bayes Effect-Size Shrinkage (<code>eb_shrink</code>)</strong>: Sample mean ICs <span class="arithmatex">\(\overline{\text{IC}}_k\)</span> are shrunken toward zero (<code>prior="zero"</code>) using the Efron–Morris (1973) / Jensen–Kelly–Pedersen (2023) empirical-Bayes precision weights <span class="arithmatex">\(\widehat{\text{IC}}^{\text{EB}}_k = \frac{\hat{\tau}^2}{\hat{\tau}^2 + s_k^2}\overline{\text{IC}}_k\)</span>.</li>
+<li><strong>Structural Break Screening (<code>cusum_mean_test</code>)</strong>: Brown–Durbin–Evans (1975) / Ploberger–Krämer (1992) OLS-CUSUM test with Newey–West long-run variance (<span class="arithmatex">\(L = 4\)</span>). Statistically significant signals with <code>p_cusum &lt;= 0.05</code> whose second-half <span class="arithmatex">\(|{\text{IC}}|\)</span> is smaller than first-half <span class="arithmatex">\(|{\text{IC}}|\)</span> are classified as <code>decaying</code>.</li>
+<li><strong>Long-Only Transaction-Cost Stage (<code>bootstrap_test</code>, <code>breakeven_cost</code>)</strong>: Because short selling underlying equities is not practically available on <code>HOSE</code>, all non-decaying statistical survivors (<code>verdict in {"robust", "fdr_only"}</code>, <span class="arithmatex">\(80\)</span> signals) are evaluated as <strong>long-only top-quintile (Q5)</strong> equal-weighted portfolios (oriented by discovery <span class="arithmatex">\(\text{sign}(\overline{\text{IC}}_k)\)</span>), rebalanced every <span class="arithmatex">\(5\)</span> trading days against the <strong>equal-weighted investable universe</strong>. Transaction costs deduct <code>0.15%</code>/side brokerage + <code>0.10%</code>/side slippage + <code>0.10%</code> statutory sell tax (<code>30 bps</code> per unit of L1 weight turnover <span class="arithmatex">\(\sum_i |w_{i,t} - w_{i,t-1}|\)</span>, equivalent to <code>60 bps</code> per full one-way portfolio replacement). Survival requires one-sided Stationary Bootstrap <span class="arithmatex">\(p \le 0.05\)</span> on net active returns, BH <span class="arithmatex">\(q \le 0.10\)</span> across cost-stage candidates, and <code>breakeven_cost</code> <span class="arithmatex">\(&gt; 30\text{ bps}\)</span> L1 (<code>60 bps</code> round-trip).</li>
+</ol>
+<hr />
+<h2 id="7-confirmatory-empirical-results-h-5">7. Confirmatory Empirical Results (<span class="arithmatex">\(h = 5\)</span>)<a class="headerlink" href="#7-confirmatory-empirical-results-h-5" title="Permanent link">&para;</a></h2>
+<h3 id="71-the-two-track-falsification-funnel">7.1 The Two-Track Falsification Funnel<a class="headerlink" href="#71-the-two-track-falsification-funnel" title="Permanent link">&para;</a></h3>
+<p>Rather than conflating frictionless statistical rank predictability with long-only transaction-cost survival in a single non-monotonic table, the empirical funnel is separated into two monotonic tracks:</p>
+<h4 id="track-a-statistical-predictability-funnel-cross-sectional-rank-ic-h-5-days">Track A — Statistical Predictability Funnel (Cross-Sectional Rank IC, <span class="arithmatex">\(h = 5\)</span> Days)<a class="headerlink" href="#track-a-statistical-predictability-funnel-cross-sectional-rank-ic-h-5-days" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Stage</th>
+<th style="text-align: right;">Signals</th>
+<th style="text-align: right;">Share of Registry</th>
+<th style="text-align: left;">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>A1. Tested in Registry</strong></td>
+<td style="text-align: right;"><strong>150</strong></td>
+<td style="text-align: right;"><code>100.0%</code></td>
+<td style="text-align: left;">146 unique signals + 4 exact duplicate pairs (<span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>A2. Benjamini–Hochberg FDR <span class="arithmatex">\(q \le 0.10\)</span></strong></td>
+<td style="text-align: right;"><strong>94</strong></td>
+<td style="text-align: right;"><code>62.7%</code></td>
+<td style="text-align: left;">Raw Stationary Bootstrap <span class="arithmatex">\(p \le 0.05\)</span>: <strong>91</strong> (NW $</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>A3. Romano–Wolf Stepdown FWER <span class="arithmatex">\(p_{\text{RW}} \le 0.05\)</span></strong></td>
+<td style="text-align: right;"><strong>71</strong></td>
+<td style="text-align: right;"><code>47.3%</code></td>
+<td style="text-align: left;">Joint studentized <span class="arithmatex">\(\max\)</span>-<span class="arithmatex">\(t\)</span> bootstrap across all 150 IC series</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>A4. Structurally Stable (<code>robust</code> Verdict)</strong></td>
+<td style="text-align: right;"><strong>64</strong></td>
+<td style="text-align: right;"><code>42.7%</code></td>
+<td style="text-align: left;">RW <span class="arithmatex">\(p \le 0.05\)</span> and non-decaying (+ <strong>16</strong> <code>fdr_only</code>, <strong>14</strong> <code>decaying</code>, <strong>56</strong> <code>noise</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>A5. Replicate in Locked Holdout (<code>2022-01-01</code>–<code>2026-11-10</code>)</strong></td>
+<td style="text-align: right;"><strong>38</strong></td>
+<td style="text-align: right;"><code>25.3%</code></td>
+<td style="text-align: left;"><strong>38</strong> of <strong>64</strong> (<code>59.4%</code>) pass Holdout RW <span class="arithmatex">\(p \le 0.05\)</span> (<strong>49</strong> or <code>76.6%</code> pass BH <span class="arithmatex">\(q \le 0.10\)</span>; <strong>54</strong> or <code>84.4%</code> retain sign)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="track-b-economic-implementability-funnel-long-only-q5-vs-equal-weight-universe-hose-costs">Track B — Economic Implementability Funnel (Long-Only Q5 vs. Equal-Weight Universe, HOSE Costs)<a class="headerlink" href="#track-b-economic-implementability-funnel-long-only-q5-vs-equal-weight-universe-hose-costs" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Stage</th>
+<th style="text-align: right;">Signals</th>
+<th style="text-align: right;">Share of Registry</th>
+<th style="text-align: right;">Share of 80 Candidates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>B1. Non-Decaying Discovery Survivors Evaluated</strong></td>
+<td style="text-align: right;"><strong>80</strong></td>
+<td style="text-align: right;"><code>53.3%</code></td>
+<td style="text-align: right;"><code>100.0%</code> (<strong>64</strong> <code>robust</code> + <strong>16</strong> <code>fdr_only</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>B2. Positive Net Excess Return After HOSE Costs (<code>60 bps</code> RT)</strong></td>
+<td style="text-align: right;"><strong>12</strong></td>
+<td style="text-align: right;"><code>8.0%</code></td>
+<td style="text-align: right;"><code>15.0%</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>B3. Unadjusted One-Sided Bootstrap <span class="arithmatex">\(p \le 0.05\)</span> on Net Excess</strong></td>
+<td style="text-align: right;"><strong>2</strong></td>
+<td style="text-align: right;"><code>1.3%</code></td>
+<td style="text-align: right;"><code>2.5%</code> (<code>trix_15</code>, <code>tsi</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>B4. Survive Benjamini–Hochberg FDR <span class="arithmatex">\(q \le 0.10\)</span> Across Cost Stage</strong></td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;"><code>0.0%</code></td>
+<td style="text-align: right;"><code>0.0%</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>B5. Confirmed Post-Cost Survivors in Locked Holdout</strong></td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;"><code>0.0%</code></td>
+<td style="text-align: right;"><code>0.0%</code></td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Falsification Funnel" src="../../assets/research/01_falsification_funnel.png" /></p>
+<h3 id="72-why-91-of-150-signals-pass-raw-p-le-005-effective-independent-tests-n_texteff-600">7.2 Why 91 of 150 Signals Pass Raw <span class="arithmatex">\(p \le 0.05\)</span>: Effective Independent Tests (<span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span>)<a class="headerlink" href="#72-why-91-of-150-signals-pass-raw-p-le-005-effective-independent-tests-n_texteff-600" title="Permanent link">&para;</a></h3>
+<p>A researcher testing 150 indicators might assume they have conducted 150 independent experiments. Spectral decomposition of the <span class="arithmatex">\(150 \times 150\)</span> daily Spearman IC correlation matrix in Discovery (<code>2014–2021</code>) refutes this:
+- <strong>Largest Eigenvalue (<span class="arithmatex">\(\lambda_1\)</span>)</strong>: <strong><span class="arithmatex">\(55.21\)</span></strong> (<span class="arithmatex">\(36.8\%\)</span> of total variance across all 150 signals).
+- <strong>Top 5 Principal Components</strong>: Explain <strong><span class="arithmatex">\(66.6\%\)</span></strong> (<span class="arithmatex">\(0.6660\)</span>) of total cross-signal IC variance.
+- <strong>Participation Ratio (<span class="arithmatex">\(N_{\text{eff}} = (\sum \lambda_k)^2 / \sum \lambda_k^2\)</span>)</strong>: <strong><span class="arithmatex">\(6.00\)</span></strong> (<span class="arithmatex">\(6.0041\)</span>) effective independent dimensions.</p>
+<p>Because the vast majority of technical oscillators, moving-average ratios, price-channel positions, and short-window WorldQuant alphas load heavily on the same underlying <strong>5-day cross-sectional mean-reversion / overreaction factor</strong> on <code>HOSE</code>, when that single latent factor carries a strong <span class="arithmatex">\(t\)</span>-statistic (<span class="arithmatex">\(|t| &gt; 10\)</span>), dozens of algebraically related indicators simultaneously clear <span class="arithmatex">\(|t| \ge 1.96\)</span> and Romano–Wolf FWER thresholds.</p>
+<p><img alt="Newey-West t-Statistic Distribution" src="../../assets/research/02_nw_tstat_distribution.png" /></p>
+<h3 id="73-breakdown-by-signal-family-discovery-20142021-h-5">7.3 Breakdown by Signal Family (Discovery <code>2014–2021</code>, <span class="arithmatex">\(h = 5\)</span>)<a class="headerlink" href="#73-breakdown-by-signal-family-discovery-20142021-h-5" title="Permanent link">&para;</a></h3>
+<p>| Family | Tested | Raw <span class="arithmatex">\(p \le 0.05\)</span> | BH <span class="arithmatex">\(q \le 0.10\)</span> | RW <span class="arithmatex">\(p \le 0.05\)</span> | <code>robust</code> | <code>fdr_only</code> | <code>decaying</code> | Median <span class="arithmatex">\(|\text{IC}|\)</span> | Median <span class="arithmatex">\(|\text{Posterior IC}|\)</span> |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| <code>trend</code> | 28 | 18 | 19 | 16 | 16 | 3 | 0 | 0.0236 | 0.0220 |
+| <code>momentum</code> | 22 | 15 | 15 | 9 | 9 | 6 | 0 | 0.0158 | 0.0146 |
+| <code>volatility</code> | 20 | 12 | 12 | 9 | 3 | 0 | 9 | 0.0183 | 0.0172 |
+| <code>volume</code> | 15 | 8 | 8 | 4 | 4 | 4 | 0 | 0.0109 | 0.0104 |
+| <code>stats</code> | 13 | 7 | 7 | 5 | 5 | 0 | 2 | 0.0102 | 0.0098 |
+| <code>microstructure</code> | 5 | 2 | 2 | 1 | 1 | 0 | 1 | 0.0114 | 0.0105 |
+| <code>alpha</code> | 47 | 29 | 31 | 27 | 26 | 3 | 2 | 0.0162 | 0.0155 |</p>
+<p>Notably, <strong>9 out of 12</strong> statistically significant <code>volatility</code> signals are flagged as <strong><code>decaying</code></strong> by the OLS-CUSUM test (<code>p_cusum &lt;= 0.05</code> with weaker second-half IC), demonstrating why static full-sample <span class="arithmatex">\(t\)</span>-statistics are insufficient without structural stability screening.</p>
+<p><img alt="Empirical-Bayes Shrinkage" src="../../assets/research/03_empirical_bayes_shrinkage.png" /></p>
+<h3 id="74-transaction-cost-falsification-stage-why-high-ic-signals-fail-long-only-execution">7.4 Transaction-Cost Falsification Stage: Why High-IC Signals Fail Long-Only Execution<a class="headerlink" href="#74-transaction-cost-falsification-stage-why-high-ic-signals-fail-long-only-execution" title="Permanent link">&para;</a></h3>
+<p>When the <strong>80</strong> non-decaying discovery survivors (<code>64 robust + 16 fdr_only</code>) are formed into 5-day rebalanced long-only top-quintile (Q5) portfolios against the equal-weight universe (descriptive ranges derived automatically in <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/results/discovery/cost_stage_summary.json"><code>results/discovery/cost_stage_summary.json</code></a>):
+1. <strong>68 of 80 candidates</strong> yield negative net active returns after <code>HOSE</code> fees, slippage, and sell tax (<code>60 bps</code> round-trip replacement cost; across all 68 negative-net signals, 5-day L1 turnover spans <strong><span class="arithmatex">\(0.27\text{–}1.83\)</span></strong>, or <strong><span class="arithmatex">\(13.5\%\text{–}91.4\%\)</span></strong> one-way replacement, with annualized cost drag of <strong><span class="arithmatex">\(4.1\%\text{–}27.6\%/\text{yr}\)</span></strong> and breakeven round-trip costs of <strong><span class="arithmatex">\(-23.8\text{–}53.1\text{ bps}\)</span></strong>). The top-6 <span class="arithmatex">\(|t_{\text{NW}}|\)</span> fast reversal signals (<code>returns_divergence_14</code>, <code>hma_10</code>, <code>tema_10</code>, <code>zlema_10</code>, <code>true_range_norm</code>, <code>alpha_018</code>) exhibit 5-day L1 weight turnover of <strong><span class="arithmatex">\(1.28\text{–}1.74\)</span></strong> (<strong><span class="arithmatex">\(63.8\%\text{–}87.2\%\)</span></strong> one-way portfolio replacement every 5 trading days), incurring an annualized cost drag of <strong><span class="arithmatex">\(19.3\%\text{–}26.4\%/\text{yr}\)</span></strong>, while their long-only top-quintile gross excess returns correspond to breakeven round-trip costs of only <strong><span class="arithmatex">\(-6.7\text{–}20.5\text{ bps}\)</span></strong> (<strong><span class="arithmatex">\(5.7\text{–}20.5\text{ bps}\)</span></strong> across the 5 signals with positive gross Q5 excess). Notably, <code>alpha_018</code> has a strong positive cross-sectional Rank IC (<span class="arithmatex">\(\text{IC} = 0.0327\)</span>, <span class="arithmatex">\(t_{\text{NW}} = 10.59\)</span>), yet its equal-weighted top-quintile (Q5) gross excess return vs. the equal-weight universe is slightly negative (<span class="arithmatex">\(-0.0005\)</span> per 5 days, breakeven <span class="arithmatex">\(-6.7\text{ bps}\)</span>) because its rank correlation is driven by extreme underperformance in the bottom quintiles (Q1–Q2) rather than outperformance in Q5 (see §8.3).
+2. Only <strong>12 signals</strong>—all slower trend/momentum smoothers with much lower 5-day L1 turnover (<strong><span class="arithmatex">\(0.28\text{–}0.79\)</span></strong>, or <strong><span class="arithmatex">\(14.1\%\text{–}39.5\%\)</span></strong> one-way replacement, annualized cost drag <strong><span class="arithmatex">\(4.3\%\text{–}11.9\%/\text{yr}\)</span></strong>, breakeven <strong><span class="arithmatex">\(68.1\text{–}129.8\text{ bps}\)</span></strong>)—achieve positive net active return in Discovery:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Factor</th>
+<th style="text-align: left;">Verdict</th>
+<th style="text-align: right;">Gross Excess (5d)</th>
+<th style="text-align: right;">L1 Turnover (5d)</th>
+<th style="text-align: right;">Net Excess (% Ann.)</th>
+<th style="text-align: right;">Net IR (Ann.)</th>
+<th style="text-align: right;">Raw Bootstrap <span class="arithmatex">\(p\)</span></th>
+<th style="text-align: right;">BH <span class="arithmatex">\(q\)</span></th>
+<th style="text-align: right;">Breakeven Cost (Round-Trip bps)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>trix_15</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0031</td>
+<td style="text-align: right;">0.48</td>
+<td style="text-align: right;">+8.37%</td>
+<td style="text-align: right;">0.71</td>
+<td style="text-align: right;">0.0170</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">129.8</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tsi</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0032</td>
+<td style="text-align: right;">0.58</td>
+<td style="text-align: right;">+7.65%</td>
+<td style="text-align: right;">0.70</td>
+<td style="text-align: right;">0.0320</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">112.7</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>kst</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0026</td>
+<td style="text-align: right;">0.49</td>
+<td style="text-align: right;">+5.84%</td>
+<td style="text-align: right;">0.51</td>
+<td style="text-align: right;">0.0555</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">107.1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>awesome_osc</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0030</td>
+<td style="text-align: right;">0.68</td>
+<td style="text-align: right;">+4.67%</td>
+<td style="text-align: right;">0.41</td>
+<td style="text-align: right;">0.1069</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">87.4</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>frac_diff_04</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0026</td>
+<td style="text-align: right;">0.56</td>
+<td style="text-align: right;">+4.61%</td>
+<td style="text-align: right;">0.50</td>
+<td style="text-align: right;">0.1439</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">92.5</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dpo_20</code></td>
+<td style="text-align: left;"><code>fdr_only</code></td>
+<td style="text-align: right;">0.0030</td>
+<td style="text-align: right;">0.70</td>
+<td style="text-align: right;">+4.56%</td>
+<td style="text-align: right;">0.39</td>
+<td style="text-align: right;">0.1414</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">86.0</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tii_30</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0022</td>
+<td style="text-align: right;">0.57</td>
+<td style="text-align: right;">+2.57%</td>
+<td style="text-align: right;">0.33</td>
+<td style="text-align: right;">0.1949</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">77.9</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>adx_14</code></td>
+<td style="text-align: left;"><code>fdr_only</code></td>
+<td style="text-align: right;">0.0022</td>
+<td style="text-align: right;">0.62</td>
+<td style="text-align: right;">+1.90%</td>
+<td style="text-align: right;">0.18</td>
+<td style="text-align: right;">0.3003</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">72.1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>coppock</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0027</td>
+<td style="text-align: right;">0.78</td>
+<td style="text-align: right;">+1.79%</td>
+<td style="text-align: right;">0.16</td>
+<td style="text-align: right;">0.3238</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">69.1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>nvi_roc_20</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0027</td>
+<td style="text-align: right;">0.79</td>
+<td style="text-align: right;">+1.64%</td>
+<td style="text-align: right;">0.18</td>
+<td style="text-align: right;">0.3048</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">68.2</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>squeeze_mom</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0026</td>
+<td style="text-align: right;">0.78</td>
+<td style="text-align: right;">+1.58%</td>
+<td style="text-align: right;">0.14</td>
+<td style="text-align: right;">0.3373</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">68.1</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>alpha_005</code></td>
+<td style="text-align: left;"><code>robust</code></td>
+<td style="text-align: right;">0.0011</td>
+<td style="text-align: right;">0.28</td>
+<td style="text-align: right;">+1.21%</td>
+<td style="text-align: right;">0.14</td>
+<td style="text-align: right;">0.3923</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">76.9</td>
+</tr>
+</tbody>
+</table>
+<p>While <code>trix_15</code> (<span class="arithmatex">\(p = 0.0170\)</span>) and <code>tsi</code> (<span class="arithmatex">\(p = 0.0320\)</span>) clear the unadjusted <span class="arithmatex">\(p \le 0.05\)</span> threshold, <strong>neither survives Benjamini–Hochberg FDR correction (<span class="arithmatex">\(q \le 0.10\)</span>) across the 80 cost-stage tests</strong> (<span class="arithmatex">\(80 \times 0.0170 &gt; 1.0\)</span>).</p>
+<h3 id="75-locked-holdout-replication-2022-01-01-to-2026-11-10">7.5 Locked Holdout Replication (<code>2022-01-01</code> to <code>2026-11-10</code>)<a class="headerlink" href="#75-locked-holdout-replication-2022-01-01-to-2026-11-10" title="Permanent link">&para;</a></h3>
+<p>Unlocking the <code>2022–2026</code> holdout period (<strong>1,202</strong> evaluated sessions) yields two central findings:</p>
+<ol>
+<li><strong>Cross-Sectional Rank IC Persists Strongly Out-of-Sample</strong>:</li>
+<li>Across all 150 signals, the correlation between Discovery Rank IC (<code>2014–2021</code>) and Holdout Rank IC (<code>2022–2026</code>) is <strong><span class="arithmatex">\(0.77\)</span></strong> (<span class="arithmatex">\(0.7675\)</span>).</li>
+<li>Among the <strong>64 <code>robust</code></strong> discovery signals, <strong>54 (<span class="arithmatex">\(84.4\%\)</span>)</strong> retain the same IC sign in Holdout, <strong>49 (<span class="arithmatex">\(76.6\%\)</span>)</strong> pass Holdout BH FDR (<span class="arithmatex">\(q \le 0.10\)</span>), and <strong>38 (<span class="arithmatex">\(59.4\%\)</span>)</strong> pass Holdout Romano–Wolf FWER (<span class="arithmatex">\(p_{\text{RW}} \le 0.05\)</span>), with a median IC retention ratio <span class="arithmatex">\(\overline{\text{IC}}_{\text{holdout}} / \overline{\text{IC}}_{\text{discovery}}\)</span> of <strong><span class="arithmatex">\(0.98\)</span></strong> (<span class="arithmatex">\(0.9764\)</span>).</li>
+<li><strong>Out-of-Sample Decay of <code>tsi</code> and <code>trix_15</code> Is Consistent With Cost-Stage BH Rejection (Illustrative, <span class="arithmatex">\(n = 2\)</span>)</strong>:</li>
+<li>The last two rows of the table below (<code>tsi</code> and <code>trix_15</code>) were the only <strong>2</strong> signals with unadjusted post-cost <span class="arithmatex">\(p \le 0.05\)</span> in Discovery (<code>0.0320</code> and <code>0.0170</code>), both rejected by Benjamini–Hochberg FDR control (<span class="arithmatex">\(q = 1.00\)</span> across 80 candidates). In the locked <code>2022–2026</code> holdout, their Rank IC fell to <strong><span class="arithmatex">\(-0.0011\)</span></strong> (<span class="arithmatex">\(t = -0.10\)</span>) and <strong><span class="arithmatex">\(-0.0089\)</span></strong> (<span class="arithmatex">\(t = -0.75\)</span>) with full-sample OLS-CUSUM <code>p_cusum = 0.009</code> and <code>0.013</code>. Because <span class="arithmatex">\(n = 2\)</span>, this case is an illustrative example that is consistent with the multiple-testing penalty rather than standalone statistical proof.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Factor</th>
+<th style="text-align: left;">Family</th>
+<th style="text-align: right;">Disc IC</th>
+<th style="text-align: right;">Posterior IC</th>
+<th style="text-align: right;">Disc NW <span class="arithmatex">\(t\)</span></th>
+<th style="text-align: right;">Disc RW <span class="arithmatex">\(p\)</span></th>
+<th style="text-align: right;">Breakeven (RT bps)</th>
+<th style="text-align: right;">Holdout IC</th>
+<th style="text-align: right;">Holdout NW <span class="arithmatex">\(t\)</span></th>
+<th style="text-align: right;">Holdout RW <span class="arithmatex">\(p\)</span></th>
+<th style="text-align: right;">Retention Ratio</th>
+<th style="text-align: right;">CUSUM <span class="arithmatex">\(p\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>returns_divergence_14</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: right;">-0.0276</td>
+<td style="text-align: right;">-0.0272</td>
+<td style="text-align: right;">-12.04</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">5.7</td>
+<td style="text-align: right;">-0.0146</td>
+<td style="text-align: right;">-4.46</td>
+<td style="text-align: right;">0.0010</td>
+<td style="text-align: right;">0.53</td>
+<td style="text-align: right;">0.004</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>hma_10</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-0.0406</td>
+<td style="text-align: right;">-0.0392</td>
+<td style="text-align: right;">-11.01</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">9.4</td>
+<td style="text-align: right;">-0.0387</td>
+<td style="text-align: right;">-6.26</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">0.95</td>
+<td style="text-align: right;">0.757</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tema_10</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-0.0421</td>
+<td style="text-align: right;">-0.0405</td>
+<td style="text-align: right;">-10.92</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">20.5</td>
+<td style="text-align: right;">-0.0355</td>
+<td style="text-align: right;">-5.34</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">0.84</td>
+<td style="text-align: right;">0.656</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>zlema_10</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-0.0402</td>
+<td style="text-align: right;">-0.0388</td>
+<td style="text-align: right;">-10.86</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">9.9</td>
+<td style="text-align: right;">-0.0374</td>
+<td style="text-align: right;">-6.10</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">0.93</td>
+<td style="text-align: right;">0.506</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>true_range_norm</code></td>
+<td style="text-align: left;"><code>volatility</code></td>
+<td style="text-align: right;">-0.0472</td>
+<td style="text-align: right;">-0.0450</td>
+<td style="text-align: right;">-10.71</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">17.8</td>
+<td style="text-align: right;">-0.0486</td>
+<td style="text-align: right;">-5.15</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">1.03</td>
+<td style="text-align: right;">0.538</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>alpha_018</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: right;">0.0327</td>
+<td style="text-align: right;">0.0319</td>
+<td style="text-align: right;">10.59</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">-6.7</td>
+<td style="text-align: right;">0.0453</td>
+<td style="text-align: right;">9.92</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">1.38</td>
+<td style="text-align: right;">0.002</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_classic</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-0.0370</td>
+<td style="text-align: right;">-0.0358</td>
+<td style="text-align: right;">-10.19</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">6.1</td>
+<td style="text-align: right;">-0.0376</td>
+<td style="text-align: right;">-6.37</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">1.02</td>
+<td style="text-align: right;">0.627</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_fibonacci</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-0.0370</td>
+<td style="text-align: right;">-0.0358</td>
+<td style="text-align: right;">-10.19</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">6.1</td>
+<td style="text-align: right;">-0.0376</td>
+<td style="text-align: right;">-6.37</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">1.02</td>
+<td style="text-align: right;">0.627</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_woodie</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-0.0360</td>
+<td style="text-align: right;">-0.0349</td>
+<td style="text-align: right;">-10.18</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">8.3</td>
+<td style="text-align: right;">-0.0366</td>
+<td style="text-align: right;">-6.33</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">1.01</td>
+<td style="text-align: right;">0.657</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>alpha_023</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: right;">0.0310</td>
+<td style="text-align: right;">0.0301</td>
+<td style="text-align: right;">9.47</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">12.3</td>
+<td style="text-align: right;">0.0332</td>
+<td style="text-align: right;">6.83</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">1.07</td>
+<td style="text-align: right;">0.330</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tsi</code></td>
+<td style="text-align: left;"><code>momentum</code></td>
+<td style="text-align: right;">0.0369</td>
+<td style="text-align: right;">0.0338</td>
+<td style="text-align: right;">6.24</td>
+<td style="text-align: right;">0.0005</td>
+<td style="text-align: right;">112.7</td>
+<td style="text-align: right;">-0.0011</td>
+<td style="text-align: right;">-0.10</td>
+<td style="text-align: right;">1.0000</td>
+<td style="text-align: right;">-0.03</td>
+<td style="text-align: right;">0.009</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>trix_15</code></td>
+<td style="text-align: left;"><code>momentum</code></td>
+<td style="text-align: right;">0.0313</td>
+<td style="text-align: right;">0.0284</td>
+<td style="text-align: right;">4.95</td>
+<td style="text-align: right;">0.0010</td>
+<td style="text-align: right;">129.8</td>
+<td style="text-align: right;">-0.0089</td>
+<td style="text-align: right;">-0.75</td>
+<td style="text-align: right;">0.9930</td>
+<td style="text-align: right;">-0.28</td>
+<td style="text-align: right;">0.013</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Discovery vs Holdout IC" src="../../assets/research/04_discovery_vs_holdout_ic.png" /></p>
+<p><img alt="Cumulative IC &amp; CUSUM Breakpoints" src="../../assets/research/05_cumulative_ic_cusum.png" /></p>
+<hr />
+<h2 id="8-robustness-exploratory-analysis-non-confirmatory">8. Robustness &amp; Exploratory Analysis (Non-Confirmatory)<a class="headerlink" href="#8-robustness-exploratory-analysis-non-confirmatory" title="Permanent link">&para;</a></h2>
+<h3 id="81-sub-period-liquidity-tier-and-price-limit-robustness-discovery-h-5">8.1 Sub-Period, Liquidity-Tier, and Price-Limit Robustness (Discovery <span class="arithmatex">\(h = 5\)</span>)<a class="headerlink" href="#81-sub-period-liquidity-tier-and-price-limit-robustness-discovery-h-5" title="Permanent link">&para;</a></h3>
+<p>Across all 150 signals, the split-half IC correlation between <code>2014–2017</code> and <code>2018–2021</code> is <strong><span class="arithmatex">\(0.83\)</span></strong> (<span class="arithmatex">\(0.8265\)</span>). For the top 10 discovery signals by <span class="arithmatex">\(|t_{\text{NW}}|\)</span>, predictability holds across both halves of Discovery, across both the <strong>Top-50 most liquid</strong> and <strong>Rank 51–150 liquid</strong> tiers, and after excluding sessions near the daily price limit (<span class="arithmatex">\(|\text{close}/\text{open} - 1| \ge 6.5\%\)</span>):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Factor</th>
+<th style="text-align: right;">IC (<code>2014–2017</code>)</th>
+<th style="text-align: right;">IC (<code>2018–2021</code>)</th>
+<th style="text-align: right;">IC (Top-50 Liquid)</th>
+<th style="text-align: right;">IC (Rank 51–150)</th>
+<th style="text-align: right;">IC (Excl. Limit Days)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>returns_divergence_14</code></td>
+<td style="text-align: right;">-0.0285</td>
+<td style="text-align: right;">-0.0268</td>
+<td style="text-align: right;">-0.0233</td>
+<td style="text-align: right;">-0.0321</td>
+<td style="text-align: right;">-0.0263</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>hma_10</code></td>
+<td style="text-align: right;">-0.0373</td>
+<td style="text-align: right;">-0.0439</td>
+<td style="text-align: right;">-0.0386</td>
+<td style="text-align: right;">-0.0454</td>
+<td style="text-align: right;">-0.0383</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tema_10</code></td>
+<td style="text-align: right;">-0.0345</td>
+<td style="text-align: right;">-0.0497</td>
+<td style="text-align: right;">-0.0399</td>
+<td style="text-align: right;">-0.0464</td>
+<td style="text-align: right;">-0.0398</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>zlema_10</code></td>
+<td style="text-align: right;">-0.0386</td>
+<td style="text-align: right;">-0.0418</td>
+<td style="text-align: right;">-0.0386</td>
+<td style="text-align: right;">-0.0443</td>
+<td style="text-align: right;">-0.0378</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>true_range_norm</code></td>
+<td style="text-align: right;">-0.0511</td>
+<td style="text-align: right;">-0.0434</td>
+<td style="text-align: right;">-0.0409</td>
+<td style="text-align: right;">-0.0517</td>
+<td style="text-align: right;">-0.0463</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>alpha_018</code></td>
+<td style="text-align: right;">0.0292</td>
+<td style="text-align: right;">0.0363</td>
+<td style="text-align: right;">0.0283</td>
+<td style="text-align: right;">0.0361</td>
+<td style="text-align: right;">0.0286</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_classic</code></td>
+<td style="text-align: right;">-0.0382</td>
+<td style="text-align: right;">-0.0358</td>
+<td style="text-align: right;">-0.0322</td>
+<td style="text-align: right;">-0.0441</td>
+<td style="text-align: right;">-0.0340</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_fibonacci</code></td>
+<td style="text-align: right;">-0.0382</td>
+<td style="text-align: right;">-0.0358</td>
+<td style="text-align: right;">-0.0322</td>
+<td style="text-align: right;">-0.0441</td>
+<td style="text-align: right;">-0.0340</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_woodie</code></td>
+<td style="text-align: right;">-0.0376</td>
+<td style="text-align: right;">-0.0345</td>
+<td style="text-align: right;">-0.0317</td>
+<td style="text-align: right;">-0.0428</td>
+<td style="text-align: right;">-0.0330</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>alpha_023</code></td>
+<td style="text-align: right;">0.0289</td>
+<td style="text-align: right;">0.0330</td>
+<td style="text-align: right;">0.0249</td>
+<td style="text-align: right;">0.0341</td>
+<td style="text-align: right;">0.0301</td>
+</tr>
+</tbody>
+</table>
+<h3 id="82-exploratory-return-horizons-h-1-and-h-20">8.2 Exploratory Return Horizons (<span class="arithmatex">\(h = 1\)</span> and <span class="arithmatex">\(h = 20\)</span>)<a class="headerlink" href="#82-exploratory-return-horizons-h-1-and-h-20" title="Permanent link">&para;</a></h3>
+<p>Per <code>PREREGISTRATION.md</code> §4, horizons <span class="arithmatex">\(h = 1\)</span> (next-day open-to-open) and <span class="arithmatex">\(h = 20\)</span> (monthly open-to-open) are reported strictly as exploratory:</p>
+<p>| Horizon | Tested | Raw <span class="arithmatex">\(p \le 0.05\)</span> | NW <span class="arithmatex">\(|t| \ge 1.96\)</span> | BH <span class="arithmatex">\(q \le 0.10\)</span> | RW <span class="arithmatex">\(p \le 0.05\)</span> | <code>robust</code> | <code>fdr_only</code> | <code>decaying</code> | <code>noise</code> | Top Signal (Rank IC, NW <span class="arithmatex">\(t\)</span>) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |
+| <strong><span class="arithmatex">\(h = 1\)</span> (Exploratory)</strong> | 150 | 124 | 124 | 126 | 112 | 112 | 14 | 0 | 24 | <code>dema_10</code> (<span class="arithmatex">\(\text{IC} = -0.0428\)</span>, <span class="arithmatex">\(t = -13.98\)</span>) |
+| <strong><span class="arithmatex">\(h = 5\)</span> (Confirmatory)</strong> | 150 | 91 | 95 | 94 | 71 | 64 | 16 | 14 | 56 | <code>returns_divergence_14</code> (<span class="arithmatex">\(\text{IC} = -0.0276\)</span>, <span class="arithmatex">\(t = -12.04\)</span>) |
+| <strong><span class="arithmatex">\(h = 20\)</span> (Exploratory)</strong> | 150 | 96 | 97 | 99 | 62 | 61 | 33 | 5 | 51 | <code>vwap_bands_20</code> (<span class="arithmatex">\(\text{IC} = +0.0454\)</span>, <span class="arithmatex">\(t = +5.84\)</span>) |</p>
+<h3 id="83-exploratory-post-holdout-analyses">8.3 Exploratory Post-Holdout Analyses<a class="headerlink" href="#83-exploratory-post-holdout-analyses" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>Exploratory — conducted after the holdout was unlocked; not part of the confirmatory design.</strong>
+All results in this subsection are generated deterministically by <code>python -m research.factor_zoo.run --stage exploratory</code> (<code>seed = 20268110</code>, <span class="arithmatex">\(B = 2{,}000\)</span>) and stored under <code>research/factor_zoo/results/exploratory/</code>.</p>
+</blockquote>
+<h4 id="831-unique-signal-sensitivity-146-signals-incremental-predictability-beyond-5-day-reversal-rev_5">8.3.1 Unique-Signal Sensitivity (146 Signals) &amp; Incremental Predictability Beyond 5-Day Reversal (<code>rev_5</code>)<a class="headerlink" href="#831-unique-signal-sensitivity-146-signals-incremental-predictability-beyond-5-day-reversal-rev_5" title="Permanent link">&para;</a></h4>
+<p>To verify that our conclusions are not artifacts of the <strong>4</strong> exact duplicate signal pairs (<code>pivot_fibonacci</code>, <code>natr_14</code>, <code>decay_linear_10</code>, <code>ts_zscore_20</code>) and to test whether the indicator catalog contains information beyond simple 5-day close-to-close return reversal <span class="arithmatex">\(\text{rev}_{5,i,t} = -(C_{i,t}/C_{i,t-5} - 1)\)</span> (whose standalone cross-sectional percentile rank <code>rev_5_rank</code> achieves Discovery <span class="arithmatex">\(\overline{\text{IC}} = 0.0154\)</span>, <span class="arithmatex">\(t_{\text{NW}} = 3.10\)</span> and Holdout <span class="arithmatex">\(\overline{\text{IC}} = 0.0178\)</span>, <span class="arithmatex">\(t_{\text{NW}} = 2.05\)</span>), we re-run <code>falsify_factors</code> on (i) the <strong>146</strong> unique signals and (ii) all <strong>150</strong> signals after cross-sectionally orthogonalizing each signal against <code>rev_5_rank</code> on every trading day via <code>pa.orthogonalize(..., factors=["rev_5_rank"], over="date")</code>:</p>
+<p>| Specification | Tested | Raw <span class="arithmatex">\(p \le 0.05\)</span> | NW <span class="arithmatex">\(|t| \ge 1.96\)</span> | BH <span class="arithmatex">\(q \le 0.10\)</span> | RW <span class="arithmatex">\(p \le 0.05\)</span> | <code>robust</code> | <code>fdr_only</code> | <code>decaying</code> | <code>noise</code> | <span class="arithmatex">\(N_{\text{eff}}\)</span> | <span class="arithmatex">\(\lambda_1\)</span> | Top-5 Share |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| <strong>Baseline Frozen Registry (150 Signals)</strong> | 150 | 91 | 95 | 94 | 71 | 64 | 16 | 14 | 56 | 6.00 | 55.21 | 66.6% |
+| <strong>Unique Signals Only (146 Signals, Drop 4 Exact Duplicates)</strong> | 146 | 88 | 92 | 91 | 67 | 61 | 17 | 13 | 55 | 6.13 | 53.20 | 65.9% |
+| <strong>Orthogonalized Against <code>rev_5_rank</code> (150 Signals)</strong> | 150 | 110 | 113 | 114 | 100 | 91 | 7 | 16 | 36 | 9.37 | 40.21 | 58.5% |</p>
+<ul>
+<li><strong>146-Unique-Signal Sensitivity</strong>: Dropping the <strong>4</strong> exact duplicate second entries reduces Discovery <code>robust</code> signals by exactly <strong>3</strong> (<strong>64</strong> <span class="arithmatex">\(\to\)</span> <strong>61</strong>) and Romano–Wolf survivors by <strong>4</strong> (<strong>71</strong> <span class="arithmatex">\(\to\)</span> <strong>67</strong>), while shifting <span class="arithmatex">\(N_{\text{eff}}\)</span> marginally from <strong><span class="arithmatex">\(6.00\)</span></strong> to <strong><span class="arithmatex">\(6.13\)</span></strong>.</li>
+<li><strong>Incremental Predictability Beyond <code>rev_5</code></strong>: Orthogonalizing against 5-day close-to-close return reversal reduces the top eigenvalue from <strong><span class="arithmatex">\(55.21\)</span></strong> to <strong><span class="arithmatex">\(40.21\)</span></strong> and increases effective independent breadth from <strong><span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span></strong> to <strong><span class="arithmatex">\(9.37\)</span></strong>. Crucially, <strong>91</strong> orthogonalized signals remain classified as <code>robust</code> in Discovery (<strong>100</strong> pass RW <span class="arithmatex">\(p \le 0.05\)</span>), and <strong>40</strong> of those <strong>91</strong> replicate in the locked <code>2022–2026</code> Holdout under Romano–Wolf FWER (<span class="arithmatex">\(p_{\text{RW}} \le 0.05\)</span>; <strong>45</strong> pass Holdout BH <span class="arithmatex">\(q \le 0.10\)</span> and <strong>81</strong> retain the same IC sign), led by high-low range and adaptive moving-average ratios (<code>true_range_norm</code> with orthogonalized Discovery <span class="arithmatex">\(\text{IC} = -0.0470\)</span>, <span class="arithmatex">\(t_{\text{NW}} = -11.77\)</span>, Holdout <span class="arithmatex">\(\text{IC} = -0.0481\)</span>, <span class="arithmatex">\(t_{\text{NW}} = -5.71\)</span>; <code>zlema_10</code> with orthogonalized Discovery <span class="arithmatex">\(\text{IC} = -0.0371\)</span>, <span class="arithmatex">\(t_{\text{NW}} = -11.30\)</span>, Holdout <span class="arithmatex">\(\text{IC} = -0.0316\)</span>, <span class="arithmatex">\(t_{\text{NW}} = -5.88\)</span>).</li>
+</ul>
+<p><img alt="Incremental Predictability Beyond 5-Day Reversal" src="../../assets/research/06_incremental_vs_reversal.png" /></p>
+<h4 id="832-q1q5-quintile-active-return-decomposition-why-long-only-q5-fails-despite-high-rank-ic">8.3.2 Q1–Q5 Quintile Active Return Decomposition: Why Long-Only Q5 Fails Despite High Rank IC<a class="headerlink" href="#832-q1q5-quintile-active-return-decomposition-why-long-only-q5-fails-despite-high-rank-ic" title="Permanent link">&para;</a></h4>
+<p>To understand why signals with Newey–West <span class="arithmatex">\(|t| &gt; 10\)</span> fail long-only top-quintile execution, we decompose non-overlapping 5-day active returns (relative to the equal-weighted investable universe, oriented by discovery <span class="arithmatex">\(\text{sign}(\overline{\text{IC}}_k)\)</span>) across all five quintiles (<code>Q1</code> through <code>Q5</code>):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Factor</th>
+<th style="text-align: left;">Family</th>
+<th style="text-align: right;">Sign</th>
+<th style="text-align: right;">Q1 (% Ann.)</th>
+<th style="text-align: right;">Q2 (% Ann.)</th>
+<th style="text-align: right;">Q3 (% Ann.)</th>
+<th style="text-align: right;">Q4 (% Ann.)</th>
+<th style="text-align: right;">Q5 (% Ann.)</th>
+<th style="text-align: right;">Q5 − Q1 (% Ann.)</th>
+<th style="text-align: right;">Q1 Share of Spread</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>returns_divergence_14</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-6.61%</td>
+<td style="text-align: right;">-0.36%</td>
+<td style="text-align: right;">+2.14%</td>
+<td style="text-align: right;">+2.57%</td>
+<td style="text-align: right;">+2.32%</td>
+<td style="text-align: right;">+8.93%</td>
+<td style="text-align: right;">74.0%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>hma_10</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-6.91%</td>
+<td style="text-align: right;">+2.01%</td>
+<td style="text-align: right;">-0.92%</td>
+<td style="text-align: right;">+1.71%</td>
+<td style="text-align: right;">+4.11%</td>
+<td style="text-align: right;">+11.02%</td>
+<td style="text-align: right;">62.7%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tema_10</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-6.99%</td>
+<td style="text-align: right;">-0.07%</td>
+<td style="text-align: right;">+0.79%</td>
+<td style="text-align: right;">-2.21%</td>
+<td style="text-align: right;">+8.41%</td>
+<td style="text-align: right;">+15.41%</td>
+<td style="text-align: right;">45.4%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>zlema_10</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-5.59%</td>
+<td style="text-align: right;">+2.50%</td>
+<td style="text-align: right;">-1.77%</td>
+<td style="text-align: right;">+0.69%</td>
+<td style="text-align: right;">+4.10%</td>
+<td style="text-align: right;">+9.69%</td>
+<td style="text-align: right;">57.7%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>true_range_norm</code></td>
+<td style="text-align: left;"><code>volatility</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-4.51%</td>
+<td style="text-align: right;">-2.32%</td>
+<td style="text-align: right;">+1.93%</td>
+<td style="text-align: right;">-0.77%</td>
+<td style="text-align: right;">+5.72%</td>
+<td style="text-align: right;">+10.23%</td>
+<td style="text-align: right;">44.1%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>alpha_018</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: right;">+1</td>
+<td style="text-align: right;">-16.62%</td>
+<td style="text-align: right;">+2.71%</td>
+<td style="text-align: right;">+6.91%</td>
+<td style="text-align: right;">+9.73%</td>
+<td style="text-align: right;">-2.66%</td>
+<td style="text-align: right;">+13.96%</td>
+<td style="text-align: right;">119.1%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_classic</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-5.97%</td>
+<td style="text-align: right;">-1.56%</td>
+<td style="text-align: right;">+3.29%</td>
+<td style="text-align: right;">+2.10%</td>
+<td style="text-align: right;">+2.39%</td>
+<td style="text-align: right;">+8.36%</td>
+<td style="text-align: right;">71.4%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_fibonacci</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-5.97%</td>
+<td style="text-align: right;">-1.56%</td>
+<td style="text-align: right;">+3.29%</td>
+<td style="text-align: right;">+2.10%</td>
+<td style="text-align: right;">+2.39%</td>
+<td style="text-align: right;">+8.36%</td>
+<td style="text-align: right;">71.4%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pivot_woodie</code></td>
+<td style="text-align: left;"><code>trend</code></td>
+<td style="text-align: right;">-1</td>
+<td style="text-align: right;">-5.96%</td>
+<td style="text-align: right;">-1.62%</td>
+<td style="text-align: right;">+5.31%</td>
+<td style="text-align: right;">-0.86%</td>
+<td style="text-align: right;">+3.27%</td>
+<td style="text-align: right;">+9.22%</td>
+<td style="text-align: right;">64.6%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>alpha_023</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: right;">+1</td>
+<td style="text-align: right;">-2.83%</td>
+<td style="text-align: right;">+12.19%</td>
+<td style="text-align: right;">-0.00%</td>
+<td style="text-align: right;">-3.99%</td>
+<td style="text-align: right;">+3.56%</td>
+<td style="text-align: right;">+6.38%</td>
+<td style="text-align: right;">44.3%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>tsi</code></td>
+<td style="text-align: left;"><code>momentum</code></td>
+<td style="text-align: right;">+1</td>
+<td style="text-align: right;">-16.02%</td>
+<td style="text-align: right;">-9.50%</td>
+<td style="text-align: right;">+4.23%</td>
+<td style="text-align: right;">+4.85%</td>
+<td style="text-align: right;">+16.37%</td>
+<td style="text-align: right;">+32.39%</td>
+<td style="text-align: right;">49.5%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>trix_15</code></td>
+<td style="text-align: left;"><code>momentum</code></td>
+<td style="text-align: right;">+1</td>
+<td style="text-align: right;">-13.35%</td>
+<td style="text-align: right;">-8.59%</td>
+<td style="text-align: right;">+3.51%</td>
+<td style="text-align: right;">+2.74%</td>
+<td style="text-align: right;">+15.56%</td>
+<td style="text-align: right;">+28.90%</td>
+<td style="text-align: right;">46.2%</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Short-Leg Dominance</strong>: Across the top-10 <span class="arithmatex">\(|t_{\text{NW}}|\)</span> discovery signals, the theoretical frictionless long-short spread <span class="arithmatex">\(\text{Q5} - \text{Q1}\)</span> averages <strong><span class="arithmatex">\(+10.16\%/\text{yr}\)</span></strong> in Discovery and <strong><span class="arithmatex">\(+16.28\%/\text{yr}\)</span></strong> in Holdout. However, <strong><span class="arithmatex">\(65.5\%\)</span></strong> of that spread in Discovery (<span class="arithmatex">\(\text{Q1} = -6.80\%/\text{yr}\)</span> vs. <span class="arithmatex">\(\text{Q5} = +3.36\%/\text{yr}\)</span>) and <strong><span class="arithmatex">\(90.0\%\)</span></strong> in Holdout (<span class="arithmatex">\(\text{Q1} = -12.29\%/\text{yr}\)</span> vs. <span class="arithmatex">\(\text{Q5} = +3.99\%/\text{yr}\)</span>) originates in the <strong>short leg (Q1 underperformance of recent extreme winners/high-volatility spikes)</strong>, which cannot be shorted on <code>HOSE</code> cash equities.</li>
+<li><strong>Resolving the <code>alpha_018</code> Paradox</strong>: In Discovery, <code>alpha_018</code> achieves <span class="arithmatex">\(\text{IC} = 0.0327\)</span> (<span class="arithmatex">\(t_{\text{NW}} = 10.59\)</span>) and a <span class="arithmatex">\(\text{Q5} - \text{Q1}\)</span> spread of <strong><span class="arithmatex">\(+13.96\%/\text{yr}\)</span></strong>, yet its long-only Q5 excess return is <strong><span class="arithmatex">\(-2.66\%/\text{yr}\)</span></strong> (<span class="arithmatex">\(-0.0005\)</span> per 5 days, breakeven <span class="arithmatex">\(-6.7\text{ bps}\)</span>) because its positive rank correlation is driven by severe underperformance in <strong>Q1 (<span class="arithmatex">\(-16.62\%/\text{yr}\)</span>, accounting for <span class="arithmatex">\(119.1\%\)</span> of <span class="arithmatex">\(\text{Q5} - \text{Q1}\)</span>)</strong> and strong returns in <strong>Q3–Q4 (<span class="arithmatex">\(+6.91\%/\text{yr}\)</span> and <span class="arithmatex">\(+9.73\%/\text{yr}\)</span>)</strong> while the extreme top tail Q5 reverses slightly.</li>
+</ul>
+<p><img alt="Quintile Spread Decomposition" src="../../assets/research/07_quintile_spread.png" /></p>
+<h4 id="833-breakeven-transaction-cost-survival-curve-060-bps-round-trip">8.3.3 Breakeven Transaction-Cost Survival Curve (<code>0–60 bps</code> Round-Trip)<a class="headerlink" href="#833-breakeven-transaction-cost-survival-curve-060-bps-round-trip" title="Permanent link">&para;</a></h4>
+<p>Varying the round-trip transaction cost assumption across <span class="arithmatex">\(\{0, 10, 20, 30, 40, 50, 60\}\text{ bps}\)</span> (where L1 cost rate <span class="arithmatex">\(= \text{RT bps} / 2\)</span>) for all <strong>80</strong> non-decaying cost-stage candidates quantifies how sensitive long-only Q5 survival is to fee tiers:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Round-Trip Cost (bps)</th>
+<th style="text-align: right;">L1 Cost (bps)</th>
+<th style="text-align: right;">Disc Net &gt; 0</th>
+<th style="text-align: right;">Disc Raw <span class="arithmatex">\(p \le 0.05\)</span></th>
+<th style="text-align: right;">Disc BH <span class="arithmatex">\(q \le 0.10\)</span></th>
+<th style="text-align: right;">Holdout Net &gt; 0</th>
+<th style="text-align: right;">Holdout Raw <span class="arithmatex">\(p \le 0.05\)</span></th>
+<th style="text-align: right;">Holdout BH <span class="arithmatex">\(q \le 0.10\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;"><code>0</code></td>
+<td style="text-align: right;"><code>0.0</code></td>
+<td style="text-align: right;">55</td>
+<td style="text-align: right;">33</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">61</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">9</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>10</code></td>
+<td style="text-align: right;"><code>5.0</code></td>
+<td style="text-align: right;">37</td>
+<td style="text-align: right;">23</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">47</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>20</code></td>
+<td style="text-align: right;"><code>10.0</code></td>
+<td style="text-align: right;">31</td>
+<td style="text-align: right;">17</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">24</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>30</code></td>
+<td style="text-align: right;"><code>15.0</code></td>
+<td style="text-align: right;">25</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>40</code></td>
+<td style="text-align: right;"><code>20.0</code></td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>50</code></td>
+<td style="text-align: right;"><code>25.0</code></td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;"><code>60</code></td>
+<td style="text-align: right;"><code>30.0</code></td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<p>Even at an institutional/zero-commission cost tier of <strong>30 bps round-trip</strong> (<code>15.0 bps</code> per L1 turnover unit, corresponding to <code>10 bps</code> statutory sell tax + <code>10 bps</code>/side slippage with zero brokerage fee), <strong>0</strong> standalone 5-day rebalanced Q5 strategies survive Benjamini–Hochberg FDR control (<span class="arithmatex">\(q \le 0.10\)</span>) in Discovery, and in the locked Holdout <strong>0</strong> survive BH <span class="arithmatex">\(q \le 0.10\)</span> at any cost <span class="arithmatex">\(\ge 10\text{ bps}\)</span> round-trip.</p>
+<p><img alt="Breakeven Transaction Cost Survival Curve" src="../../assets/research/08_breakeven_curve.png" /></p>
+<hr />
+<h2 id="9-limitations">9. Limitations<a class="headerlink" href="#9-limitations" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Survivorship Bias in Public Exchange Directory</strong>: The public exchange directory query (<code>VNDirect</code> / <code>SSI iBoard</code>) returned <strong>392</strong> currently listed 3-letter <code>HOSE</code> equities (<code>0</code> historical delisted tickers; only <strong>2</strong> cached tickers have a last trading date before <code>2026-10-01</code>: <code>LGC</code> ending <code>2026-04-29</code> with <strong>2,801</strong> bars and <code>TTE</code> ending <code>2026-07-01</code> with <strong>1,021</strong> bars, see <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/results/audit/data_adjustment_check.json"><code>results/audit/data_adjustment_check.json</code></a>). Although the point-in-time rolling 60-day median traded value filter (<code>top 150</code>, minimum <code>5,000 VND</code>, minimum <code>250</code> trading sessions) excludes distressed micro-caps as liquidity deteriorates, historical delistings between 2012 and 2026 are absent from the public feed.</li>
+<li><strong>Corporate-Action &amp; Price-Adjustment Uncertainty in Public Feeds</strong>: Across <strong>1,138,156</strong> raw 1-day return observations in the cached feed, <strong>5,737</strong> exceed <span class="arithmatex">\(\pm 7.5\%\)</span> (<strong>5,653</strong> after zero-volume filtering), <strong>343</strong> exceed <span class="arithmatex">\(\pm 15\%\)</span> (<strong>126</strong> negative, <strong>217</strong> positive), and <strong>32</strong> exceed <span class="arithmatex">\(\pm 30\%\)</span>. Out of the <strong>343</strong> moves exceeding <span class="arithmatex">\(\pm 15\%\)</span>, <strong>78</strong> (<strong>22.74%</strong>) fall within <span class="arithmatex">\(\pm 0.015\)</span> of typical stock-dividend or split price ratios (<strong>44</strong> near <code>5:6</code>, <strong>25</strong> near <code>4:5</code>, <strong>7</strong> near <code>10:13</code>, <strong>2</strong> near <code>2:3</code>). Whether the upstream public history endpoint is partially adjusted or unadjusted for corporate actions is not independently verified; the cleaning pipeline mitigates single-day discontinuities by dropping observations with <span class="arithmatex">\(|C_t / C_{t-1} - 1| &gt; 7.5\%\)</span>.</li>
+<li><strong>Daily Typical-Price VWAP Proxy</strong>: For formulaic alphas requiring <code>vwap</code> (<code>alpha_001</code>–<code>alpha_101</code>), intraday trade-by-trade VWAP is unavailable in public daily feeds and is proxied by daily typical price <span class="arithmatex">\((H_t + L_t + C_t)/3\)</span>.</li>
+<li><strong>Long-Only Constraint &amp; Equal-Weight Rebalancing</strong>: Evaluating each signal as a standalone 5-day rebalanced equal-weighted Q5 portfolio without turnover regularization (e.g., no buffer banding, no multi-factor combination, no trade-off against expected transaction cost) represents a deliberately harsh falsification benchmark. Combining the <span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span> orthogonal dimensions with a turnover-penalized optimizer is the natural next step beyond single-factor falsification.</li>
+<li><strong>Retail Transaction Cost Schedule</strong>: The pre-specified <code>60 bps</code> round-trip cost (<code>0.15%</code>/side brokerage + <code>0.10%</code>/side slippage + <code>0.10%</code> statutory sell tax, confirmed post-hoc on <code>2026-11-11</code>) reflects standard Vietnamese retail commission tiers and is constant across stocks and time, whereas institutional brokerage fees can be lower while price impact scales non-linearly with order size relative to daily volume.</li>
+<li><strong>Exact and Near-Duplicate Signals in the Frozen Registry</strong>: As documented in <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/results/audit/duplicate_signals.json"><code>results/audit/duplicate_signals.json</code></a>, the <strong>150</strong> registered entries contain <strong>4</strong> exact duplicate pairs (<strong>146</strong> unique signals) and <strong>12</strong> near-duplicate pairs with <span class="arithmatex">\(|\text{corr}| &gt; 0.99\)</span>. While the participation ratio (<span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span>) and Romano–Wolf joint bootstrap naturally account for collinearity, a 146-unique-signal sensitivity check is reported in §8.3.</li>
+<li><strong>Cross-Sectional Breadth (<span class="arithmatex">\(N \le 150\)</span>)</strong>: Compared to US CRSP panels (<span class="arithmatex">\(N \approx 3{,}000\)</span>), a 150-stock universe has higher idiosyncratic portfolio variance in each quintile (30 stocks per quintile).</li>
+</ol>
+<hr />
+<h2 id="10-reproduce-this-study">10. Reproduce This Study<a class="headerlink" href="#10-reproduce-this-study" title="Permanent link">&para;</a></h2>
+<p>Every table and figure in this report is deterministically reproducible from the repository root:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 1. Verify signal registry count (150) and canonical SHA-256 hash</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>-m<span class="w"> </span>research.factor_zoo.registry<span class="w"> </span>--check
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># 2. Fetch/cache daily HOSE panel (or use existing research/data/vn_daily.parquet)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>python<span class="w"> </span>-m<span class="w"> </span>research.factor_zoo.fetch_data
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># 3. Run confirmatory Discovery pipeline (2014-01-01 to 2021-12-31, seed=20261110)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>python<span class="w"> </span>-m<span class="w"> </span>research.factor_zoo.run<span class="w"> </span>--stage<span class="w"> </span>discovery
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># 4. Run locked Holdout evaluation (verifies Git analysis-plan guard first)</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>python<span class="w"> </span>-m<span class="w"> </span>research.factor_zoo.run<span class="w"> </span>--stage<span class="w"> </span>holdout<span class="w"> </span>--unlock-holdout
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># 5. Run exploratory post-holdout analyses (incremental IC vs rev_5, Q1-Q5, breakeven curve)</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>python<span class="w"> </span>-m<span class="w"> </span>research.factor_zoo.run<span class="w"> </span>--stage<span class="w"> </span>exploratory
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># 6. Render all 8 figures and auto-generated Markdown tables</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>python<span class="w"> </span>-m<span class="w"> </span>research.factor_zoo.render
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># 7. Audit every backticked identifier and numeric claim in REPORT.md</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>python<span class="w"> </span>-m<span class="w"> </span>research.factor_zoo.audit_report<span class="w"> </span>research/factor_zoo/REPORT.md
+</span></code></pre></div>
+<hr />
+<h2 id="11-references">11. References<a class="headerlink" href="#11-references" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Benjamini, Y., &amp; Hochberg, Y. (1995). Controlling the false discovery rate: A practical and powerful approach to multiple testing. <em>Journal of the Royal Statistical Society: Series B</em>, 57(1), 289–300.</li>
+<li>Brown, R. L., Durbin, J., &amp; Evans, J. M. (1975). Techniques for testing the constancy of regression relationships over time. <em>Journal of the Royal Statistical Society: Series B</em>, 37(2), 149–192.</li>
+<li>Chordia, T., Goyal, A., &amp; Saretto, A. (2020).Two million strategies: Asset pricing tests with multiple testing. <em>Review of Financial Studies</em>, 33(11), 5066–5115.</li>
+<li>Efron, B., &amp; Morris, C. (1973). Stein's estimation rule and its competitors—an empirical Bayes approach. <em>Journal of the American Statistical Association</em>, 68(341), 117–130.</li>
+<li>Harvey, C. R., Liu, Y., &amp; Zhu, H. (2016). … and the cross-section of expected returns. <em>Review of Financial Studies</em>, 29(1), 5–68.</li>
+<li>Hou, K., Xue, C., &amp; Zhang, L. (2020). Replicating anomalies. <em>Review of Financial Studies</em>, 33(5), 2019–2133.</li>
+<li>Jensen, T. I., Kelly, B., &amp; Pedersen, L. H. (2023). Is there a replication crisis in finance? <em>Journal of Finance</em>, 78(5), 2465–2518.</li>
+<li>Newey, W. K., &amp; West, K. D. (1987). A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix. <em>Econometrica</em>, 55(3), 703–708.</li>
+<li>Novy-Marx, R., &amp; Velikov, M. (2016). A taxonomy of anomalies and their trading costs. <em>Review of Financial Studies</em>, 29(1), 104–147.</li>
+<li>Politis, D. N., &amp; Romano, J. P. (1994). The stationary bootstrap. <em>Journal of the American Statistical Association</em>, 89(428), 1303–1313.</li>
+<li>Romano, J. P., &amp; Wolf, M. (2005). Stepwise multiple testing as formalized data snooping. <em>Econometrica</em>, 73(4), 1237–1282.</li>
+<li>Romano, J. P., &amp; Wolf, M. (2016). Efficient computation of adjusted <span class="arithmatex">\(p\)</span>-values for resampling-based stepdown multiple testing. <em>Statistics &amp; Probability Letters</em>, 113, 38–40.</li>
+</ul>
+<hr />
+<h2 id="appendix-a-excluded-library-exports-10-export-groups">Appendix A. Excluded Library Exports (<code>10</code> Export Groups)<a class="headerlink" href="#appendix-a-excluded-library-exports-10-export-groups" title="Permanent link">&para;</a></h2>
+<p>Generated directly from <code>EXCLUDED_SIGNALS</code> in <a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/registry.py"><code>research/factor_zoo/registry.py</code></a> (an earlier version of this appendix in commit <code>dacd8dc</code> listed library functions that do not exist; it has been replaced by a table generated from <code>EXCLUDED_SIGNALS</code>):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Export / Function Group</th>
+<th style="text-align: left;">Family / Module</th>
+<th style="text-align: left;">Exclusion Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>ofi</code></td>
+<td style="text-align: left;"><code>microstructure</code></td>
+<td style="text-align: left;">Requires L1 order-book bid_price, bid_size, ask_price, ask_size.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>futures_basis</code></td>
+<td style="text-align: left;"><code>microstructure</code></td>
+<td style="text-align: left;">Requires derivatives futures_close, spot_close, and days_to_expiry.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>oi_regime</code></td>
+<td style="text-align: left;"><code>microstructure</code></td>
+<td style="text-align: left;">Requires futures open_interest series not present in cash equities.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>session_vwap</code></td>
+<td style="text-align: left;"><code>volume</code></td>
+<td style="text-align: left;">Intraday session-anchored VWAP requiring sub-daily bars.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>rolling_beta</code></td>
+<td style="text-align: left;"><code>stats</code></td>
+<td style="text-align: left;">Bivariate rolling regression requiring an external benchmark return column.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>rolling_alpha</code></td>
+<td style="text-align: left;"><code>stats</code></td>
+<td style="text-align: left;">Bivariate CAPM intercept requiring an external benchmark return column.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>cs_rank / cs_zscore / cs_winsorize / neutralize / orthogonalize</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: left;">Cross-sectional conditioning operators (not standalone time-series signals).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ts_scale / ts_delta / ts_delay / signed_power / ts_min / ts_max / ts_sum / ts_std / ts_product / ts_correlation / ts_covariance</code></td>
+<td style="text-align: left;"><code>alpha</code></td>
+<td style="text-align: left;">Low-level algebraic DSL building blocks used inside alpha_001..alpha_101.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>resample_* / stitch_futures_roll / validate_ohlcv</code></td>
+<td style="text-align: left;"><code>resample</code></td>
+<td style="text-align: left;">Data engineering, bar aggregation, and validation utilities.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>evaluation.* / backtest.* / inference.*</code></td>
+<td style="text-align: left;"><code>evaluation/backtest/inference</code></td>
+<td style="text-align: left;">Target return generators, evaluation metrics, backtesting engine, and inference tests.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

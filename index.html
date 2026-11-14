@@ -1,0 +1,2029 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="ANTA (Alpha & Numerical Technical Analysis) - Quantitative technical analysis, cross-sectional alpha research, and vectorized backtesting in Polars.">
+      
+      
+        <meta name="author" content="An Phan (Phan Bùi Hữu Ân)">
+      
+      
+        <link rel="canonical" href="https://huuan26.github.io/polars-anta/">
+      
+      
+      
+        <link rel="next" href="getting-started/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="assets/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>polars-anta</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="stylesheets/extra.css">
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#case-study-150-signals-on-vietnamese-equities" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="polars-anta" class="md-header__button md-logo" aria-label="polars-anta" data-md-component="logo">
+      
+  <img src="assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            polars-anta
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/huuan26/polars-anta" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huuan26/polars-anta
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="indicators/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="guides/quant-theory-and-workflows/" class="md-tabs__link">
+          
+  
+  
+  Guides & Quantitative Theory
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="research/factor-zoo/" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="polars-anta" class="md-nav__button md-logo" aria-label="polars-anta" data-md-component="logo">
+      
+  <img src="assets/logo.png" alt="logo">
+
+    </a>
+    polars-anta
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/huuan26/polars-anta" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huuan26/polars-anta
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="." class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#case-study-150-signals-on-vietnamese-equities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Case study: 150 signals on Vietnamese equities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-polars-anta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is polars-anta?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-4-research-pillars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 4 Research Pillars
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-quantitative-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive Quantitative Workflows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-mathematical-and-systems-foundations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Mathematical and Systems Foundations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core Mathematical and Systems Foundations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-rolling-ols-slope-via-exact-wma-sma-algebraic-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Rolling OLS Slope via Exact WMA-SMA Algebraic Identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-fixed-window-fractional-differentiation-ffd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Fixed-Window Fractional Differentiation (FFD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-modified-gram-schmidt-cross-sectional-orthogonalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Modified Gram-Schmidt Cross-Sectional Orthogonalization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-newey-west-hac-inference-and-deflated-sharpe-ratio-dsr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Newey-West HAC Inference and Deflated Sharpe Ratio (DSR)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1000000-row-performance-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1,000,000-Row Performance Benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-and-learning-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation and Learning Resources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Catalog & Module Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/trend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trend & Overlays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/momentum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Momentum Oscillators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/volatility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volatility & Channels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/volume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volume & Money Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics & OLS Regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/alpha/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alpha & Microstructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/evaluation-and-backtest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factor Evaluation & Backtesting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="indicators/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistical Inference & Falsification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides & Quantitative Theory
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides & Quantitative Theory
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guides/quant-theory-and-workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quantitative Theory & Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guides/multi-asset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Asset & Cross-Sectional Scaling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="guides/resampling-and-dataframe-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Information Bars, Roll & Resampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture & Mathematical Proofs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="research/factor-zoo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factor Zoo Study
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#case-study-150-signals-on-vietnamese-equities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Case study: 150 signals on Vietnamese equities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-polars-anta" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is polars-anta?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-4-research-pillars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 4 Research Pillars
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-quantitative-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive Quantitative Workflows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-mathematical-and-systems-foundations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Mathematical and Systems Foundations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core Mathematical and Systems Foundations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-rolling-ols-slope-via-exact-wma-sma-algebraic-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Rolling OLS Slope via Exact WMA-SMA Algebraic Identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-fixed-window-fractional-differentiation-ffd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Fixed-Window Fractional Differentiation (FFD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-modified-gram-schmidt-cross-sectional-orthogonalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Modified Gram-Schmidt Cross-Sectional Orthogonalization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-newey-west-hac-inference-and-deflated-sharpe-ratio-dsr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Newey-West HAC Inference and Deflated Sharpe Ratio (DSR)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1000000-row-performance-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1,000,000-Row Performance Benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-and-learning-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation and Learning Resources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Overview</h1>
+
+<div class="anta-hero-wrapper">
+  <div class="anta-hero-banner">
+    <img src="assets/banner.png" alt="polars-anta banner" />
+  </div>
+
+  <div class="anta-hero-title">
+    Build Alpha Signals in Polars - Then Test Whether They Are Real
+  </div>
+
+  <div class="anta-hero-subtitle">
+    An open-source Python library for quantitative research, built on Polars. Combine 223 high-performance primitives for technical indicators, formulaic alphas, microstructure and backtesting with statistical falsification tools: stationary block bootstrap, Benjamini-Hochberg FDR, Romano-Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting, and transaction-cost accounting.
+  </div>
+
+  <div class="anta-cta-group">
+    <a href="research/factor-zoo/" class="md-button md-button--primary anta-btn-primary">Read the Factor Zoo Case Study</a>
+    <a href="getting-started/" class="md-button anta-btn-secondary">Get Started in 60s</a>
+    <a href="indicators/" class="md-button anta-btn-secondary">Explore 223-Function API Catalog</a>
+  </div>
+</div>
+
+<div class="anta-metrics-grid">
+  <div class="anta-metric-card">
+    <div class="anta-metric-value">150</div>
+    <div class="anta-metric-label">Signals Tested</div>
+    <div class="anta-metric-desc">146 unique signals collapse to N_eff = 6.00 dimensions</div>
+  </div>
+  <div class="anta-metric-card">
+    <div class="anta-metric-value">38</div>
+    <div class="anta-metric-label">Holdout Replications</div>
+    <div class="anta-metric-desc">38 of 64 robust signals pass Romano-Wolf (59.4%)</div>
+  </div>
+  <div class="anta-metric-card">
+    <div class="anta-metric-value">0</div>
+    <div class="anta-metric-label">Post-Cost Survivors</div>
+    <div class="anta-metric-desc">0 long-only Q5 strategies survive 60 bps execution costs</div>
+  </div>
+  <div class="anta-metric-card">
+    <div class="anta-metric-value">223</div>
+    <div class="anta-metric-label">Public Functions</div>
+    <div class="anta-metric-desc">Pure Polars expressions with zero C compiler dependencies</div>
+  </div>
+</div>
+
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Project facts</th>
+<th style="text-align: left;"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Install</td>
+<td style="text-align: left;"><code>pip install polars-anta</code> or <code>uv add polars-anta</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Python</td>
+<td style="text-align: left;">3.10, 3.11, 3.12, 3.13, 3.14</td>
+</tr>
+<tr>
+<td style="text-align: left;">Runtime dependencies</td>
+<td style="text-align: left;"><code>polars&gt;=1.0.0</code>, <code>numpy&gt;=1.24.0</code> (no C compiler required)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Engine</td>
+<td style="text-align: left;">Native Polars expressions on the multi-threaded Rust engine</td>
+</tr>
+<tr>
+<td style="text-align: left;">Status</td>
+<td style="text-align: left;"><a href="https://github.com/huuan26/polars-anta/actions/workflows/ci.yml">CI workflow</a>, <a href="https://github.com/huuan26/polars-anta/actions/workflows/docs.yml">Docs workflow</a>, <a href="https://pypi.org/project/polars-anta/">PyPI release</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Try online</td>
+<td style="text-align: left;"><a href="https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb">Quickstart notebook on Google Colab</a></td>
+</tr>
+<tr>
+<td style="text-align: left;">License</td>
+<td style="text-align: left;"><a href="https://github.com/huuan26/polars-anta/blob/master/LICENSE">Apache License 2.0</a></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="case-study-150-signals-on-vietnamese-equities">Case study: 150 signals on Vietnamese equities<a class="headerlink" href="#case-study-150-signals-on-vietnamese-equities" title="Permanent link">&para;</a></h2>
+<p>We ran every daily signal in <code>polars-anta</code> (<strong>150</strong> signals, <strong>146</strong> unique) through the library's own falsification pipeline on the most liquid stocks of the Ho Chi Minh Stock Exchange (<code>HOSE</code>). The analysis plan was committed to Git before any results were computed, and the <code>2022-2026</code> holdout was evaluated only after the discovery results were committed.</p>
+<blockquote>
+<p><strong>Why Vietnam?</strong> <code>HOSE</code> is a retail-driven emerging market with daily price limits, no short selling for most investors and high trading costs. It is far less studied than US equities, which makes it a demanding out-of-sample test for signals that were designed elsewhere.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Question</th>
+<th style="text-align: right;">Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Signals tested</td>
+<td style="text-align: right;"><strong>150</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Effectively independent tests among them</td>
+<td style="text-align: right;"><span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">Significant after multiple-testing correction (Romano-Wolf, 5% FWER)</td>
+<td style="text-align: right;"><strong>71</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Significant and stable over the discovery period (<code>2014-2021</code>)</td>
+<td style="text-align: right;"><strong>64</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Still significant in the locked holdout (<code>2022-2026</code>)</td>
+<td style="text-align: right;"><strong>38</strong> of 64</td>
+</tr>
+<tr>
+<td style="text-align: left;">Significant long-only excess return after <code>60 bps</code> round-trip costs</td>
+<td style="text-align: right;"><strong>0</strong></td>
+</tr>
+</tbody>
+</table>
+<div align="center">
+
+<img src="assets/research/01_falsification_funnel.png" alt="Factor Zoo Falsification Funnel on HOSE" width="860" />
+
+</div>
+
+<p><strong>What this means</strong></p>
+<ul>
+<li><strong>Most signals are variations of the same effect.</strong> 91 of 150 signals pass a naive <span class="arithmatex">\(p \le 0.05\)</span> test, but their daily ICs move together so closely that they amount to only <span class="arithmatex">\(N_{\text{eff}} = 6.00\)</span> independent tests. Much of this common component is short-term (5-day) reversal: removing it raises <span class="arithmatex">\(N_{\text{eff}}\)</span> from 6.00 to 9.37.</li>
+<li><strong>The predictive power holds up out of sample.</strong> 38 of the 64 stable discovery signals remain significant in the holdout, with a median IC retention of 97.6%.</li>
+<li><strong>But it does not pay for itself.</strong> The strongest signals replace 63.8% to 87.2% of the portfolio every 5 days and break even at 20.5 bps round-trip at best, well below realistic costs. In addition, 65.5% of the top-10 signals' long-short spread in discovery (90.0% in holdout) comes from the short leg, which long-only investors cannot capture.</li>
+</ul>
+<p>Read the full study in <a href="research/factor-zoo/"><code>research/factor-zoo.md</code></a>.</p>
+<details>
+<summary>Study design, reproducibility and full results tables</summary>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Design choice</th>
+<th style="text-align: left;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Universe</td>
+<td style="text-align: left;">Point-in-time top-150 most liquid <code>HOSE</code> stocks</td>
+</tr>
+<tr>
+<td style="text-align: left;">Signals</td>
+<td style="text-align: left;">150 signals at default parameters (146 unique; 4 exact duplicate pairs disclosed)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Discovery sample</td>
+<td style="text-align: left;"><code>2014-01-01</code> to <code>2021-12-31</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Locked holdout</td>
+<td style="text-align: left;"><code>2022-01-01</code> to <code>2026-11-10</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Forecast horizon</td>
+<td style="text-align: left;">5 trading days, open to open</td>
+</tr>
+<tr>
+<td style="text-align: left;">Execution costs</td>
+<td style="text-align: left;"><code>60 bps</code> round-trip (brokerage, slippage and sell tax)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Analysis plan</td>
+<td style="text-align: left;"><a href="https://github.com/huuan26/polars-anta/blob/master/research/factor_zoo/PREREGISTRATION.md"><code>PREREGISTRATION.md</code></a>, committed in <a href="https://github.com/huuan26/polars-anta/commit/4c1a4b559d22a1367ce46b513ab7ff1079fff360"><code>4c1a4b5</code></a></td>
+</tr>
+<tr>
+<td style="text-align: left;">Signal registry checksum</td>
+<td style="text-align: left;">SHA-256 recorded in <code>PREREGISTRATION.md</code> and verified by the pipeline</td>
+</tr>
+<tr>
+<td style="text-align: left;">Deviations from the plan</td>
+<td style="text-align: left;"><a href="research/factor-zoo/#31-deviations-from-the-analysis-plan-timeline">Deviations and Timeline</a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Track A: statistical predictability</strong> (cross-sectional Rank IC, 5-day horizon)</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Stage</th>
+<th style="text-align: right;">Signals</th>
+<th style="text-align: right;">Share</th>
+<th style="text-align: left;">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">A1. Tested</td>
+<td style="text-align: right;"><strong>150</strong></td>
+<td style="text-align: right;"><code>100.0%</code></td>
+<td style="text-align: left;">146 unique signals</td>
+</tr>
+<tr>
+<td style="text-align: left;">A2. Benjamini-Hochberg FDR <span class="arithmatex">\(q \le 0.10\)</span></td>
+<td style="text-align: right;"><strong>94</strong></td>
+<td style="text-align: right;"><code>62.7%</code></td>
+<td style="text-align: left;">Raw bootstrap <span class="arithmatex">\(p \le 0.05\)</span>: <strong>91</strong> (<span class="arithmatex">\(\approx 7.5\)</span> expected by chance)</td>
+</tr>
+<tr>
+<td style="text-align: left;">A3. Romano-Wolf FWER <span class="arithmatex">\(p \le 0.05\)</span></td>
+<td style="text-align: right;"><strong>71</strong></td>
+<td style="text-align: right;"><code>47.3%</code></td>
+<td style="text-align: left;">Joint bootstrap across all 150 IC series</td>
+</tr>
+<tr>
+<td style="text-align: left;">A4. Stable (<code>robust</code> verdict)</td>
+<td style="text-align: right;"><strong>64</strong></td>
+<td style="text-align: right;"><code>42.7%</code></td>
+<td style="text-align: left;">Plus <strong>16</strong> <code>fdr_only</code>, <strong>14</strong> <code>decaying</code>, <strong>56</strong> <code>noise</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">A5. Replicate in holdout</td>
+<td style="text-align: right;"><strong>38</strong></td>
+<td style="text-align: right;"><code>25.3%</code></td>
+<td style="text-align: left;"><strong>38</strong> of <strong>64</strong> pass holdout RW <span class="arithmatex">\(p \le 0.05\)</span>; <strong>54</strong> keep their sign</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Track B: economic implementability</strong> (long-only top quintile vs. equal-weight universe)</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Stage</th>
+<th style="text-align: right;">Signals</th>
+<th style="text-align: right;">Share of 80 Candidates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">B1. Candidates evaluated (<code>robust</code> + <code>fdr_only</code>)</td>
+<td style="text-align: right;"><strong>80</strong></td>
+<td style="text-align: right;"><code>100.0%</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">B2. Positive net excess return after costs</td>
+<td style="text-align: right;"><strong>12</strong></td>
+<td style="text-align: right;"><code>15.0%</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">B3. Unadjusted one-sided <span class="arithmatex">\(p \le 0.05\)</span></td>
+<td style="text-align: right;"><strong>2</strong></td>
+<td style="text-align: right;"><code>2.5%</code> (<code>trix_15</code>, <code>tsi</code>)</td>
+</tr>
+<tr>
+<td style="text-align: left;">B4. Benjamini-Hochberg FDR <span class="arithmatex">\(q \le 0.10\)</span></td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;"><code>0.0%</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">B5. Confirmed in holdout</td>
+<td style="text-align: right;"><strong>0</strong></td>
+<td style="text-align: right;"><code>0.0%</code></td>
+</tr>
+</tbody>
+</table>
+<p>A cost sweep from 0 to 60 bps round-trip finds <strong>0</strong> significant long-only strategies at <span class="arithmatex">\(\ge 30\)</span> bps in discovery and at <span class="arithmatex">\(\ge 10\)</span> bps in holdout (<a href="research/factor-zoo/#83-exploratory-post-holdout-analyses"><code>research/factor-zoo.md</code> Section 8.3</a>).</p>
+</details>
+<hr />
+<h2 id="what-is-polars-anta">What is <code>polars-anta</code>?<a class="headerlink" href="#what-is-polars-anta" title="Permanent link">&para;</a></h2>
+<p><code>polars-anta</code> (<strong>A</strong>lpha and <strong>N</strong>umerical <strong>T</strong>echnical <strong>A</strong>nalysis) is a quantitative finance library for <strong>market microstructure estimation, derivatives analytics, machine learning labeling and stationarity (AFML), cross-sectional factor engineering, statistical alpha evaluation, and execution-realistic vectorized backtesting</strong> in Python and <a href="https://pola.rs/">Polars</a>.</p>
+<p>Built for <strong>quantitative researchers, proprietary trading desks, index futures strategists (e.g. VN30F1M, CME E-mini, Crypto Perpetuals), and systematic portfolio managers</strong>, <code>polars-anta</code> implements technical indicators, closed-form OLS regressions, 33 formulaic alphas from Kakushadze's <em>101 Formulaic Alphas</em>, and portfolio evaluation tools directly as native Polars expressions (<code>pl.Expr</code>).</p>
+<pre class="mermaid"><code>flowchart LR
+    A["1. Microstructure and Roll&lt;br/&gt;Volume/Dollar/Imbalance Bars&lt;br/&gt;stitch_futures_roll, VPIN, OFI"] --&gt; B["2. Quant ML and Stationarity&lt;br/&gt;Fixed-Window FracDiff (FFD)&lt;br/&gt;Triple-Barrier, Trend-Scanning"]
+    B --&gt; C["3. Factor Orthogonalization&lt;br/&gt;cs_winsorize, cs_zscore&lt;br/&gt;neutralize, orthogonalize (OLS)"]
+    C --&gt; D["4. Statistical Validation&lt;br/&gt;Newey-West HAC t-stat&lt;br/&gt;IC Decay Half-Life, PSR and DSR"]
+    D --&gt; E["5. Realistic Execution&lt;br/&gt;Next-Open/VWAP, Vol-Targeting&lt;br/&gt;No-Trade Buffer, MAE/MFE Ledger"]</code></pre>
+<hr />
+<h2 id="the-4-research-pillars">The 4 Research Pillars<a class="headerlink" href="#the-4-research-pillars" title="Permanent link">&para;</a></h2>
+<div class="anta-pillars-grid">
+  <div class="anta-pillar-card">
+    <div class="anta-pillar-title">1. Intraday Microstructure and Derivatives</div>
+    <div class="anta-pillar-body">
+      Aggregate tick/minute feeds into information-driven bars (<code>resample_volume_bars</code>, <code>resample_dollar_bars</code>, <code>resample_imbalance_bars</code>), stitch continuous futures contracts (<code>stitch_futures_roll</code>), track intraday <code>session_vwap</code> deviation z-scores, quantify order flow toxicity (<code>vpin</code>, <code>ofi</code>), and monitor carry and positioning (<code>futures_basis</code>, <code>oi_regime</code>).
+    </div>
+    <div class="anta-pillar-links">
+      <a href="guides/resampling-and-dataframe-api/">Resampling and Roll Guide</a> | <a href="indicators/alpha/">Microstructure Docs</a>
+    </div>
+  </div>
+
+  <div class="anta-pillar-card">
+    <div class="anta-pillar-title">2. Quant Machine Learning (AFML Primitives)</div>
+    <div class="anta-pillar-body">
+      Transform non-stationary price series into stationary, memory-preserving features via Fixed-Window Fractional Differentiation (<code>frac_diff</code>), generate path-dependent dynamic Triple-Barrier and Meta-Labeling targets (<code>triple_barrier_labels</code>), and extract multi-horizon OLS Trend-Scanning labels (<code>trend_scanning_labels</code>).
+    </div>
+    <div class="anta-pillar-links">
+      <a href="indicators/stats/">Stats and FracDiff</a> | <a href="indicators/evaluation-and-backtest/">AFML Labeling</a>
+    </div>
+  </div>
+
+  <div class="anta-pillar-card">
+    <div class="anta-pillar-title">3. Cross-Sectional Factor Validation</div>
+    <div class="anta-pillar-body">
+      Clip extreme outliers (<code>cs_winsorize</code> via Quantile/Z-Score/MAD), sector-neutralize (<code>neutralize</code>), strip multi-factor risk exposures via Modified Gram-Schmidt OLS projection (<code>orthogonalize</code>), and validate with Newey-West HAC <em>t</em>-statistics (<code>ic_summary</code>), Alpha Half-Life (<code>ic_decay</code>), and Deflated Sharpe Ratios (<code>deflated_sharpe_ratio</code>).
+    </div>
+    <div class="anta-pillar-links">
+      <a href="guides/quant-theory-and-workflows/">Quant Theory Guide</a> | <a href="indicators/evaluation-and-backtest/">Factor Eval</a>
+    </div>
+  </div>
+
+  <div class="anta-pillar-card">
+    <div class="anta-pillar-title">4. Execution-Realistic Vectorized Backtesting</div>
+    <div class="anta-pillar-body">
+      Simulate realistic fills at next-bar open, TWAP, or VWAP (<code>execution_price="open"</code>), enforce mandatory intraday EOD/roll session flatten masks (<code>flat_mask</code>), apply ex-ante volatility targeting (<code>vol_target</code>) and hysteresis turnover buffers (<code>no_trade_buffer</code>), and audit round-trip MAE/MFE trade ledgers (<code>bt.trades()</code>).
+    </div>
+    <div class="anta-pillar-links">
+      <a href="indicators/evaluation-and-backtest/">Backtesting Engine</a> | <a href="guides/multi-asset/">Multi-Asset Scaling</a>
+    </div>
+  </div>
+</div>
+
+<hr />
+<h2 id="interactive-quantitative-workflows">Interactive Quantitative Workflows<a class="headerlink" href="#interactive-quantitative-workflows" title="Permanent link">&para;</a></h2>
+<p>Install <code>polars-anta</code> in seconds with zero C compiler requirements:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>polars-anta
+</span></code></pre></div>
+<p>Explore how <code>polars-anta</code> unifies derivatives microstructure, AFML feature engineering, cross-sectional factor orthogonalization, and realistic backtesting into fluent Polars pipelines:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:4"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">1. Intraday Microstructure and Futures</label><label for="__tabbed_1_2">2. Quant ML (AFML Primitives)</label><label for="__tabbed_1_3">3. Cross-Sectional Factor Alpha</label><label for="__tabbed_1_4">4. Realistic Backtest and IC Validation</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">polars_anta</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>  <span class="c1"># Registers .anta and .ta namespaces</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># 1. Stitch continuous futures contracts (backward, ratio or panama) and sample volume bars:</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">cont_df</span> <span class="o">=</span> <span class="n">raw_contracts</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">stitch_futures_roll</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="s2">"backward"</span><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">vol_bars</span> <span class="o">=</span> <span class="n">cont_df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">resample_volume_bars</span><span class="p">(</span><span class="n">volume_threshold</span><span class="o">=</span><span class="mi">5_000</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="c1"># 2. Extract session-anchored VWAP, order flow toxicity (VPIN, OFI), carry and open interest regimes:</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">deriv_features</span> <span class="o">=</span> <span class="n">vol_bars</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">session_vwap</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">,</span> <span class="n">session_by</span><span class="o">=</span><span class="s2">"trading_date"</span><span class="p">)</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"svwap"</span><span class="p">),</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">vpin</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"vpin_20"</span><span class="p">),</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"bid_price"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ofi</span><span class="p">(</span><span class="s2">"bid_size"</span><span class="p">,</span> <span class="s2">"ask_price"</span><span class="p">,</span> <span class="s2">"ask_size"</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ofi_5"</span><span class="p">),</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">futures_basis</span><span class="p">(</span><span class="s2">"spot_close"</span><span class="p">,</span> <span class="s2">"days_to_expiry"</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"basis"</span><span class="p">),</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">oi_regime</span><span class="p">(</span><span class="s2">"open_interest"</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"oi_state"</span><span class="p">),</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="p">)</span><span class="o">.</span><span class="n">unnest</span><span class="p">(</span><span class="s2">"svwap"</span><span class="p">,</span> <span class="s2">"basis"</span><span class="p">,</span> <span class="s2">"oi_state"</span><span class="p">)</span>
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Memory-preserving stationary features (FFD) plus triple-barrier and trend-scanning labels:</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">ml_dataset</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">frac_diff</span><span class="p">(</span><span class="n">d</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">window</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"symbol"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"close_ffd"</span><span class="p">),</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">triple_barrier_labels</span><span class="p">(</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="n">volatility</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">pct_change</span><span class="p">()</span><span class="o">.</span><span class="n">rolling_std</span><span class="p">(</span><span class="mi">20</span><span class="p">),</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="n">horizon</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="n">pt_mult</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="n">sl_mult</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">side</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"primary_signal"</span><span class="p">),</span>  <span class="c1"># Enables binary meta_label {0.0, 1.0}</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="p">)</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"symbol"</span><span class="p">)</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"tb"</span><span class="p">),</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">trend_scanning_labels</span><span class="p">(</span><span class="n">min_window</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">max_window</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"symbol"</span><span class="p">)</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ts"</span><span class="p">),</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="p">)</span><span class="o">.</span><span class="n">unnest</span><span class="p">(</span><span class="s2">"tb"</span><span class="p">,</span> <span class="s2">"ts"</span><span class="p">)</span>
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">alpha_df</span> <span class="o">=</span> <span class="n">panel_df</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="p">(</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        <span class="o">-</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ts_delta</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"symbol"</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="o">*</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ts_rank</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"symbol"</span><span class="p">)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"raw_alpha"</span><span class="p">)</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"raw_alpha"</span><span class="p">)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">cs_winsorize</span><span class="p">(</span><span class="n">over</span><span class="o">=</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"mad"</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">3.0</span><span class="p">)</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">cs_zscore</span><span class="p">(</span><span class="n">over</span><span class="o">=</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">clip_bound</span><span class="o">=</span><span class="mf">3.0</span><span class="p">)</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">neutralize</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s2">"sector"</span><span class="p">,</span> <span class="n">over</span><span class="o">=</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">standardize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="c1"># Modified Gram-Schmidt OLS projection orthogonal to beta, size and volatility:</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">orthogonalize</span><span class="p">(</span><span class="n">factors</span><span class="o">=</span><span class="p">[</span><span class="s2">"mkt_beta"</span><span class="p">,</span> <span class="s2">"log_mcap"</span><span class="p">,</span> <span class="s2">"vol_20"</span><span class="p">],</span> <span class="n">over</span><span class="o">=</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">standardize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ts_scale</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">over</span><span class="o">=</span><span class="s2">"date"</span><span class="p">)</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"pure_alpha_weight"</span><span class="p">)</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="p">)</span>
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># 1. Autocorrelation-robust Newey-West HAC IC and multi-horizon alpha half-life:</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">eval_df</span> <span class="o">=</span> <span class="n">alpha_df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">forward_returns</span><span class="p">(</span><span class="n">periods</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"symbol"</span><span class="p">)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">ic_stats</span> <span class="o">=</span> <span class="n">eval_df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ic_summary</span><span class="p">(</span><span class="s2">"pure_alpha_weight"</span><span class="p">,</span> <span class="s2">"fwd_ret_5"</span><span class="p">,</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">nw_lags</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">decay_table</span> <span class="o">=</span> <span class="n">eval_df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ic_decay</span><span class="p">(</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="s2">"pure_alpha_weight"</span><span class="p">,</span> <span class="n">horizons</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"date"</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="p">)</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1"># 2. Execution-realistic vectorized backtest with MAE and MFE excursion ledger:</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">bt</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ema</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="s2">"ema_12"</span><span class="p">)</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">ema</span><span class="p">(</span><span class="mi">26</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="s2">"ema_26"</span><span class="p">)</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="n">entries</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ema_12"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">crosses_above</span><span class="p">(</span><span class="s2">"ema_26"</span><span class="p">),</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="n">exits</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ema_12"</span><span class="p">)</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">crosses_below</span><span class="p">(</span><span class="s2">"ema_26"</span><span class="p">),</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="n">execution_price</span><span class="o">=</span><span class="s2">"open"</span><span class="p">,</span>  <span class="c1"># Fill at next-bar open price</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="n">flat_mask</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"is_eod"</span><span class="p">),</span>  <span class="c1"># Force flat before ATC / overnight</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>        <span class="n">vol_target</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>  <span class="c1"># 15% annualized volatility target</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>        <span class="n">no_trade_buffer</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>  <span class="c1"># Suppress micro-rebalancing turnover</span>
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>        <span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0005</span><span class="p">,</span>
+</span><span id="__span-4-20"><a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>        <span class="n">slippage_rate</span><span class="o">=</span><span class="mf">0.0002</span><span class="p">,</span>
+</span><span id="__span-4-21"><a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>    <span class="p">)</span>
+</span><span id="__span-4-22"><a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="p">)</span>
+</span><span id="__span-4-23"><a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="nb">print</span><span class="p">(</span><span class="n">bt</span><span class="o">.</span><span class="n">report</span><span class="p">())</span>
+</span><span id="__span-4-24"><a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="nb">print</span><span class="p">(</span><span class="n">bt</span><span class="o">.</span><span class="n">trades</span><span class="p">())</span>  <span class="c1"># Round-trip trade ledger with PnL, holding_bars, MAE and MFE</span>
+</span></code></pre></div>
+</div>
+</div>
+</div>
+<hr />
+<h2 id="core-mathematical-and-systems-foundations">Core Mathematical and Systems Foundations<a class="headerlink" href="#core-mathematical-and-systems-foundations" title="Permanent link">&para;</a></h2>
+<p>Rather than iterating row-by-row in Python or opaque Cython loops, <code>polars-anta</code> reduces time-series regressions, fractional operators, and cross-sectional projections into closed-form algebraic identities compiled directly by Polars' Rust query engine:</p>
+<h3 id="1-rolling-ols-slope-via-exact-wma-sma-algebraic-identity">1. Rolling OLS Slope via Exact WMA-SMA Algebraic Identity<a class="headerlink" href="#1-rolling-ols-slope-via-exact-wma-sma-algebraic-identity" title="Permanent link">&para;</a></h3>
+<p>By exploiting the exact linear identity between the Linearly Weighted Moving Average (<span class="arithmatex">\(\text{WMA}_n\)</span>) and Simple Moving Average (<span class="arithmatex">\(\text{SMA}_n\)</span>), rolling Ordinary Least Squares slope (<span class="arithmatex">\(\beta_{1,t}\)</span>) and intercept (<span class="arithmatex">\(\beta_{0,t}\)</span>) are evaluated in <span class="arithmatex">\(O(1)\)</span> complexity per bar (<strong>112.4x faster</strong> than a pandas <code>rolling().apply()</code> baseline):</p>
+<div class="arithmatex">\[
+\beta_{1,t} = \frac{6}{n - 1}\left(\text{WMA}_n(y)_t - \text{SMA}_n(y)_t\right), \qquad \beta_{0,t} = \text{SMA}_n(y)_t - \beta_{1,t}\frac{n - 1}{2}
+\]</div>
+<h3 id="2-fixed-window-fractional-differentiation-ffd">2. Fixed-Window Fractional Differentiation (FFD)<a class="headerlink" href="#2-fixed-window-fractional-differentiation-ffd" title="Permanent link">&para;</a></h3>
+<p>Applies the binomial expansion of the backshift operator <span class="arithmatex">\((1 - B)^d\)</span> over a fixed horizon <span class="arithmatex">\(W\)</span> to achieve statistical stationarity while preserving long-memory cointegration at fractional order <span class="arithmatex">\(d \in (0, 1)\)</span>:</p>
+<div class="arithmatex">\[
+\tilde{X}_t^{(d, W)} = \sum_{k=0}^{W-1} \omega_k X_{t-k}, \qquad \omega_0 = 1, \qquad \omega_k = -\omega_{k-1} \frac{d - k + 1}{k}
+\]</div>
+<h3 id="3-modified-gram-schmidt-cross-sectional-orthogonalization">3. Modified Gram-Schmidt Cross-Sectional Orthogonalization<a class="headerlink" href="#3-modified-gram-schmidt-cross-sectional-orthogonalization" title="Permanent link">&para;</a></h3>
+<p>Applies the Frisch-Waugh-Lovell theorem per timestamp cross-section to strip collinear risk exposures <span class="arithmatex">\(F = [f_1, \dots, f_K]\)</span> via sequential ridge-stabilized orthogonal projections:</p>
+<div class="arithmatex">\[
+u_k = \tilde{f}_k - \sum_{j=1}^{k-1} \frac{\langle \tilde{f}_k, u_j \rangle}{\lVert u_j \rVert_2^2 + \lambda} u_j, \qquad \alpha_{\perp} = \tilde{\alpha} - \sum_{k=1}^{K} \frac{\langle \tilde{\alpha}, u_k \rangle}{\lVert u_k \rVert_2^2 + \lambda} u_k
+\]</div>
+<h3 id="4-newey-west-hac-inference-and-deflated-sharpe-ratio-dsr">4. Newey-West HAC Inference and Deflated Sharpe Ratio (DSR)<a class="headerlink" href="#4-newey-west-hac-inference-and-deflated-sharpe-ratio-dsr" title="Permanent link">&para;</a></h3>
+<p>Corrects Rank IC <span class="arithmatex">\(t\)</span>-statistics for overlapping forward-return serial correlation via Bartlett kernel variance <span class="arithmatex">\(\hat{\Omega}_{\text{NW}}\)</span>, and adjusts backtest Sharpe ratios for skewness (<span class="arithmatex">\(\hat{\gamma}_3\)</span>), fat tails (<span class="arithmatex">\(\hat{\gamma}_4\)</span>), and multiple testing across <span class="arithmatex">\(K\)</span> trials:</p>
+<div class="arithmatex">\[
+\hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad \text{PSR}(\text{SR}^{\ast}) = \Phi\left(\frac{\widehat{\text{SR}} - \text{SR}^{\ast}}{\sqrt{\frac{1 - \hat{\gamma}_3 \widehat{\text{SR}} + \frac{\hat{\gamma}_4 - 1}{4}\widehat{\text{SR}}^2}{T - 1}}}\right)
+\]</div>
+<hr />
+<h2 id="1000000-row-performance-benchmark">1,000,000-Row Performance Benchmark<a class="headerlink" href="#1000000-row-performance-benchmark" title="Permanent link">&para;</a></h2>
+<p><img alt="polars-anta Performance Benchmark" src="assets/benchmark_speed.png" /></p>
+<p>Measured across <strong>1,000,000 bars</strong> (single-asset random walk) and a <strong>500 tickers × 2,000 bars panel</strong> (1,000,000 rows) on Polars' multi-threaded Rust engine vs. single-threaded pandas:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Operation / Indicator</th>
+<th style="text-align: left;">Dataset Scale</th>
+<th style="text-align: right;">pandas</th>
+<th style="text-align: right;"><code>polars-anta</code></th>
+<th style="text-align: right;">Measured Speedup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Linear Regression Slope (OLS)</strong></td>
+<td style="text-align: left;">1,000,000 bars</td>
+<td style="text-align: right;">2.3529 s</td>
+<td style="text-align: right;"><strong>0.0209 s</strong></td>
+<td style="text-align: right;"><strong>112.4x Faster</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Multi-Asset RSI (14)</strong></td>
+<td style="text-align: left;">500 tickers × 2k bars</td>
+<td style="text-align: right;">0.4398 s</td>
+<td style="text-align: right;"><strong>0.0545 s</strong></td>
+<td style="text-align: right;"><strong>8.1x Faster</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Multi-Asset SMA (20)</strong></td>
+<td style="text-align: left;">500 tickers × 2k bars</td>
+<td style="text-align: right;">0.1345 s</td>
+<td style="text-align: right;"><strong>0.0168 s</strong></td>
+<td style="text-align: right;"><strong>8.0x Faster</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Z-Score Normalization</strong></td>
+<td style="text-align: left;">1,000,000 bars</td>
+<td style="text-align: right;">0.0450 s</td>
+<td style="text-align: right;"><strong>0.0267 s</strong></td>
+<td style="text-align: right;"><strong>1.7x Faster</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Exponential Moving Average</strong></td>
+<td style="text-align: left;">1,000,000 bars</td>
+<td style="text-align: right;">0.0100 s</td>
+<td style="text-align: right;"><strong>0.0069 s</strong></td>
+<td style="text-align: right;"><strong>1.5x Faster</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Simple Moving Average</strong></td>
+<td style="text-align: left;">1,000,000 bars</td>
+<td style="text-align: right;">0.0170 s</td>
+<td style="text-align: right;"><strong>0.0153 s</strong></td>
+<td style="text-align: right;"><strong>1.1x Faster</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><em>Baselines are straightforward pandas implementations (<code>rolling().mean()</code>, <code>groupby().apply()</code>, and <code>rolling().apply()</code> for the WMA term of OLS). A fully vectorized pandas or NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with <code>python benchmarks/benchmark_speed.py</code>.</em></p>
+</blockquote>
+<hr />
+<h2 id="documentation-and-learning-resources">Documentation and Learning Resources<a class="headerlink" href="#documentation-and-learning-resources" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Resource</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><a href="research/factor-zoo/"><strong>Factor Zoo Empirical Study</strong></a></td>
+<td style="text-align: left;">Pre-specified falsification of 150 technical and formulaic signals on Vietnamese equities (<code>HOSE</code>, 2014 to 2026)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="guides/quant-theory-and-workflows/"><strong>Quantitative Theory and Workflows</strong></a></td>
+<td style="text-align: left;">Deep-dive into the mathematics and theory of AFML labeling, FFD, microstructure bars, Gram-Schmidt orthogonalization, Newey-West HAC, and PSR/DSR</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="architecture/"><strong>Architecture and Mathematical Proofs</strong></a></td>
+<td style="text-align: left;">Step-by-step algebraic proofs of the WMA-SMA OLS identity, Wilder RMA recurrences, and zero-copy <code>sliding_window_view</code> vectorization</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="indicators/"><strong>API Reference and Catalog</strong></a></td>
+<td style="text-align: left;">Complete module-by-module function signatures, <code>pl.Struct</code> fields, and mathematical formulas across 223 public functions</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="getting-started/"><strong>Getting Started Guide</strong></a></td>
+<td style="text-align: left;">Installation, expression syntax, <code>pl.Struct</code> unnesting, and fluent DataFrame chaining</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="guides/multi-asset/"><strong>Multi-Asset Universe Guide</strong></a></td>
+<td style="text-align: left;">Scaling indicators and cross-sectional factors across hundreds of symbols with <code>.over("ticker")</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="guides/resampling-and-dataframe-api/"><strong>Information Bars, Roll and Resampling</strong></a></td>
+<td style="text-align: left;">Calendar/Volume/Dollar/Imbalance bars, continuous futures stitching (<code>stitch_futures_roll</code>), and OHLCV validation</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="indicators/evaluation-and-backtest/"><strong>Factor Evaluation and Backtesting</strong></a></td>
+<td style="text-align: left;">Rank IC, Newey-West ICIR, <code>ic_decay</code>, Triple-Barrier/Trend-Scanning, <code>df.anta.backtest()</code>, and MAE/MFE trade ledgers</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="indicators/inference/"><strong>Statistical Inference and Falsification</strong></a></td>
+<td style="text-align: left;">Stationary bootstrap, Romano-Wolf stepdown, Hansen SPA, CSCV PBO, Empirical-Bayes shrinkage, and <code>falsify_factors()</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="benchmarks/"><strong>Performance Benchmarks</strong></a></td>
+<td style="text-align: left;">1,000,000-row latency comparisons against pandas and reproduction instructions</td>
+</tr>
+<tr>
+<td style="text-align: left;"><a href="https://github.com/huuan26/polars-anta/tree/master/examples"><strong>Interactive Colab Notebooks</strong></a></td>
+<td style="text-align: left;">Runnable Jupyter / Google Colab tutorials covering screening, momentum, and backtesting</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="javascripts/mathjax.js"></script>
+      
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

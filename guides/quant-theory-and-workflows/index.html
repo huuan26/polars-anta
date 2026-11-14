@@ -1,0 +1,1959 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="ANTA (Alpha & Numerical Technical Analysis) - Quantitative technical analysis, cross-sectional alpha research, and vectorized backtesting in Polars.">
+      
+      
+        <meta name="author" content="An Phan (Phan Bùi Hữu Ân)">
+      
+      
+        <link rel="canonical" href="https://huuan26.github.io/polars-anta/guides/quant-theory-and-workflows/">
+      
+      
+        <link rel="prev" href="../../indicators/inference/">
+      
+      
+        <link rel="next" href="../multi-asset/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Quantitative Theory & Workflows - polars-anta</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#quantitative-theory-end-to-end-workflows" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="polars-anta" class="md-header__button md-logo" aria-label="polars-anta" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            polars-anta
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Quantitative Theory & Workflows
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/huuan26/polars-anta" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huuan26/polars-anta
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Overview
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../indicators/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Guides & Quantitative Theory
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../research/factor-zoo/" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="polars-anta" class="md-nav__button md-logo" aria-label="polars-anta" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    polars-anta
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/huuan26/polars-anta" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    huuan26/polars-anta
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Catalog & Module Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/trend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trend & Overlays
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/momentum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Momentum Oscillators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/volatility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volatility & Channels
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/volume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volume & Money Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/stats/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics & OLS Regression
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/alpha/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Alpha & Microstructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/evaluation-and-backtest/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factor Evaluation & Backtesting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../indicators/inference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistical Inference & Falsification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides & Quantitative Theory
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides & Quantitative Theory
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quantitative Theory & Workflows
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quantitative Theory & Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-1-derivatives-intraday-market-microstructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 1: Derivatives &amp; Intraday Market Microstructure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 1: Derivatives &amp; Intraday Market Microstructure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-why-chronological-time-bars-fail-in-intraday-markets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Why Chronological Time Bars Fail in Intraday Markets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-order-flow-toxicity-adverse-selection-vpin-ofi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Order Flow Toxicity &amp; Adverse Selection: VPIN &amp; OFI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2 Order Flow Toxicity &amp; Adverse Selection: VPIN &amp; OFI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bulk-volume-classification-vpin-vpin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk Volume Classification VPIN (vpin)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-flow-imbalance-ofi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Flow Imbalance (ofi)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-index-futures-cost-of-carry-open-interest-regimes-continuous-roll-stitching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Index Futures Cost-of-Carry, Open Interest Regimes &amp; Continuous Roll Stitching
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.3 Index Futures Cost-of-Carry, Open Interest Regimes &amp; Continuous Roll Stitching">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#futures-basis-futures_basis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Futures Basis (futures_basis)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-interest-4-phase-regime-classification-oi_regime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Interest 4-Phase Regime Classification (oi_regime)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#continuous-futures-roll-stitching-stitch_futures_roll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuous Futures Roll Stitching (stitch_futures_roll)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-2-quantitative-machine-learning-afml-primitives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 2: Quantitative Machine Learning (AFML Primitives)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 2: Quantitative Machine Learning (AFML Primitives)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-the-stationarity-vs-memory-dilemma-fractional-differentiation-frac_diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 The Stationarity vs. Memory Dilemma: Fractional Differentiation (frac_diff)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-dynamic-triple-barrier-labeling-meta-labeling-triple_barrier_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Dynamic Triple-Barrier Labeling &amp; Meta-Labeling (triple_barrier_labels)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-multi-horizon-trend-scanning-labels-trend_scanning_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Multi-Horizon Trend-Scanning Labels (trend_scanning_labels)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-3-factor-validation-risk-orthogonalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 3: Factor Validation &amp; Risk Orthogonalization
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 3: Factor Validation &amp; Risk Orthogonalization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-newey-west-hac-t-statistics-multi-horizon-ic-decay-ic_summary-ic_decay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Newey-West HAC \(t\)-Statistics &amp; Multi-Horizon IC Decay (ic_summary, ic_decay)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-correcting-backtest-overfitting-probabilistic-deflated-sharpe-ratio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Correcting Backtest Overfitting: Probabilistic &amp; Deflated Sharpe Ratio
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.2 Correcting Backtest Overfitting: Probabilistic &amp; Deflated Sharpe Ratio">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#probabilistic-sharpe-ratio-probabilistic_sharpe_ratio-bailey-lopez-de-prado-2012" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Probabilistic Sharpe Ratio (probabilistic_sharpe_ratio — Bailey &amp; López de Prado, 2012)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deflated-sharpe-ratio-deflated_sharpe_ratio-bailey-lopez-de-prado-2014" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deflated Sharpe Ratio (deflated_sharpe_ratio — Bailey &amp; López de Prado, 2014)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-4-execution-realistic-backtesting-excursion-analytics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 4: Execution-Realistic Backtesting &amp; Excursion Analytics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 4: Execution-Realistic Backtesting &amp; Excursion Analytics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#interpreting-mae-mfe-in-bttrades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting MAE &amp; MFE in bt.trades()
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-asset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Asset & Cross-Sectional Scaling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resampling-and-dataframe-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Information Bars, Roll & Resampling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture & Mathematical Proofs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/factor-zoo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Factor Zoo Study
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-1-derivatives-intraday-market-microstructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 1: Derivatives &amp; Intraday Market Microstructure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 1: Derivatives &amp; Intraday Market Microstructure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-why-chronological-time-bars-fail-in-intraday-markets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Why Chronological Time Bars Fail in Intraday Markets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-order-flow-toxicity-adverse-selection-vpin-ofi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Order Flow Toxicity &amp; Adverse Selection: VPIN &amp; OFI
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2 Order Flow Toxicity &amp; Adverse Selection: VPIN &amp; OFI">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bulk-volume-classification-vpin-vpin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk Volume Classification VPIN (vpin)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-flow-imbalance-ofi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Flow Imbalance (ofi)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-index-futures-cost-of-carry-open-interest-regimes-continuous-roll-stitching" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Index Futures Cost-of-Carry, Open Interest Regimes &amp; Continuous Roll Stitching
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.3 Index Futures Cost-of-Carry, Open Interest Regimes &amp; Continuous Roll Stitching">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#futures-basis-futures_basis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Futures Basis (futures_basis)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-interest-4-phase-regime-classification-oi_regime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Interest 4-Phase Regime Classification (oi_regime)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#continuous-futures-roll-stitching-stitch_futures_roll" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuous Futures Roll Stitching (stitch_futures_roll)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-2-quantitative-machine-learning-afml-primitives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 2: Quantitative Machine Learning (AFML Primitives)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 2: Quantitative Machine Learning (AFML Primitives)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-the-stationarity-vs-memory-dilemma-fractional-differentiation-frac_diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 The Stationarity vs. Memory Dilemma: Fractional Differentiation (frac_diff)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-dynamic-triple-barrier-labeling-meta-labeling-triple_barrier_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Dynamic Triple-Barrier Labeling &amp; Meta-Labeling (triple_barrier_labels)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-multi-horizon-trend-scanning-labels-trend_scanning_labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Multi-Horizon Trend-Scanning Labels (trend_scanning_labels)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-3-factor-validation-risk-orthogonalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 3: Factor Validation &amp; Risk Orthogonalization
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 3: Factor Validation &amp; Risk Orthogonalization">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-newey-west-hac-t-statistics-multi-horizon-ic-decay-ic_summary-ic_decay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Newey-West HAC \(t\)-Statistics &amp; Multi-Horizon IC Decay (ic_summary, ic_decay)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-correcting-backtest-overfitting-probabilistic-deflated-sharpe-ratio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Correcting Backtest Overfitting: Probabilistic &amp; Deflated Sharpe Ratio
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3.2 Correcting Backtest Overfitting: Probabilistic &amp; Deflated Sharpe Ratio">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#probabilistic-sharpe-ratio-probabilistic_sharpe_ratio-bailey-lopez-de-prado-2012" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Probabilistic Sharpe Ratio (probabilistic_sharpe_ratio — Bailey &amp; López de Prado, 2012)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deflated-sharpe-ratio-deflated_sharpe_ratio-bailey-lopez-de-prado-2014" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deflated Sharpe Ratio (deflated_sharpe_ratio — Bailey &amp; López de Prado, 2014)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pillar-4-execution-realistic-backtesting-excursion-analytics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pillar 4: Execution-Realistic Backtesting &amp; Excursion Analytics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pillar 4: Execution-Realistic Backtesting &amp; Excursion Analytics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#interpreting-mae-mfe-in-bttrades" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting MAE &amp; MFE in bt.trades()
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="quantitative-theory-end-to-end-workflows">Quantitative Theory &amp; End-to-End Workflows<a class="headerlink" href="#quantitative-theory-end-to-end-workflows" title="Permanent link">&para;</a></h1>
+<p>This guide presents the <strong>quantitative finance theory</strong>, <strong>mathematical formulations</strong>, and <strong>production Polars implementations</strong> across the four core pillars of alpha research in <code>polars-anta</code>:</p>
+<ol>
+<li><strong>Pillar 1 — Derivatives &amp; Intraday Market Microstructure</strong>: Information-driven bar sampling, adverse selection &amp; order flow toxicity (VPIN, OFI), session-anchored VWAP, index futures cost-of-carry basis, open interest regime classification, and continuous contract roll stitching.</li>
+<li><strong>Pillar 2 — Quantitative Machine Learning (AFML Primitives)</strong>: Memory-preserving stationarity via Fixed-Window Fractional Differentiation (FFD), dynamic Triple-Barrier labeling, Meta-Labeling, and multi-horizon OLS Trend-Scanning.</li>
+<li><strong>Pillar 3 — Factor Validation &amp; Risk Orthogonalization</strong>: Cross-sectional preprocessing, Frisch-Waugh-Lovell multi-factor orthogonalization, Newey-West HAC <span class="arithmatex">\(t\)</span>-statistics, Information Coefficient (IC) decay &amp; Alpha Half-Life, and multiple-testing adjustments (Probabilistic &amp; Deflated Sharpe Ratio).</li>
+<li><strong>Pillar 4 — Execution-Realistic Backtesting &amp; Excursion Analytics</strong>: Next-Open / TWAP / VWAP execution models, intraday EOD session flattening, dynamic Volatility Targeting, no-trade turnover buffers, and Round-Trip Trade Ledgers with Maximum Adverse/Favorable Excursion (MAE/MFE).</li>
+</ol>
+<hr />
+<h2 id="pillar-1-derivatives-intraday-market-microstructure">Pillar 1: Derivatives &amp; Intraday Market Microstructure<a class="headerlink" href="#pillar-1-derivatives-intraday-market-microstructure" title="Permanent link">&para;</a></h2>
+<h3 id="11-why-chronological-time-bars-fail-in-intraday-markets">1.1 Why Chronological Time Bars Fail in Intraday Markets<a class="headerlink" href="#11-why-chronological-time-bars-fail-in-intraday-markets" title="Permanent link">&para;</a></h3>
+<p>Standard chronological bars (e.g., 1-minute or 5-minute candles) sample the market at fixed wall-clock intervals regardless of trading activity. During quiet midday sessions, time bars oversample microstructure noise; during market open, macro announcements, or ATC auctions (such as on the <strong>VN30F1M</strong> index futures market), time bars undersample rapid price discovery. Consequently, time-sampled returns exhibit severe <strong>serial correlation</strong>, <strong>heteroskedasticity</strong>, and <strong>leptokurtic fat tails</strong> (Clark, 1973; López de Prado, 2018).</p>
+<p><strong>Information-Driven Bars</strong> synchronize sampling with the arrival of market activity:</p>
+<ul>
+<li><strong>Volume Bars (<code>resample_volume_bars</code>)</strong>: Emit a new bar whenever cumulative traded contracts/shares reach threshold <span class="arithmatex">\(\Theta_V\)</span>:</li>
+</ul>
+<div class="arithmatex">\[
+b_t^{(V)} = \left\lfloor \frac{\sum_{\tau=1}^t V_\tau}{\Theta_V} \right\rfloor
+\]</div>
+<ul>
+<li><strong>Dollar / Notional Bars (<code>resample_dollar_bars</code>)</strong>: Emit a new bar whenever cumulative notional value <span class="arithmatex">\(\sum_{\tau=1}^t P_\tau V_\tau\)</span> crosses <span class="arithmatex">\(\Theta_D\)</span>. Dollar bars automatically adapt to large secular price changes or inflation.</li>
+<li><strong>Volume / Tick Imbalance Bars (<code>resample_imbalance_bars</code>)</strong>: Let <span class="arithmatex">\(s_t = \text{sign}(\Delta P_t) \in \{-1, +1\}\)</span> (propagated forward via the Lee-Ready tick rule when <span class="arithmatex">\(\Delta P_t = 0\)</span>). The signed flow is <span class="arithmatex">\(\theta_t = s_t V_t\)</span> (or <span class="arithmatex">\(s_t\)</span> for tick imbalance). A new bar is emitted whenever cumulative directional imbalance since the previous bar reset exceeds <span class="arithmatex">\(\Theta_{\text{imb}}\)</span>:</li>
+</ul>
+<div class="arithmatex">\[
+\left| \sum_{\tau = t_0}^t \theta_\tau \right| \ge \Theta_{\text{imb}}
+\]</div>
+<div class="admonition tip">
+<p class="admonition-title">Quantitative Property: Restoration of Return Normality</p>
+<p>Empirically across equity index futures (E-mini S&amp;P 500, VN30F1M), sampling in Volume or Dollar time subordinate to the trading clock (Ané &amp; Geman, 2000) restores return distributions much closer to i.i.d. Gaussianity, significantly improving the stability of GARCH, Kalman filter, and gradient-boosted tree models.</p>
+</div>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">polars_anta</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Convert 1-minute or tick data into 5,000-contract Volume Bars &amp; Imbalance Bars</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">vol_bars</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">resample_volume_bars</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mi">5_000</span><span class="p">,</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"symbol"</span><span class="p">)</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">imb_bars</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">resample_imbalance_bars</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mi">1_500</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">"volume"</span><span class="p">,</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"symbol"</span><span class="p">)</span>
+</span></code></pre></div>
+<hr />
+<h3 id="12-order-flow-toxicity-adverse-selection-vpin-ofi">1.2 Order Flow Toxicity &amp; Adverse Selection: VPIN &amp; OFI<a class="headerlink" href="#12-order-flow-toxicity-adverse-selection-vpin-ofi" title="Permanent link">&para;</a></h3>
+<p>Market makers and algorithmic execution desks face <strong>adverse selection risk</strong> when trading against informed institutional flow.</p>
+<h4 id="bulk-volume-classification-vpin-vpin">Bulk Volume Classification VPIN (<code>vpin</code>)<a class="headerlink" href="#bulk-volume-classification-vpin-vpin" title="Permanent link">&para;</a></h4>
+<p>Following Easley, López de Prado &amp; O'Hara (2012), when tick-by-tick trade aggressor flags are unavailable or noisy, bar volume <span class="arithmatex">\(V_t\)</span> is partitioned into buyer-initiated (<span class="arithmatex">\(V_t^B\)</span>) and seller-initiated (<span class="arithmatex">\(V_t^S\)</span>) components using the standardized price change <span class="arithmatex">\(Z_t = \frac{\Delta P_t}{\sigma_{\Delta P}}\)</span>:</p>
+<div class="arithmatex">\[
+V_t^B = V_t \cdot \Phi\left(\frac{\Delta P_t}{\sigma_{\Delta P}}\right), \qquad V_t^S = V_t - V_t^B
+\]</div>
+<p>In <code>polars-anta</code>, <span class="arithmatex">\(\Phi(z)\)</span> is approximated via the smooth sigmoid <span class="arithmatex">\(\left(1 + \exp(-1.702\,z)\right)^{-1}\)</span> (which matches the standard normal CDF within <span class="arithmatex">\(0.0095\)</span> uniformly across <span class="arithmatex">\(\mathbb{R}\)</span>). The <strong>Volume-Synchronized Probability of Informed Trading</strong> over window <span class="arithmatex">\(N\)</span> is:</p>
+<div class="arithmatex">\[
+\text{VPIN}_t = \frac{\sum_{k=0}^{N-1} \left| V_{t-k}^B - V_{t-k}^S \right|}{\sum_{k=0}^{N-1} V_{t-k}} \in [0, 1]
+\]</div>
+<h4 id="order-flow-imbalance-ofi">Order Flow Imbalance (<code>ofi</code>)<a class="headerlink" href="#order-flow-imbalance-ofi" title="Permanent link">&para;</a></h4>
+<p>Following Cont, Kukanov &amp; Stoikov (2014), short-horizon price changes are linearly driven by net supply/demand shifts at the best bid (<span class="arithmatex">\(P_t^B, Q_t^B\)</span>) and best ask (<span class="arithmatex">\(P_t^A, Q_t^A\)</span>):</p>
+<div class="arithmatex">\[
+e_t^B = Q_t^B \mathbb{I}_{\{P_t^B \ge P_{t-1}^B\}} - Q_{t-1}^B \mathbb{I}_{\{P_t^B \le P_{t-1}^B\}}
+\]</div>
+<div class="arithmatex">\[
+e_t^A = Q_t^A \mathbb{I}_{\{P_t^A \le P_{t-1}^A\}} - Q_{t-1}^A \mathbb{I}_{\{P_t^A \ge P_{t-1}^A\}}
+\]</div>
+<div class="arithmatex">\[
+\text{OFI}_t(N) = \sum_{k=0}^{N-1} \left( e_{t-k}^B - e_{t-k}^A \right)
+\]</div>
+<hr />
+<h3 id="13-index-futures-cost-of-carry-open-interest-regimes-continuous-roll-stitching">1.3 Index Futures Cost-of-Carry, Open Interest Regimes &amp; Continuous Roll Stitching<a class="headerlink" href="#13-index-futures-cost-of-carry-open-interest-regimes-continuous-roll-stitching" title="Permanent link">&para;</a></h3>
+<h4 id="futures-basis-futures_basis">Futures Basis (<code>futures_basis</code>)<a class="headerlink" href="#futures-basis-futures_basis" title="Permanent link">&para;</a></h4>
+<p>By no-arbitrage pricing, an index futures contract <span class="arithmatex">\(F_t\)</span> maturing at <span class="arithmatex">\(T\)</span> is linked to the underlying spot index <span class="arithmatex">\(S_t\)</span> (e.g., VN30F1M vs. VN30 cash index) by the cost-of-carry relation <span class="arithmatex">\(F_t = S_t e^{(r - q)\tau}\)</span>. <code>futures_basis</code> computes:</p>
+<div class="arithmatex">\[
+\text{Basis}_t = F_t - S_t, \qquad \text{Basis\%}_t = \frac{F_t - S_t}{S_t}, \qquad \text{Carry}_{\text{ann}, t} = \frac{F_t - S_t}{S_t} \cdot \frac{365}{\max(\text{DTE}_t, 1)}
+\]</div>
+<p>along with the rolling standardized anomaly score <span class="arithmatex">\(\text{ZScore}(\text{Basis}_t, N)\)</span> for index arbitrage and cash-and-carry strategies.</p>
+<h4 id="open-interest-4-phase-regime-classification-oi_regime">Open Interest 4-Phase Regime Classification (<code>oi_regime</code>)<a class="headerlink" href="#open-interest-4-phase-regime-classification-oi_regime" title="Permanent link">&para;</a></h4>
+<p>Combining price change <span class="arithmatex">\(\Delta P_t = P_t - P_{t-k}\)</span> and Open Interest change <span class="arithmatex">\(\Delta \text{OI}_t = \text{OI}_t - \text{OI}_{t-k}\)</span> classifies futures market participation into four regimes:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: center;">Price <span class="arithmatex">\(\Delta P_t\)</span></th>
+<th style="text-align: center;">Open Interest <span class="arithmatex">\(\Delta \text{OI}_t\)</span></th>
+<th style="text-align: center;">Regime Code</th>
+<th style="text-align: left;">Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;"><span class="arithmatex">\(&gt; 0\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(&gt; 0\)</span></td>
+<td style="text-align: center;"><strong><code>+2.0</code></strong></td>
+<td style="text-align: left;"><strong>Long Buildup</strong>: Fresh long positions opening; strong bullish trend conviction.</td>
+</tr>
+<tr>
+<td style="text-align: center;"><span class="arithmatex">\(&gt; 0\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 0\)</span></td>
+<td style="text-align: center;"><strong><code>+1.0</code></strong></td>
+<td style="text-align: left;"><strong>Short Covering</strong>: Rally driven by shorts buying back to close; weaker follow-through.</td>
+</tr>
+<tr>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 0\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(&gt; 0\)</span></td>
+<td style="text-align: center;"><strong><code>-2.0</code></strong></td>
+<td style="text-align: left;"><strong>Short Buildup</strong>: Fresh short positions opening; strong bearish conviction.</td>
+</tr>
+<tr>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 0\)</span></td>
+<td style="text-align: center;"><span class="arithmatex">\(&lt; 0\)</span></td>
+<td style="text-align: center;"><strong><code>-1.0</code></strong></td>
+<td style="text-align: left;"><strong>Long Liquidation</strong>: Decline driven by existing longs forced to exit/deleverage.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="continuous-futures-roll-stitching-stitch_futures_roll">Continuous Futures Roll Stitching (<code>stitch_futures_roll</code>)<a class="headerlink" href="#continuous-futures-roll-stitching-stitch_futures_roll" title="Permanent link">&para;</a></h4>
+<p>When a front-month futures contract expires and rolls into the next maturity (<code>contract</code> changes from <span class="arithmatex">\(C_k\)</span> to <span class="arithmatex">\(C_{k+1}\)</span>), raw price series exhibit artificial price jumps <span class="arithmatex">\(\Delta_{\text{roll}} = P_{t, \text{new}}^{\text{open}} - P_{t-1, \text{old}}^{\text{close}}\)</span> that corrupt moving averages, RSI, and backtest returns. <code>stitch_futures_roll</code> supports three adjustment modes:
+1. <strong><code>method="panama"</code> (Additive Backward/Forward Adjustment)</strong>: Preserves exact point/tick differences <span class="arithmatex">\(\Delta P_t\)</span> and point PnL by shifting historical contracts by the cumulative roll gap.
+2. <strong><code>method="ratio"</code> (Multiplicative Adjustment)</strong>: Preserves exact percentage returns <span class="arithmatex">\(r_t = P_t / P_{t-1} - 1\)</span> across contract rolls by scaling prices by the cumulative roll ratio <span class="arithmatex">\(\prod (P_{\text{new}} / P_{\text{old}})\)</span>.</p>
+<hr />
+<h2 id="pillar-2-quantitative-machine-learning-afml-primitives">Pillar 2: Quantitative Machine Learning (AFML Primitives)<a class="headerlink" href="#pillar-2-quantitative-machine-learning-afml-primitives" title="Permanent link">&para;</a></h2>
+<h3 id="21-the-stationarity-vs-memory-dilemma-fractional-differentiation-frac_diff">2.1 The Stationarity vs. Memory Dilemma: Fractional Differentiation (<code>frac_diff</code>)<a class="headerlink" href="#21-the-stationarity-vs-memory-dilemma-fractional-differentiation-frac_diff" title="Permanent link">&para;</a></h3>
+<p>Raw log-prices <span class="arithmatex">\(p_t = \ln P_t\)</span> are non-stationary (<span class="arithmatex">\(I(1)\)</span>), violating the i.i.d. assumptions of supervised machine learning estimators. However, taking first differences <span class="arithmatex">\(\Delta p_t = (1 - B) p_t\)</span> (<span class="arithmatex">\(d = 1\)</span>) completely wipes out long-term trend and support/resistance memory.</p>
+<p>Following López de Prado (2018, Chapter 5), the fractional differencing operator <span class="arithmatex">\((1 - B)^d\)</span> for real order <span class="arithmatex">\(d \in (0, 1)\)</span> expands via the generalized binomial series:</p>
+<div class="arithmatex">\[
+(1 - B)^d = \sum_{k=0}^{\infty} \binom{d}{k} (-B)^k = \sum_{k=0}^{\infty} \omega_k B^k
+\]</div>
+<p>where the weights satisfy the exact recurrence:</p>
+<div class="arithmatex">\[
+\omega_0 = 1, \qquad \omega_k = -\omega_{k-1} \frac{d - k + 1}{k} \quad (k \ge 1)
+\]</div>
+<p>In <strong>Fixed-Window Fractional Differentiation (FFD)</strong>, the filter is truncated at a fixed lookback window <span class="arithmatex">\(W\)</span>:</p>
+<div class="arithmatex">\[
+\tilde{X}_t^{(d, W)} = \sum_{k=0}^{W-1} \omega_k X_{t-k}
+\]</div>
+<p>Typically, <span class="arithmatex">\(d \in [0.3, 0.5]\)</span> achieves statistical stationarity (passing the Augmented Dickey-Fuller test) while retaining <span class="arithmatex">\(&gt; 90\%\)</span> correlation with the original price level.</p>
+<hr />
+<h3 id="22-dynamic-triple-barrier-labeling-meta-labeling-triple_barrier_labels">2.2 Dynamic Triple-Barrier Labeling &amp; Meta-Labeling (<code>triple_barrier_labels</code>)<a class="headerlink" href="#22-dynamic-triple-barrier-labeling-meta-labeling-triple_barrier_labels" title="Permanent link">&para;</a></h3>
+<p>Fixed-horizon return labels <span class="arithmatex">\(y_t = \text{sign}(P_{t+H} / P_t - 1)\)</span> are flawed because they ignore the <strong>path taken by price</strong> between <span class="arithmatex">\(t\)</span> and <span class="arithmatex">\(t+H\)</span> (a position would have been stopped out intra-horizon) and use a static threshold regardless of volatility regimes.</p>
+<p><a href="../../indicators/evaluation-and-backtest/"><code>triple_barrier_labels</code></a> constructs three dynamic barriers for each bar <span class="arithmatex">\(t\)</span> based on local volatility <span class="arithmatex">\(\sigma_t\)</span>:
+1. <strong>Upper Profit-Taking (PT) Barrier</strong>: <span class="arithmatex">\(U_t = +\max\left(m_{\text{PT}} \cdot \sigma_t,\, r_{\min}\right)\)</span>
+2. <strong>Lower Stop-Loss (SL) Barrier</strong>: <span class="arithmatex">\(L_t = -\max\left(m_{\text{SL}} \cdot \sigma_t,\, r_{\min}\right)\)</span>
+3. <strong>Vertical Expiration Barrier</strong>: <span class="arithmatex">\(t + H\)</span> bars.</p>
+<p>Let <span class="arithmatex">\(\tau_{\text{PT}} = \min\{k \in \{1, \dots, H\} : r_{t, t+k}^{\text{dir}} \ge U_t\}\)</span> and <span class="arithmatex">\(\tau_{\text{SL}} = \min\{k \in \{1, \dots, H\} : r_{t, t+k}^{\text{dir}} \le L_t\}\)</span>. The first touched barrier determines:
+- <code>label</code>: <span class="arithmatex">\(+1.0\)</span> (upper barrier hit first), <span class="arithmatex">\(-1.0\)</span> (lower barrier hit first), or <span class="arithmatex">\(0.0\)</span> (vertical horizon expired first).
+- <code>touch_bars</code>: First-passage time <span class="arithmatex">\(\tau = \min(\tau_{\text{PT}}, \tau_{\text{SL}}, H) \in \{1, \dots, H\}\)</span>.
+- <code>realized_return</code>: Raw return <span class="arithmatex">\((P_{t + \tau} - P_t) / P_t\)</span> at the barrier touch.
+- <code>meta_label</code>: Binary <span class="arithmatex">\(\{0.0, 1.0\}\)</span> indicating whether the primary directional signal <code>side</code> (<span class="arithmatex">\(\in \{-1, +1\}\)</span>) achieved its profit-taking target.</p>
+<hr />
+<h3 id="23-multi-horizon-trend-scanning-labels-trend_scanning_labels">2.3 Multi-Horizon Trend-Scanning Labels (<code>trend_scanning_labels</code>)<a class="headerlink" href="#23-multi-horizon-trend-scanning-labels-trend_scanning_labels" title="Permanent link">&para;</a></h3>
+<p>Proposed by López de Prado (2020, <em>Machine Learning for Asset Managers</em>), <strong>Trend-Scanning</strong> eliminates arbitrary fixed lookahead horizons by fitting forward OLS regressions across a grid of candidate horizons <span class="arithmatex">\(L \in [L_{\min}, L_{\max}]\)</span>:</p>
+<div class="arithmatex">\[
+P_{t+i} = \beta_0(L) + \beta_1(L) \cdot i + \epsilon_i, \qquad i = 0, 1, \dots, L - 1
+\]</div>
+<p>For each candidate window <span class="arithmatex">\(L\)</span>, the slope <span class="arithmatex">\(t\)</span>-statistic is:</p>
+<div class="arithmatex">\[
+t_{\hat{\beta}_1}(L) = \frac{\hat{\beta}_1(L)}{\text{SE}(\hat{\beta}_1(L))}, \qquad \text{SE}(\hat{\beta}_1(L)) = \sqrt{\frac{\text{SSR}(L) / (L - 2)}{S_{xx}(L)}}
+\]</div>
+<p><code>trend_scanning_labels</code> selects the optimal horizon <span class="arithmatex">\(L^*_t = \arg\max_{L} \left|t_{\hat{\beta}_1}(L)\right|\)</span> using closed-form Polars expressions and returns <code>Struct(label, t_value, optimal_window, ret)</code>.</p>
+<hr />
+<h2 id="pillar-3-factor-validation-risk-orthogonalization">Pillar 3: Factor Validation &amp; Risk Orthogonalization<a class="headerlink" href="#pillar-3-factor-validation-risk-orthogonalization" title="Permanent link">&para;</a></h2>
+<h3 id="31-newey-west-hac-t-statistics-multi-horizon-ic-decay-ic_summary-ic_decay">3.1 Newey-West HAC <span class="arithmatex">\(t\)</span>-Statistics &amp; Multi-Horizon IC Decay (<code>ic_summary</code>, <code>ic_decay</code>)<a class="headerlink" href="#31-newey-west-hac-t-statistics-multi-horizon-ic-decay-ic_summary-ic_decay" title="Permanent link">&para;</a></h3>
+<p>When evaluating an alpha factor against <span class="arithmatex">\(h\)</span>-period forward returns (<span class="arithmatex">\(h &gt; 1\)</span>), overlapping return windows induce Moving Average <span class="arithmatex">\(\text{MA}(h - 1)\)</span> serial correlation in the cross-sectional Information Coefficient series <span class="arithmatex">\(\{\text{IC}_t\}_{t=1}^T\)</span>. Standard i.i.d. <span class="arithmatex">\(t\)</span>-statistics <span class="arithmatex">\(\frac{\overline{\text{IC}}}{\hat{\sigma}_{\text{IC}} / \sqrt{T}}\)</span> severely <strong>overstate statistical significance</strong>.</p>
+<p><a href="../../indicators/evaluation-and-backtest/"><code>ic_summary</code></a> computes the <strong>Newey-West (1987) Heteroskedasticity and Autocorrelation Consistent (HAC)</strong> long-run variance estimator using the Bartlett kernel up to lag <span class="arithmatex">\(L\)</span>:</p>
+<div class="arithmatex">\[
+\hat{\Omega}_{\text{NW}} = \hat{\gamma}_0 + 2 \sum_{j=1}^{L} \left(1 - \frac{j}{L + 1}\right) \hat{\gamma}_j, \qquad \hat{\gamma}_j = \frac{1}{T} \sum_{t=j+1}^{T} (\text{IC}_t - \overline{\text{IC}})(\text{IC}_{t-j} - \overline{\text{IC}})
+\]</div>
+<div class="arithmatex">\[
+t_{\text{NW}} = \frac{\overline{\text{IC}}}{\sqrt{\hat{\Omega}_{\text{NW}} / T}}
+\]</div>
+<p><a href="../../indicators/evaluation-and-backtest/"><code>ic_decay</code></a> evaluates <code>ic_summary</code> across a vector of forward horizons <span class="arithmatex">\(h \in (1, 2, 3, 5, 10, 20)\)</span> (automatically setting <code>nw_lags = max(1, h - 1)</code>) and estimates the <strong>Alpha Half-Life</strong> via log-linear regression <span class="arithmatex">\(\ln |\overline{\text{IC}}(h)| = a - \lambda h \implies t_{1/2} = \frac{\ln 2}{\hat{\lambda}}\)</span>.</p>
+<hr />
+<h3 id="32-correcting-backtest-overfitting-probabilistic-deflated-sharpe-ratio">3.2 Correcting Backtest Overfitting: Probabilistic &amp; Deflated Sharpe Ratio<a class="headerlink" href="#32-correcting-backtest-overfitting-probabilistic-deflated-sharpe-ratio" title="Permanent link">&para;</a></h3>
+<p>Standard Sharpe Ratio estimates ignore <strong>non-normality</strong> (negative skewness and excess kurtosis inflate tail risk) and <strong>multiple-testing selection bias</strong> (running <span class="arithmatex">\(N\)</span> parameter combinations guarantees finding a high in-sample Sharpe by chance).</p>
+<h4 id="probabilistic-sharpe-ratio-probabilistic_sharpe_ratio-bailey-lopez-de-prado-2012">Probabilistic Sharpe Ratio (<code>probabilistic_sharpe_ratio</code> — Bailey &amp; López de Prado, 2012)<a class="headerlink" href="#probabilistic-sharpe-ratio-probabilistic_sharpe_ratio-bailey-lopez-de-prado-2012" title="Permanent link">&para;</a></h4>
+<p>Given sample size <span class="arithmatex">\(T\)</span>, non-annualized Sharpe <span class="arithmatex">\(\widehat{SR}\)</span>, skewness <span class="arithmatex">\(\hat{\gamma}_3\)</span>, and Pearson kurtosis <span class="arithmatex">\(\hat{\gamma}_4\)</span>, the asymptotic standard error of <span class="arithmatex">\(\widehat{SR}\)</span> is:</p>
+<div class="arithmatex">\[
+\hat{\sigma}(\widehat{SR}) = \sqrt{\frac{1 - \hat{\gamma}_3 \widehat{SR} + \frac{\hat{\gamma}_4 - 1}{4} \widehat{SR}^2}{T - 1}}
+\]</div>
+<p>The probability that the true Sharpe ratio exceeds benchmark <span class="arithmatex">\(\text{SR}^{\ast}\)</span> is:</p>
+<div class="arithmatex">\[
+\text{PSR}(\text{SR}^{\ast}) = \Phi\left(\frac{\widehat{\text{SR}} - \text{SR}^{\ast}}{\hat{\sigma}(\widehat{\text{SR}})}\right) \in [0, 1]
+\]</div>
+<h4 id="deflated-sharpe-ratio-deflated_sharpe_ratio-bailey-lopez-de-prado-2014">Deflated Sharpe Ratio (<code>deflated_sharpe_ratio</code> — Bailey &amp; López de Prado, 2014)<a class="headerlink" href="#deflated-sharpe-ratio-deflated_sharpe_ratio-bailey-lopez-de-prado-2014" title="Permanent link">&para;</a></h4>
+<p>When a researcher selects the best strategy out of <span class="arithmatex">\(N\)</span> independent trials (<code>n_trials</code>) whose annualized Sharpe ratios have standard deviation <span class="arithmatex">\(\sigma_{\{SR\}}\)</span>, Extreme Value Theory (False Strategy Theorem) gives the expected maximum annualized Sharpe ratio under the null hypothesis of zero skill:</p>
+<div class="arithmatex">\[
+\text{SR}^{\ast}_{\text{ann}}(N) = \sigma_{\{SR\}} \left[ (1 - \gamma) \Phi^{-1}\left(1 - \frac{1}{N}\right) + \gamma \Phi^{-1}\left(1 - \frac{1}{N \cdot e}\right) \right]
+\]</div>
+<p>where <span class="arithmatex">\(\gamma \approx 0.5772156649\)</span> is the Euler-Mascheroni constant. Plugging <span class="arithmatex">\(\text{SR}^{\ast}_{\text{ann}}(N)\)</span> into <span class="arithmatex">\(\text{PSR}(\text{SR}^{\ast})\)</span> yields the <strong>Deflated Sharpe Ratio (DSR)</strong>. A common threshold is <span class="arithmatex">\(\text{DSR} \ge 0.95\)</span>.</p>
+<hr />
+<h2 id="pillar-4-execution-realistic-backtesting-excursion-analytics">Pillar 4: Execution-Realistic Backtesting &amp; Excursion Analytics<a class="headerlink" href="#pillar-4-execution-realistic-backtesting-excursion-analytics" title="Permanent link">&para;</a></h2>
+<p><a href="../../indicators/evaluation-and-backtest/"><code>vectorized_backtest</code></a> (<code>df.anta.backtest</code>) extends vectorized simulation with four execution controls and a full Round-Trip Trade Ledger:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">bt</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">anta</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">signal</span><span class="o">=</span><span class="s2">"alpha_signal"</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">execution_price</span><span class="o">=</span><span class="s2">"open"</span><span class="p">,</span>  <span class="c1"># Execute at next bar's Open (or 'twap' / 'vwap')</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">flat_mask</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"time"</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="s2">"14:25:00"</span><span class="p">,</span>  <span class="c1"># Force 0 position at intraday EOD session close</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">vol_target</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>  <span class="c1"># 15% annualized dynamic volatility targeting</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">vol_lookback</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">max_leverage</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">no_trade_buffer</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>  <span class="c1"># Suppress tiny rebalances &lt; 5% weight change</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0003</span><span class="p">,</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">slippage_rate</span><span class="o">=</span><span class="mf">0.0002</span><span class="p">,</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">)</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># Inspect tearsheet and Round-Trip Trade Ledger with MAE / MFE</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">bt</span><span class="o">.</span><span class="n">report</span><span class="p">())</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">bt</span><span class="o">.</span><span class="n">trades</span><span class="p">())</span>
+</span></code></pre></div>
+<h3 id="interpreting-mae-mfe-in-bttrades">Interpreting MAE &amp; MFE in <code>bt.trades()</code><a class="headerlink" href="#interpreting-mae-mfe-in-bttrades" title="Permanent link">&para;</a></h3>
+<p>For every closed round-trip trade <span class="arithmatex">\(k\)</span>, <code>bt.trades()</code> reports:
+- <strong><code>mae</code> (Maximum Adverse Excursion <span class="arithmatex">\(\le 0\)</span>)</strong>: The worst intra-trade drawdown from entry price experienced before the trade closed. If winning trades consistently have <span class="arithmatex">\(\text{MAE} &gt; -1.2\%\)</span>, placing a hard stop-loss at <span class="arithmatex">\(-1.5\%\)</span> cuts tail losses without prematurely stopping out winners.
+- <strong><code>mfe</code> (Maximum Favorable Excursion <span class="arithmatex">\(\ge 0\)</span>)</strong>: The highest unrealized profit reached during the trade's lifetime. Comparing <code>mfe</code> against final <code>gross_return</code> reveals how much profit is given back before exit.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

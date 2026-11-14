@@ -1,0 +1,422 @@
+/* ==========================================================================
+   polars-anta Custom Institutional Theme (GitHub Dark #0D1117 & Polars #1D7AFC)
+   ========================================================================== */
+
+:root {
+  --anta-blue: #1D7AFC;
+  --anta-blue-light: #388BFD;
+  --anta-blue-glow: rgba(29, 122, 252, 0.14);
+  --anta-gh-dark: #0D1117;
+  --anta-gh-card: #161B22;
+  --anta-gh-border: #30363D;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0D1117;
+  --md-default-bg-color--light: #161B22;
+  --md-primary-fg-color: #0D1117;
+  --md-primary-fg-color--light: #161B22;
+  --md-primary-fg-color--dark: #090C10;
+  --md-accent-fg-color: #388BFD;
+  --md-typeset-a-color: #388BFD;
+}
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0D1117;
+  --md-primary-fg-color--light: #161B22;
+  --md-primary-fg-color--dark: #090C10;
+  --md-accent-fg-color: #1D7AFC;
+  --md-typeset-a-color: #1D7AFC;
+}
+
+/* Ensure all generic Material buttons remain visible in dark mode despite dark primary header */
+[data-md-color-scheme="slate"] .md-typeset .md-button {
+  color: #E6EDF3;
+  border-color: rgba(56, 139, 253, 0.52);
+}
+
+/* Header & Navigation Tabs unified to GitHub Dark #0D1117 so Polars Blue logo pops */
+.md-header {
+  background-color: #0D1117 !important;
+  color: #FFFFFF !important;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.85);
+}
+
+.md-tabs {
+  background-color: #0D1117 !important;
+  color: #FFFFFF !important;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.7);
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2.15rem;
+  width: auto;
+  filter: drop-shadow(0 0 6px rgba(29, 122, 252, 0.25));
+  transition: transform 0.2s ease;
+}
+
+.md-header__button.md-logo:hover img {
+  transform: scale(1.06);
+}
+
+/* Hide redundant default H1 on Overview landing page */
+.anta-hero-wrapper {
+  text-align: center;
+  margin-top: -0.5rem;
+  margin-bottom: 2rem;
+}
+
+.anta-hero-banner {
+  border-radius: 14px;
+  overflow: hidden;
+  background-color: #0D1117;
+  border: 1px solid rgba(48, 54, 61, 0.8);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.45);
+  margin-bottom: 1.4rem;
+}
+
+.anta-hero-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.anta-hero-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 0.75rem auto 0.6rem auto;
+  max-width: 54rem;
+  letter-spacing: -0.01em;
+}
+
+.anta-hero-subtitle {
+  font-size: 0.96rem;
+  opacity: 0.86;
+  max-width: 50rem;
+  margin: 0 auto 1.2rem auto;
+  line-height: 1.6;
+}
+
+.anta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 1rem 0 1.4rem 0;
+}
+
+.anta-badges img {
+  height: 20px;
+}
+
+.anta-cta-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.2rem;
+}
+
+.md-typeset .md-button.anta-btn-primary {
+  background: linear-gradient(180deg, #2F81F7 0%, #1D7AFC 100%) !important;
+  border: 1px solid #388BFD !important;
+  color: #FFFFFF !important;
+  border-radius: 8px !important;
+  padding: 0.55rem 1.3rem !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 14px rgba(29, 122, 252, 0.32);
+  transition: all 0.2s ease !important;
+}
+
+.md-typeset .md-button.anta-btn-primary:hover {
+  background: linear-gradient(180deg, #388BFD 0%, #2F81F7 100%) !important;
+  border-color: #58A6FF !important;
+  color: #FFFFFF !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(29, 122, 252, 0.42);
+}
+
+.md-typeset .md-button.anta-btn-secondary {
+  border-radius: 8px !important;
+  padding: 0.55rem 1.2rem !important;
+  font-size: 0.84rem !important;
+  font-weight: 600 !important;
+  color: #0F172A !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(29, 122, 252, 0.45) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: all 0.2s ease !important;
+}
+
+.md-typeset .md-button.anta-btn-secondary:hover {
+  color: #1D7AFC !important;
+  background-color: rgba(29, 122, 252, 0.08) !important;
+  border-color: #1D7AFC !important;
+  transform: translateY(-1px);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button.anta-btn-secondary {
+  color: #E6EDF3 !important;
+  background-color: #161B22 !important;
+  border: 1px solid rgba(56, 139, 253, 0.52) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button.anta-btn-secondary:hover {
+  color: #FFFFFF !important;
+  background-color: rgba(56, 139, 253, 0.16) !important;
+  border-color: #58A6FF !important;
+  box-shadow: 0 4px 14px rgba(56, 139, 253, 0.22);
+}
+
+/* 4 Key Metric Cards Strip — Responsive on PC, iPad, Mobile */
+.anta-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.6rem 0 2.1rem 0;
+}
+
+/* Tablet or iPad (portrait & landscape when sidebars open): 2x2 grid */
+@media screen and (max-width: 992px) {
+  .anta-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+/* Mobile phone: clean single column */
+@media screen and (max-width: 520px) {
+  .anta-metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+}
+
+.anta-metric-card {
+  padding: 1rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(29, 122, 252, 0.22);
+  background: linear-gradient(180deg, rgba(29, 122, 252, 0.06) 0%, rgba(29, 122, 252, 0.015) 100%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 120px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-md-color-scheme="slate"] .anta-metric-card {
+  background: linear-gradient(180deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.95) 100%);
+  border-color: rgba(56, 139, 253, 0.28);
+}
+
+.anta-metric-card:hover {
+  transform: translateY(-2px);
+  border-color: #1D7AFC;
+  box-shadow: 0 6px 16px -4px rgba(29, 122, 252, 0.18);
+}
+
+[data-md-color-scheme="slate"] .anta-metric-card:hover {
+  border-color: #58A6FF;
+  box-shadow: 0 6px 18px -4px rgba(56, 139, 253, 0.25);
+}
+
+.anta-metric-value {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #1D7AFC;
+  line-height: 1.2;
+  margin-bottom: 0.35rem;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
+[data-md-color-scheme="slate"] .anta-metric-value {
+  color: #388BFD;
+}
+
+.anta-metric-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+  color: #1E293B;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.35;
+  margin-bottom: 0.25rem;
+}
+
+[data-md-color-scheme="slate"] .anta-metric-label {
+  color: #E6EDF3;
+}
+
+.anta-metric-desc {
+  font-size: 0.73rem;
+  color: #64748B;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.4;
+}
+
+[data-md-color-scheme="slate"] .anta-metric-desc {
+  color: #8B949E;
+}
+
+/* 2x2 Quantitative Pillar Grid */
+.anta-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0 2rem 0;
+}
+
+@media screen and (max-width: 600px) {
+  .anta-cta-group {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.6rem;
+  }
+  .md-typeset .md-button.anta-btn-primary,
+  .md-typeset .md-button.anta-btn-secondary {
+    width: 100% !important;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  .anta-pillars-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .anta-pillar-card {
+    padding: 1rem 0.9rem;
+  }
+}
+
+.anta-pillar-card {
+  padding: 1.2rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(22, 27, 34, 0.03);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-md-color-scheme="slate"] .anta-pillar-card {
+  background: #161B22;
+  border-color: #30363D;
+}
+
+.anta-pillar-card:hover {
+  border-color: #1D7AFC;
+  box-shadow: 0 6px 20px -6px rgba(29, 122, 252, 0.2);
+}
+
+.anta-pillar-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1D7AFC;
+  margin-bottom: 0.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+[data-md-color-scheme="slate"] .anta-pillar-title {
+  color: #388BFD;
+}
+
+.anta-pillar-body {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  margin-bottom: 0.65rem;
+}
+
+.anta-pillar-links {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Math Equation Display Styling */
+div.arithmatex {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.65rem 1rem;
+  margin: 0.85rem 0;
+  border-radius: 8px;
+  background: rgba(29, 122, 252, 0.04);
+  border-left: 3px solid #1D7AFC;
+}
+
+[data-md-color-scheme="slate"] div.arithmatex {
+  background: rgba(22, 27, 34, 0.85);
+  border-left: 3px solid #388BFD;
+}
+
+/* ==========================================================================
+   Details / Summary Custom Styling (No Icons, Responsive, Institutional)
+   ========================================================================== */
+.md-typeset details > summary::before {
+  display: none !important;
+}
+
+[dir=ltr] .md-typeset details > summary {
+  padding-left: 1rem !important;
+}
+
+.md-typeset details {
+  border: 1px solid rgba(48, 54, 61, 0.7) !important;
+  border-radius: 8px !important;
+  background-color: rgba(22, 27, 34, 0.4) !important;
+  margin: 1.4rem 0 !important;
+  font-size: 0.82rem !important;
+  overflow-x: auto;
+}
+
+[data-md-color-scheme="slate"] .md-typeset details {
+  border-color: rgba(48, 54, 61, 0.85) !important;
+  background-color: rgba(22, 27, 34, 0.5) !important;
+}
+
+.md-typeset details > summary {
+  background-color: rgba(29, 122, 252, 0.06) !important;
+  font-size: 0.86rem !important;
+  font-weight: 600 !important;
+  border-radius: 7px 7px 0 0 !important;
+  color: #1D7AFC !important;
+  padding-top: 0.6rem !important;
+  padding-bottom: 0.6rem !important;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+[data-md-color-scheme="slate"] .md-typeset details > summary {
+  background-color: rgba(56, 139, 253, 0.08) !important;
+  color: #58A6FF !important;
+}
+
+.md-typeset details > summary:hover {
+  background-color: rgba(29, 122, 252, 0.12) !important;
+  color: #1D7AFC !important;
+}
+
+[data-md-color-scheme="slate"] .md-typeset details > summary:hover {
+  background-color: rgba(56, 139, 253, 0.15) !important;
+  color: #79C0FF !important;
+}
+
+.md-typeset details[open] {
+  padding-bottom: 0.9rem !important;
+}
+
+.md-typeset details table {
+  margin: 0.85rem 0 !important;
+  font-size: 0.82rem !important;
+}

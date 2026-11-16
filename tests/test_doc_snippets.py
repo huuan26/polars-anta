@@ -80,14 +80,14 @@ def test_readme_and_alpha_engineering_snippets_execute() -> None:
         for loc, code in _PYTHON_BLOCKS
         if loc.startswith("docs/indicators/alpha-engineering.md:")
     ]
-    assert len(readme_blocks) == 8
+    assert len(readme_blocks) == 6
     assert len(alpha_blocks) == 1
 
-    # 1. Truly standalone snippets must execute in a clean namespace
+    # 1. Standalone Quick Start & docs snippets execute in an empty namespace
     for loc, code in (readme_blocks[0], readme_blocks[1], alpha_blocks[0]):
         exec(compile(code, loc, "exec"), {})
 
-    # 2. Alpha engineering & Workflow A-E snippets execute with canonical schema fixtures
+    # 2. Core Workflows 1-4 execute with canonical schema fixtures
     rng = np.random.default_rng(42)
     n_dates, n_assets = 90, 20
     dates = np.repeat(np.arange(n_dates), n_assets)
@@ -110,7 +110,7 @@ def test_readme_and_alpha_engineering_snippets_execute() -> None:
             "fwd_1": 0.004 * a1 + 0.003 * a3 + rng.normal(0.0, 0.015, n_dates * n_assets),
         }
     )
-    ns_alpha: dict[str, Any] = {"panel": panel_alpha}
+    ns_alpha: dict[str, Any] = {"pl": pl, "pa": polars_anta, "panel": panel_alpha}
     exec(compile(readme_blocks[2][1], readme_blocks[2][0], "exec"), ns_alpha)
 
     n_bar = 60
@@ -144,18 +144,11 @@ def test_readme_and_alpha_engineering_snippets_execute() -> None:
             "is_atc_bar": [False] * n_bar,
         }
     )
-    panel_wf = panel_alpha.with_columns(
-        pl.col("beta").alias("mkt_beta"),
-        pl.Series("log_mcap", rng.normal(10.0, 1.0, n_dates * n_assets)),
-        pl.Series("vol_20", rng.uniform(0.1, 0.4, n_dates * n_assets)),
-        pl.Series("strat_ret", rng.normal(0.001, 0.01, n_dates * n_assets)),
-    )
     ns_wf: dict[str, Any] = {
         "pl": pl,
         "pa": polars_anta,
         "raw_contracts": raw_contracts,
         "df": df_bt,
-        "panel_df": panel_wf,
     }
     for loc, code in readme_blocks[3:]:
         exec(compile(code, loc, "exec"), ns_wf)

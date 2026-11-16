@@ -5,6 +5,7 @@ from __future__ import annotations
 import polars as pl
 
 from .core import IntoExpr, check_period, check_periods, parse_expr, true_range, wilder_smooth
+from .stats import percentile_rank
 from .trend import ema, wma
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "cmo",
     "ppo",
     "coppock",
+    "connors_rsi",
     "ultimate_oscillator",
     "fisher_transform",
     "rvi",
@@ -53,6 +55,52 @@ def rsi(close: IntoExpr, period: int = 14) -> pl.Expr:
         .then(0.0)
         .otherwise(100.0 - (100.0 / (1.0 + avg_gain / avg_loss)))
     )
+
+
+def _streak_lengths(close: pl.Expr) -> pl.Expr:
+    """Signed length of the current run of consecutive up (+) or down (-) closes.
+
+    Flat bars (close == previous close) count as 0 and start a new run.
+    """
+    diff = close.diff(1)
+    sign = pl.when(diff > 0).then(1).when(diff < 0).then(-1).otherwise(0)
+    new_run = sign != sign.shift(1)
+    idx = pl.int_range(pl.len())
+    run_start = pl.when(new_run).then(idx).otherwise(None).forward_fill()
+    return (sign * (idx - run_start + 1)).fill_null(0)
+
+
+def connors_rsi(
+    close: IntoExpr,
+    rsi_period: int = 3,
+    streak_period: int = 2,
+    rank_period: int = 100,
+) -> pl.Expr:
+    """Larry Connors' Composite RSI (CRSI) oscillator in [0, 100].
+
+    Averages three momentum dimensions:
+
+    1. Wilder RSI of price over rsi_period bars
+    2. Wilder RSI of the signed streak of consecutive up/down closes over streak_period bars
+    3. Rolling percentile rank of 1-bar returns, scaled to [0, 100], over rank_period bars
+
+    The streak series is computed without Python loops and without window
+    expressions nested inside an outer window: the start index of the current
+    run is forward-filled, so connors_rsi(...).over("ticker") stays legal.
+
+    :param close: price column or expression
+    :param rsi_period: RSI period applied to price (default 3)
+    :param streak_period: RSI period applied to the streak series (default 2)
+    :param rank_period: rolling window for the return percentile rank (default 100)
+    :return: Polars expression producing values in [0, 100]
+    """
+    c = parse_expr(close)
+    check_periods(rsi_period, streak_period, rank_period)
+
+    price_rsi = rsi(c, period=rsi_period)
+    streak_rsi = rsi(_streak_lengths(c), period=streak_period)
+    rank = percentile_rank(c.pct_change(1), period=rank_period) * 100.0
+    return (price_rsi + streak_rsi + rank) / 3.0
 
 
 def macd(

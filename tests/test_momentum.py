@@ -11,6 +11,7 @@ from polars_anta.momentum import (
     cci,
     cfo,
     cmo,
+    connors_rsi,
     coppock,
     dpo,
     fisher_transform,
@@ -477,3 +478,45 @@ def test_trix_namespace(sample_ohlcv_df: pl.DataFrame):
     assert expr_anta["trix"].equals(frame_anta["trix"])
     assert expr_anta["signal"].equals(frame_ta["signal"])
     assert "close" in frame_ta.columns
+
+
+def test_connors_rsi_bounds():
+    n = 160
+    closes = [100.0 + (i % 7) * 0.4 - (i % 5) * 0.3 + i * 0.05 for i in range(n)]
+    df = pl.DataFrame({"close": closes})
+    result = df.select(connors_rsi("close", rank_period=20).alias("crsi"))
+    vals = [v for v in result["crsi"].to_list() if v is not None]
+    assert len(vals) > 0
+    for v in vals:
+        assert 0.0 <= v <= 100.0
+
+
+def test_connors_rsi_monotonic_up():
+    # powers of two give exact 100 percent returns, so every component saturates at 100
+    df = pl.DataFrame({"close": [2.0**i for i in range(140)]})
+    res = df.select(connors_rsi("close", rank_period=50).alias("crsi"))
+    assert res["crsi"][-1] == pytest.approx(100.0, abs=1e-6)
+
+
+def test_connors_rsi_multi_asset():
+    n = 140
+    up = [100.0 + i for i in range(n)]
+    down = [200.0 - i * 0.5 for i in range(n)]
+    df = pl.DataFrame({"ticker": ["UP"] * n + ["DOWN"] * n, "close": up + down})
+    over = df.select(connors_rsi("close").over("ticker").alias("crsi"))["crsi"].to_list()
+    single_up = (
+        pl.DataFrame({"close": up}).select(connors_rsi("close").alias("crsi"))["crsi"].to_list()
+    )
+    single_down = (
+        pl.DataFrame({"close": down}).select(connors_rsi("close").alias("crsi"))["crsi"].to_list()
+    )
+    for i in range(n):
+        if single_up[i] is not None:
+            assert over[i] == pytest.approx(single_up[i], abs=1e-9)
+        if single_down[i] is not None:
+            assert over[n + i] == pytest.approx(single_down[i], abs=1e-9)
+
+
+def test_connors_rsi_invalid_rank_period():
+    with pytest.raises(ValueError, match="periods must be positive integers"):
+        connors_rsi("close", rank_period=0)

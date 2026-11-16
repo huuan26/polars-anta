@@ -216,43 +216,55 @@ Explore how `polars-anta` unifies derivatives microstructure, AFML feature engin
     import polars as pl
     import polars_anta as pa  # Registers .anta and .ta namespaces
 
-    # 1. Stitch continuous futures contracts (backward, ratio or panama) and sample volume bars:
-    cont_df = raw_contracts.anta.stitch_futures_roll(method="backward")
-    vol_bars = cont_df.anta.resample_volume_bars(volume_threshold=5_000)
+    # 1. Stitch continuous futures contracts (back_adjust, forward_adjust or ratio) and sample volume bars:
+    cont_df = raw_contracts.anta.stitch_futures_roll(method="back_adjust")
+    vol_bars = cont_df.anta.resample_volume_bars(
+        threshold=5_000,
+        additional_aggs=[
+            pl.col("trading_date").last(),
+            pl.col("bid_price").last(),
+            pl.col("bid_size").last(),
+            pl.col("ask_price").last(),
+            pl.col("ask_size").last(),
+            pl.col("spot_close").last(),
+            pl.col("days_to_expiry").last(),
+            pl.col("open_interest").last(),
+        ],
+    )
 
     # 2. Extract session-anchored VWAP, order flow toxicity (VPIN, OFI), carry and open interest regimes:
-    deriv_features = vol_bars.with_columns(
-        pl.col("close")
-        .anta.session_vwap("high", "low", "volume", session_by="trading_date")
-        .alias("svwap"),
-        pl.col("close").anta.vpin("volume", period=20).alias("vpin_20"),
-        pl.col("bid_price").anta.ofi("bid_size", "ask_price", "ask_size", period=5).alias("ofi_5"),
-        pl.col("close").anta.futures_basis("spot_close", "days_to_expiry", period=20).alias("basis"),
-        pl.col("close").anta.oi_regime("open_interest", period=1).alias("oi_state"),
-    ).unnest("svwap", "basis", "oi_state")
+    deriv_features = (
+        vol_bars.anta.session_vwap(session_by="trading_date", unnest=True, prefix="svwap_")
+        .with_columns(
+            pl.col("close").anta.vpin("volume", period=20).alias("vpin_20"),
+            pl.col("bid_price").anta.ofi("bid_size", "ask_price", "ask_size", period=5).alias("ofi_5"),
+            pl.col("close")
+            .anta.futures_basis("spot_close", "days_to_expiry", period=20)
+            .alias("basis"),
+            pl.col("close").anta.oi_regime("open_interest", period=1).alias("oi_state"),
+        )
+        .unnest("basis", "oi_state")
+    )
     ```
 
 === "2. Quant ML (AFML Primitives)"
 
     ```python
     # Memory-preserving stationary features (FFD) plus triple-barrier and trend-scanning labels:
-    ml_dataset = df.with_columns(
-        pl.col("close").anta.frac_diff(d=0.4, window=20).over("symbol").alias("close_ffd"),
-        pl.col("close")
+    ml_dataset = (
+        df.with_columns(
+            pl.col("close").anta.frac_diff(d=0.4, window=20).over("symbol").alias("close_ffd")
+        )
         .anta.triple_barrier_labels(
-            volatility=pl.col("close").pct_change().rolling_std(20),
             horizon=12,
             pt_mult=2.0,
             sl_mult=1.5,
-            side=pl.col("primary_signal"),  # Enables binary meta_label {0.0, 1.0}
+            side="primary_signal",  # Enables binary tb_meta_label {0.0, 1.0}
+            unnest=True,
+            group_by="symbol",
         )
-        .over("symbol")
-        .alias("tb"),
-        pl.col("close")
-        .anta.trend_scanning_labels(min_window=5, max_window=20)
-        .over("symbol")
-        .alias("ts"),
-    ).unnest("tb", "ts")
+        .anta.trend_scanning_labels(min_window=5, max_window=20, unnest=True, group_by="symbol")
+    )
     ```
 
 === "3. Cross-Sectional Factor Alpha"
@@ -282,7 +294,7 @@ Explore how `polars-anta` unifies derivatives microstructure, AFML feature engin
     eval_df = alpha_df.anta.forward_returns(periods=(1, 5, 10), group_by="symbol")
     ic_stats = eval_df.anta.ic_summary("pure_alpha_weight", "fwd_ret_5", group_by="date", nw_lags=5)
     decay_table = eval_df.anta.ic_decay(
-        "pure_alpha_weight", horizons=(1, 2, 3, 5, 10, 20), group_by="date"
+        "pure_alpha_weight", horizons=(1, 2, 3, 5, 10, 20), asset_col="symbol", group_by="date"
     )
 
     # 2. Execution-realistic vectorized backtest with MAE and MFE excursion ledger:
@@ -370,7 +382,8 @@ Measured across **1,000,000 bars** (single-asset random walk) and a **500 ticker
 | [**Factor Zoo Empirical Study**](research/factor-zoo.md) | Pre-specified falsification of 150 technical and formulaic signals on Vietnamese equities (`HOSE`, 2014 to 2026) |
 | [**Quantitative Theory and Workflows**](guides/quant-theory-and-workflows.md) | Deep-dive into the mathematics and theory of AFML labeling, FFD, microstructure bars, Gram-Schmidt orthogonalization, Newey-West HAC, and PSR/DSR |
 | [**Architecture and Mathematical Proofs**](architecture.md) | Step-by-step algebraic proofs of the WMA-SMA OLS identity, Wilder RMA recurrences, and zero-copy `sliding_window_view` vectorization |
-| [**API Reference and Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 223 public functions |
+| [**API Reference and Catalog**](indicators/index.md) | Complete module-by-module function signatures, `pl.Struct` fields, and mathematical formulas across 241 public functions |
+| [**Cross-Sectional Alpha Engineering**](indicators/alpha-engineering.md) | Two-stage FWL neutralization, Lowdin SVD orthogonalization, Alphalens diagnostics, RMT denoising, and FISTA allocation |
 | [**Getting Started Guide**](getting-started.md) | Installation, expression syntax, `pl.Struct` unnesting, and fluent DataFrame chaining |
 | [**Multi-Asset Universe Guide**](guides/multi-asset.md) | Scaling indicators and cross-sectional factors across hundreds of symbols with `.over("ticker")` |
 | [**Information Bars, Roll and Resampling**](guides/resampling-and-dataframe-api.md) | Calendar/Volume/Dollar/Imbalance bars, continuous futures stitching (`stitch_futures_roll`), and OHLCV validation |

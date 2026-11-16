@@ -48,6 +48,14 @@ def test_cs_gaussianize_handles_nan_null_and_clip() -> None:
     assert np.isclose(sum(valid_d1), 0.0, atol=1e-12)
     assert all(-1.5 <= v <= 1.5 for v in valid_d1)
 
+    # Multiple columns without explicit `.alias(...)` preserve original column names cleanly
+    multi = pl.DataFrame(
+        {"date": ["d1"] * 4, "a1": [1.0, 2.0, 3.0, 4.0], "a2": [4.0, 3.0, 2.0, 1.0]}
+    )
+    g_multi = multi.with_columns([pl.col(c).anta.cs_gaussianize(over="date") for c in ("a1", "a2")])
+    assert g_multi.columns == ["date", "a1", "a2"]
+    assert np.isclose(g_multi["a1"][0] + g_multi["a2"][0], 0.0, atol=1e-12)
+
 
 def test_lowdin_matrix_orthogonality_and_permutation_symmetry() -> None:
     rng = np.random.default_rng(42)

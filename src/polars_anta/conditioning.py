@@ -93,7 +93,9 @@ def cs_gaussianize(
         count = count.over(over_cols)
 
     u = ((ranked - 0.5) / count.cast(pl.Float64)).clip(1e-12, 1.0 - 1e-12)
-    z = pl.when(clean.is_null() | (count < 2)).then(None).otherwise(_inv_norm_cdf_expr(u))
+    valid = (clean.is_not_null() & (count >= 2)).fill_null(False)
+    # Keep finite column-rooted `u` first inside `.then(...)` so Polars preserves the input column name
+    z = pl.when(valid).then((u * 0.0) + _inv_norm_cdf_expr(u)).otherwise(None)
     return z.clip(-float(clip_bound), float(clip_bound)) if clip_bound is not None else z
 
 

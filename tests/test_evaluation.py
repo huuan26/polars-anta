@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import polars as pl
 import pytest
 
@@ -355,6 +356,72 @@ def test_trend_scanning_labels() -> None:
         pl.col("close").ta.trend_scanning_labels(min_window=4, max_window=6).alias("ts")
     ).unnest("ts")
     assert expr_res["label"][0] == pytest.approx(1.0)
+
+    # Regression test: default 16 windows (min_window=5, max_window=20) with .over("ticker") and NaNs/flat/short series
+    rng = np.random.default_rng(1234)
+    p_a = (
+        [100.0 * (1.0 + 0.01 * i) for i in range(15)]
+        + [120.0] * 10
+        + list(120.0 * np.exp(np.cumsum(rng.normal(0.0, 0.01, 35))))
+    )
+    p_b = [50.0] * 12 + [None] + [55.0 * np.exp(0.01 * i) for i in range(15)]
+    p_short = [10.0, 11.0, 12.0]  # shorter than min_window=5
+    multi_df = pl.DataFrame(
+        {
+            "ticker": (
+                ["A"] * len(p_a) + ["B"] * len(p_b) + ["SHORT"] * len(p_short) + ["ALLNULL"] * 6
+            ),
+            "close": p_a + p_b + p_short + [None] * 6,
+        }
+    )
+    ts_default = (
+        multi_df.lazy()
+        .with_columns(
+            pl.col("close")
+            .anta.trend_scanning_labels(min_window=5, max_window=20)
+            .over("ticker")
+            .alias("ts")
+        )
+        .unnest("ts")
+        .collect()
+    )
+    assert ts_default.height == multi_df.height
+    assert ts_default.filter(pl.col("ticker") == "SHORT")["label"].null_count() == 3
+    assert ts_default.filter(pl.col("ticker") == "ALLNULL")["label"].null_count() == 6
+    a_flat = ts_default.filter(pl.col("ticker") == "A")
+    # Linear uptrend bar 0..9 yields clipped exact-line +1e6 t-stat; flat-to-trend and NaN spans stay valid
+    assert a_flat["t_value"][0] == pytest.approx(1e6)
+    b_rows = ts_default.filter(pl.col("ticker") == "B")
+    assert b_rows["t_value"][0] == pytest.approx(0.0)
+    assert b_rows["label"][12] is None
+
+    # Closed-form scalar loop parity check on noisy series
+    noisy_c = 100.0 * np.exp(np.cumsum(rng.normal(0.001, 0.012, 30)))
+    ts_noisy = (
+        pl.DataFrame({"close": noisy_c})
+        .select(trend_scanning_labels("close", min_window=4, max_window=10, step=2).alias("ts"))
+        .unnest("ts")
+    )
+    for t_idx in (0, 5, 19):
+        best_abs_t = -1.0
+        best_val = 0.0
+        best_win = 0
+        for w_len in (4, 6, 8, 10):
+            if t_idx + w_len <= len(noisy_c):
+                y_sub = noisy_c[t_idx : t_idx + w_len]
+                x_sub = np.arange(w_len, dtype=np.float64)
+                x_c = x_sub - x_sub.mean()
+                y_c = y_sub - y_sub.mean()
+                slope_ref = float((x_c @ y_c) / (x_c @ x_c))
+                rss_ref = float(np.sum((y_c - slope_ref * x_c) ** 2))
+                se_ref = float(np.sqrt(rss_ref / ((w_len - 2) * float(x_c @ x_c))))
+                t_ref = float(np.clip(slope_ref / se_ref, -1e6, 1e6))
+                if abs(t_ref) > best_abs_t:
+                    best_abs_t = abs(t_ref)
+                    best_val = t_ref
+                    best_win = w_len
+        assert ts_noisy["t_value"][t_idx] == pytest.approx(best_val, rel=1e-10)
+        assert ts_noisy["optimal_window"][t_idx] == best_win
 
     # Validation checks
     with pytest.raises(

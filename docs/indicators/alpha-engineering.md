@@ -108,7 +108,7 @@ panel = pl.DataFrame(
 ).anta.forward_returns(close_col="close", periods=(1,), group_by="ticker", prefix="fwd_")
 
 ortho = (
-    panel.with_columns([pl.col(c).anta.cs_gaussianize(over="date") for c in ("a1", "a2")])
+    panel.with_columns([pl.col(c).anta.cs_gaussianize(over="date").alias(c) for c in ("a1", "a2")])
     .anta.neutralize_panel(["a1", "a2"], time_col="date", risk_cols=["beta"], group_col="sector")
     .anta.orthogonalize_panel(["a1_neut", "a2_neut"], time_col="date", method="lowdin")
 )

@@ -11,7 +11,6 @@ import numpy as np
 import polars as pl
 
 from .core import IntoExpr, check_period, check_positive, parse_expr
-from .trend import wma as _wma
 
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
 
@@ -1028,46 +1027,81 @@ def trend_scanning_labels(
 
     c = parse_expr(close).cast(pl.Float64)
     windows = list(range(min_window, max_window + 1, step))
-
-    best_t: pl.Expr = pl.lit(None, dtype=pl.Float64)
-    best_w: pl.Expr = pl.lit(None, dtype=pl.Int64)
-    best_ret: pl.Expr = pl.lit(None, dtype=pl.Float64)
-
-    for w in windows:
-        shift_k = w - 1
-        sma_w = c.rolling_mean(window_size=w)
-        wma_w = _wma(c, period=w)
-        slope_w = (wma_w - sma_w) * (6.0 / float(w - 1))
-
-        s_xx = float(w * (w - 1) * (w + 1)) / 12.0
-        s_yy = float(w - 1) * c.rolling_var(window_size=w)
-        rss = (s_yy - (slope_w**2) * s_xx).clip(lower_bound=0.0)
-        se_slope = (rss / (float(w - 2) * s_xx)).sqrt()
-
-        t_trailing = (
-            pl.when(slope_w.is_null() | s_yy.is_null())
-            .then(None)
-            .when(se_slope > 1e-12)
-            .then((slope_w / se_slope).clip(-1e6, 1e6))
-            .when(slope_w.abs() > 1e-12)
-            .then(slope_w.sign() * 1e6)
-            .otherwise(0.0)
-        )
-        t_fwd = t_trailing.shift(-shift_k)
-        ret_fwd = (c.shift(-shift_k) / c) - 1.0
-
-        take_this = t_fwd.is_not_null() & (best_t.is_null() | (t_fwd.abs() > best_t.abs()))
-        best_t = pl.when(take_this).then(t_fwd).otherwise(best_t)
-        best_w = pl.when(take_this).then(pl.lit(w, dtype=pl.Int64)).otherwise(best_w)
-        best_ret = pl.when(take_this).then(ret_fwd).otherwise(best_ret)
-
-    label_expr = pl.when(best_t.is_null()).then(None).otherwise(best_t.sign())
-
-    return pl.struct(
+    return_dtype = pl.Struct(
         [
-            label_expr.alias("label"),
-            best_t.alias("t_value"),
-            best_w.alias("optimal_window"),
-            best_ret.alias("ret"),
+            pl.Field("label", pl.Float64),
+            pl.Field("t_value", pl.Float64),
+            pl.Field("optimal_window", pl.Int64),
+            pl.Field("ret", pl.Float64),
         ]
     )
+
+    def _calc_ts(s: pl.Series) -> pl.Series:
+        c_vals = s.to_numpy().astype(np.float64, copy=False)
+        n = len(c_vals)
+        best_t = np.full(n, np.nan, dtype=np.float64)
+        best_abs = np.full(n, -1.0, dtype=np.float64)
+        best_w = np.full(n, np.nan, dtype=np.float64)
+        best_ret = np.full(n, np.nan, dtype=np.float64)
+        valid_best = np.zeros(n, dtype=bool)
+        is_fin = np.isfinite(c_vals)
+        c_safe = np.where(is_fin, c_vals, 0.0)
+
+        chunk = 16384
+        for w in windows:
+            if n < w:
+                continue
+            m = n - w + 1
+            s_xx = float(w * (w - 1) * (w + 1)) / 12.0
+            x_w = np.arange(w, dtype=np.float64) - 0.5 * float(w - 1)
+            denom_base = float(w - 2) * s_xx
+
+            views = np.lib.stride_tricks.sliding_window_view(c_safe, w)
+            fviews = np.lib.stride_tricks.sliding_window_view(is_fin, w)
+            for start in range(0, m, chunk):
+                stop = min(start + chunk, m)
+                v_blk = views[start:stop]
+                ok = fviews[start:stop].all(axis=1)
+                if not ok.any():
+                    continue
+                v_ok = v_blk[ok]
+                y_c = v_ok - v_ok.mean(axis=1, keepdims=True)
+                slope = (y_c @ x_w) / s_xx
+                s_yy = np.sum(y_c * y_c, axis=1)
+                rss = np.maximum(0.0, s_yy - (slope * slope) * s_xx)
+                se = np.sqrt(rss / denom_base)
+
+                t_ok = np.where(
+                    se > 1e-12,
+                    np.clip(slope / np.where(se > 1e-12, se, 1.0), -1e6, 1e6),
+                    np.where(np.abs(slope) > 1e-12, np.sign(slope) * 1e6, 0.0),
+                )
+                p0 = v_ok[:, 0]
+                pend = v_ok[:, -1]
+                r_ok = np.where(p0 != 0.0, (pend / np.where(p0 != 0.0, p0, 1.0)) - 1.0, np.nan)
+                ret_valid = np.isfinite(r_ok)
+
+                idx_rel = np.flatnonzero(ok)[ret_valid] + start
+                t_v = t_ok[ret_valid]
+                a_v = np.abs(t_v)
+                r_v = r_ok[ret_valid]
+
+                upd = (~valid_best[idx_rel]) | (a_v > best_abs[idx_rel])
+                u_idx = idx_rel[upd]
+                best_t[u_idx] = t_v[upd]
+                best_abs[u_idx] = a_v[upd]
+                best_w[u_idx] = float(w)
+                best_ret[u_idx] = r_v[upd]
+                valid_best[u_idx] = True
+
+        labels = np.where(valid_best, np.sign(best_t), np.nan)
+        return pl.DataFrame(
+            {
+                "label": pl.Series(labels, dtype=pl.Float64).fill_nan(None),
+                "t_value": pl.Series(best_t, dtype=pl.Float64).fill_nan(None),
+                "optimal_window": pl.Series(best_w, dtype=pl.Float64).fill_nan(None).cast(pl.Int64),
+                "ret": pl.Series(best_ret, dtype=pl.Float64).fill_nan(None),
+            }
+        ).to_struct("trend_scan")
+
+    return c.map_batches(_calc_ts, return_dtype=return_dtype)

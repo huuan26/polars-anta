@@ -316,15 +316,19 @@ def run_table3_long_short_ablation() -> list[dict[str, float | str]]:
         composite_col="wf_unpen",
     )
 
-    # Stage 3: Full Pipeline -> RMT Denoised + EB IC Shrinkage + FISTA L1 Penalty + Decay Smoothing
+    # Stage 3: Full Pipeline -> Factor-Return RMT + Cost Drag + FISTA L1 Penalty + Causal Smoothing
     wf_full = pa.combine_alphas_walkforward(
         o_df,
         factor_cols=ortho_cols,
         return_col="fwd_1",
         time_col="date",
+        asset_col="ticker",
         lookback=80,
         horizon=1,
         signal_lag=1,
+        objective_mode="factor_return",
+        one_way_cost_bps=cost_bps,
+        signal_ema_alpha=0.35,
         risk_aversion=2.5,
         turnover_penalty=0.006,
         constraint="box",
@@ -333,13 +337,7 @@ def run_table3_long_short_ablation() -> list[dict[str, float | str]]:
         cov_estimator="marchenko_pastur",
         ic_shrinkage="empirical_bayes",
         no_trade_buffer=0.02,
-        composite_col="wf_cost_aware_raw",
-    )
-    wf_smoothed = wf_full.data.sort(["ticker", "date"]).with_columns(
-        pl.col("wf_cost_aware_raw")
-        .ewm_mean(alpha=0.35, adjust=False)
-        .over("ticker")
-        .alias("wf_cost_aware")
+        composite_col="wf_cost_aware",
     )
 
     results: list[dict[str, float | str]] = []
@@ -356,8 +354,8 @@ def run_table3_long_short_ablation() -> list[dict[str, float | str]]:
             "wf_unpen",
         ),
         (
-            "3. Full Pipeline (RMT + EB + FISTA + Decay)",
-            wf_smoothed.filter(pl.col("date") >= oos_start),
+            "3. Full Pipeline (RMT + Cost-Aware FISTA + EMA)",
+            wf_full.data.filter(pl.col("date") >= oos_start),
             "wf_cost_aware",
         ),
     ]
@@ -432,7 +430,9 @@ def main() -> None:
     lines.extend(
         [
             "",
-            "## Table 3 - Dollar-Neutral Long-Short Walk-Forward Ablation ($N = 150, T = 600$, `10 bps` Cost)",
+            "## Table 3 - Controlled Synthetic Ablation: Planted Factor Structure ($N = 150, T = 600$, `10 bps` Cost)",
+            "",
+            "> **Note**: Controlled synthetic simulation isolating each algebraic and optimization mechanism under known planted factor SNR and sector/beta contamination. For real-market out-of-sample backtests across Global Crypto, US Equities, and Vietnam HOSE, see `docs/assets/real_market_alpha_engineering.md`.",
             "",
             "| Pipeline Stage | Rank IC | ICIR | Daily L1 Turnover | Gross Margin (`bps`) | Gross Sharpe | Net Sharpe (`10 bps`) |",
             "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",

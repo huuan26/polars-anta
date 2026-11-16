@@ -195,7 +195,7 @@ def analyze_alpha(
     else:
         ic_stats["half_life"] = float("nan")
 
-    # 2. Quantile Monotonicity & Long/Short Leg Active Spread Attribution
+    # 2. Quantile Monotonicity & Daily Equal-Weight Unbalanced-Safe Long/Short Attribution
     q_df = quantile_analysis(
         work,
         factor_col="_anta_f",
@@ -204,20 +204,39 @@ def analyze_alpha(
         group_by=time_col,
         annualization=annualization / float(horizon),
     )
-    univ_mean_df = work.filter(pl.col("_anta_f").is_not_null() & pl.col(fwd_col).is_not_null())
-    univ_mean = float(univ_mean_df[fwd_col].mean() or 0.0) if univ_mean_df.height > 0 else 0.0
-    if q_df.height >= 2:
-        r_q1 = float(q_df.filter(pl.col("quantile") == 1)["mean_return"][0])
-        r_qk = float(q_df.filter(pl.col("quantile") == quantiles)["mean_return"][0])
-        if ic_stats["ic_mean"] >= 0.0:
-            long_act, short_act = r_qk - univ_mean, univ_mean - r_q1
-        else:
-            long_act, short_act = r_q1 - univ_mean, univ_mean - r_qk
-        tot_spread = long_act + short_act
-        long_share = long_act / tot_spread if abs(tot_spread) > 1e-15 else 0.5
-        short_share = short_act / tot_spread if abs(tot_spread) > 1e-15 else 0.5
-    else:
-        long_share, short_share = 0.5, 0.5
+    univ_valid = work.filter(pl.col("_anta_f").is_not_null() & pl.col(fwd_col).is_not_null())
+    long_share, short_share = 0.5, 0.5
+    if univ_valid.height > 0 and q_df.height >= 2:
+        pct_q = (pl.col("_anta_f").rank(method="ordinal").over(time_col) - 1.0) / pl.len().over(
+            time_col
+        )
+        q_col = (pct_q * float(quantiles)).floor().clip(0.0, float(quantiles - 1)).cast(
+            pl.Int32
+        ) + 1
+        daily_legs = (
+            univ_valid.with_columns(q_col.alias("_q_leg"))
+            .group_by(time_col)
+            .agg(
+                [
+                    pl.col(fwd_col).mean().alias("_r_univ"),
+                    pl.col(fwd_col).filter(pl.col("_q_leg") == 1).mean().alias("_r_q1"),
+                    pl.col(fwd_col).filter(pl.col("_q_leg") == quantiles).mean().alias("_r_qk"),
+                ]
+            )
+            .filter(pl.col("_r_q1").is_not_null() & pl.col("_r_qk").is_not_null())
+        )
+        if daily_legs.height > 0:
+            r_u = float(daily_legs["_r_univ"].mean() or 0.0)
+            r_q1 = float(daily_legs["_r_q1"].mean() or 0.0)
+            r_qk = float(daily_legs["_r_qk"].mean() or 0.0)
+            if ic_stats["ic_mean"] >= 0.0:
+                long_act, short_act = r_qk - r_u, r_u - r_q1
+            else:
+                long_act, short_act = r_q1 - r_u, r_u - r_qk
+            tot_spread = long_act + short_act
+            if abs(tot_spread) > 1e-15:
+                long_share = long_act / tot_spread
+                short_share = short_act / tot_spread
 
     # 3. Causal Portfolio Simulation, Turnover, Margin (bps), and Breakeven Cost
     work = work.with_columns(
@@ -323,7 +342,7 @@ def analyze_alpha(
             b_expr = (pct_adv * float(sub_universe_bins)).floor().clip(
                 0.0, float(sub_universe_bins - 1)
             ).cast(pl.Int32) + 1
-            binned = with_adv.with_columns(b_expr.alias("_adv_bin"))
+            binned = with_adv.sort([asset_col, time_col]).with_columns(b_expr.alias("_adv_bin"))
             labels = {1: "Illiquid/Small", sub_universe_bins: "Liquid/Large"}
             for b_id in range(1, int(sub_universe_bins) + 1):
                 sub_b = binned.filter(pl.col("_adv_bin") == b_id)
@@ -340,12 +359,38 @@ def analyze_alpha(
                 w_b = sub_b.with_columns(
                     _weights_expr("_anta_f", time_col, weight_scheme, quantiles).alias("_wb")
                 )
-                ret_b = (
-                    w_b.group_by(time_col)
-                    .agg((pl.col("_wb") * pl.col(fwd_col)).sum().alias("r"))
-                    .sort(time_col)["r"]
-                    .to_numpy()
+                # Map tier weights onto full sorted panel to measure exact tier turnover per asset
+                tier_panel = (
+                    binned.join(
+                        w_b.select([asset_col, time_col, "_wb"]),
+                        on=[asset_col, time_col],
+                        how="left",
+                    )
+                    .sort([asset_col, time_col])
+                    .with_columns(pl.col("_wb").fill_null(0.0).alias("_wb_full"))
+                    .with_columns(
+                        (
+                            pl.col("_wb_full")
+                            - pl.col("_wb_full").shift(int(horizon), fill_value=0.0).over(asset_col)
+                        )
+                        .abs()
+                        .alias("_tb")
+                    )
                 )
+                ts_b = (
+                    tier_panel.group_by(time_col)
+                    .agg(
+                        [
+                            (pl.col("_wb_full") * pl.col(fwd_col)).sum().alias("r"),
+                            pl.col("_tb").sum().alias("t"),
+                        ]
+                    )
+                    .sort(time_col)
+                )
+                ret_b = ts_b["r"].to_numpy()
+                turn_b = ts_b["t"].to_numpy()
+                sum_tb = float(np.sum(turn_b))
+                margin_b = (1e4 * float(np.sum(ret_b)) / sum_tb) if sum_tb > 1e-15 else 0.0
                 sub_rows.append(
                     {
                         "bucket": b_id,
@@ -355,6 +400,10 @@ def analyze_alpha(
                         "gross_sharpe": _arr_sharpe(
                             ret_b, ann_factor / float(horizon) if has_close else ann_factor
                         ),
+                        "mean_turnover": float(np.mean(turn_b)) / float(horizon)
+                        if len(turn_b)
+                        else 0.0,
+                        "gross_margin_bps": margin_b,
                         "n_obs": int(sub_b.height),
                     }
                 )
@@ -368,6 +417,8 @@ def analyze_alpha(
                 "ic_mean": pl.Float64,
                 "nw_t_stat": pl.Float64,
                 "gross_sharpe": pl.Float64,
+                "mean_turnover": pl.Float64,
+                "gross_margin_bps": pl.Float64,
                 "n_obs": pl.Int64,
             }
         )

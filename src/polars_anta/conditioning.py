@@ -212,7 +212,13 @@ def orthogonalize_panel(
     standardize: bool = True,
     suffix: str = "_ortho",
 ) -> pl.DataFrame:
-    """Orthogonalize multiple alpha columns within each ``time_col`` slice without bar loops."""
+    """Orthogonalize multiple alpha columns within each ``time_col`` slice without bar loops.
+
+    Subspace invariance note: because $\\widetilde{\\mathbf{F}}_t = \\mathbf{Z}_t \\mathbf{M}_t$ forms
+    cross-factor linear combinations, prior sector/risk neutrality ($\\mathbf{X}_t^T \\mathbf{F}_t = \\mathbf{0}$)
+    is preserved if and only if **all** columns in ``factor_cols`` have already been neutralized
+    against $\\mathbf{X}_t$ via :func:`neutralize_panel` before calling ``orthogonalize_panel``.
+    """
     factors = list(factor_cols)
     k = len(factors)
     if k < 1:

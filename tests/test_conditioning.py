@@ -225,6 +225,39 @@ def test_collinearity_summary_detects_redundancy_and_orthogonality() -> None:
     assert np.isclose(pooled["effective_rank"][0], 3.0, atol=1e-2)
 
 
+def test_subspace_invariance_neutralize_all_before_orthogonalize() -> None:
+    """Lowdin preserves exact sector/risk neutrality iff all input columns were FWL-neutralized."""
+    rng = np.random.default_rng(515)
+    n_t = 60
+    sectors = [f"S{i % 3}" for i in range(n_t)]
+    beta = rng.normal(1.0, 0.35, size=n_t)
+    sec_num = np.array([1.0 if s == "S0" else (-0.8 if s == "S1" else 0.2) for s in sectors])
+    df = pl.DataFrame(
+        {
+            "date": ["2026-03-02"] * n_t,
+            "sector": sectors,
+            "beta": beta,
+            "f1": 1.5 * sec_num + 0.9 * beta + rng.standard_normal(n_t),
+            "f2": -1.1 * sec_num + 1.2 * beta + rng.standard_normal(n_t),
+        }
+    )
+    neut = neutralize_panel(
+        df, ["f1", "f2"], time_col="date", risk_cols=["beta"], group_col="sector"
+    )
+    clean_ortho = orthogonalize_panel(
+        neut, ["f1_neut", "f2_neut"], time_col="date", method="lowdin"
+    )
+    for c in ("f1_neut_ortho", "f2_neut_ortho"):
+        v = clean_ortho[c].to_numpy()
+        assert abs(float(v @ beta)) < 1e-10
+        for s_lbl in ("S0", "S1", "S2"):
+            assert abs(float(v @ (np.array(sectors) == s_lbl).astype(np.float64))) < 1e-10
+
+    # Mixing an un-neutralized column into Lowdin contaminates the neutralized column's subspace
+    mixed_ortho = orthogonalize_panel(neut, ["f1_neut", "f2"], time_col="date", method="lowdin")
+    assert abs(float(mixed_ortho["f1_neut_ortho"].to_numpy() @ beta)) > 0.5
+
+
 def test_conditioning_validation_errors() -> None:
     df = pl.DataFrame({"date": ["d1", "d1"], "x": [1.0, 2.0]})
     with pytest.raises(ValueError, match="clip_bound"):

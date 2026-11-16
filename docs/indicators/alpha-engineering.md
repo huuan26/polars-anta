@@ -25,6 +25,8 @@ $$
 
 `orthogonalize_panel` aggregates all $K(K+1)/2$ cross-sectional Gram entries in a single Polars `group_by(time_col)` pass and computes batched 3D spectral inverse square roots with rank-deficiency truncation ($\lambda_{t,k} > \text{rcond} \cdot \lambda_{t,\max}$), avoiding per-timestamp Python loops and surviving duplicate or constant factor columns.
 
+> **Subspace invariance requirement**: Because $\widetilde{\mathbf{F}}_t = \mathbf{Z}_t \mathbf{M}_t$ mixes all input columns linearly, prior sector/risk neutrality ($\mathbf{X}_t^T \mathbf{F}_t = \mathbf{0}$) is preserved if and only if **every** column in `factor_cols` has already been projected onto $\mathcal{N}(\mathbf{X}_t^T)$ via `neutralize_panel` before calling `orthogonalize_panel`.
+
 | Function | Signature | Output |
 | :--- | :--- | :--- |
 | `cs_gaussianize` | `cs_gaussianize(expr, over=None, clip_bound=4.0)` | `pl.Expr` (`Float64`) |
@@ -40,8 +42,8 @@ $$
 `analyze_alpha` evaluates predictive power alongside execution friction and universe concentration:
 
 - **Predictive IC & Decay**: Cross-sectional Spearman/Pearson IC, Newey-West HAC $t$-statistic (`nw_lags = max(1, horizon - 1)`), and exponential IC half-life.
-- **Turnover, Gross Margin & Breakeven Cost**: Simulates a causal `signal_lag`-shifted overlapping $h$-tranche book under `"dollar_neutral"`, `"long_only"`, or `"quantile_spread"` weights, reporting L1 turnover, gross margin (`bps` per unit turnover), breakeven one-way cost (`bps`), and active spread attribution between the long and short legs.
-- **Causal ADV Sub-Universe Split**: Ranks trailing median dollar volume (`close * volume`) up to bar $t$ to verify whether predictive power holds in liquid large-caps rather than only illiquid small-caps.
+- **Turnover, Gross Margin & Breakeven Cost**: Simulates a causal `signal_lag`-shifted overlapping $h$-tranche book under `"dollar_neutral"`, `"long_only"`, or `"quantile_spread"` weights, reporting L1 turnover, gross margin (`bps` per unit turnover), breakeven one-way cost (`bps`), and unbalanced-panel-safe daily equal-weight spread attribution between the long and short legs.
+- **Causal ADV Sub-Universe Split**: Ranks trailing median dollar volume (`close * volume`) up to bar $t$ to verify whether predictive power, tier turnover (`mean_turnover`), and per-trade margin (`gross_margin_bps`) survive in liquid large-caps rather than only illiquid small-caps.
 - **Marginal Redundancy (`marginal_alpha_report`)**: Tests a candidate signal against an existing factor library, reporting `max_abs_corr`, participation-ratio gain $\Delta N_{\text{eff}}$, cross-sectional `spanned_r2`, and FWL-orthogonalized `residual_ic_mean` / `residual_nw_t_stat`.
 
 | Function / Class | Signature | Output |
@@ -74,8 +76,14 @@ $$
 
 Instead of sequential composition (which breaks sparsity on the simplex), `solve_fista` evaluates the exact Lagrangian joint proximal operator $w_k(\nu^\star) = \text{clip}(\text{prox}_{\tau |\cdot - w_{\text{prev},k}|}(z_k - \nu^\star), l_k, u_k)$ via 1D dual bisection with O'Donoghue-Candes gradient restarts and reports the exact proximal-gradient KKT residual.
 
-### Strictly Causal Embargo Walk-Forward (`combine_alphas_walkforward`)
-When forecasting $h$-bar forward returns with execution lag $d$, realized ICs from the most recent $\text{embargo} = \max(0, h + d - 1)$ periods overlap future prices. `combine_alphas_walkforward` enforces this embargo automatically (`end_excl = idx - embargo`), generating live portfolio weights on the latest bar even when recent forward returns are `null` with zero prefix-invariance leakage.
+### Strictly Causal Embargo & Asset-Cost Walk-Forward (`combine_alphas_walkforward`)
+When forecasting $h$-bar forward returns with execution lag $d$, realized observations from the most recent $\text{embargo} = \max(0, h + d - 1)$ periods overlap future prices. `combine_alphas_walkforward` enforces this embargo automatically (`end_excl = idx - embargo`), generating live portfolio weights on the latest bar even when recent forward returns are `null` with zero prefix-invariance leakage.
+
+Key execution-aware controls:
+
+- **`objective_mode`**: Optimize cross-sectional Rank/Linear ICs (`"ic"`) or realized dollar-neutral factor portfolio returns (`"factor_return"`).
+- **`one_way_cost_bps` + `asset_col`**: Deducts each factor's historical stock-level rebalancing drag $c \cdot \bar{\tau}_{k,t}$ before Empirical Bayes shrinkage and FISTA optimization, shifting capital away from high-churn signals toward persistent alphas.
+- **`signal_ema_alpha`**: Applies causal per-asset exponential smoothing to both basis turnover/payoff accounting and the final composite signal without look-ahead leakage.
 
 ```python
 import numpy as np
@@ -109,9 +117,13 @@ wf = ortho.anta.combine_alphas_walkforward(
     factor_cols=["a1_neut_ortho", "a2_neut_ortho"],
     return_col="fwd_1",
     time_col="date",
+    asset_col="ticker",
     lookback=40,
     horizon=1,
     signal_lag=1,
+    objective_mode="factor_return",
+    one_way_cost_bps=10.0,
+    signal_ema_alpha=0.25,
     turnover_penalty=0.01,
     constraint="box",
     lower_bound=-1.0,

@@ -25,9 +25,9 @@
     <div class="anta-metric-desc">Causal embargo walk-forward verified at h = 5 bars</div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">+22.6 bps</div>
-    <div class="anta-metric-label">Gross Margin</div>
-    <div class="anta-metric-desc">Up from +5.33 bps via FWL, Lowdin, RMT & FISTA control</div>
+    <div class="anta-metric-value">+27.6 bps</div>
+    <div class="anta-metric-label">OOS Margin Lift</div>
+    <div class="anta-metric-desc">-14.9 -> +12.7 bps on real HOSE 2022-2026 holdout</div>
   </div>
   <div class="anta-metric-card">
     <div class="anta-metric-value">150 -> 6</div>
@@ -50,6 +50,21 @@
 | Status | [CI workflow](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml), [Docs workflow](https://github.com/huuan26/polars-anta/actions/workflows/docs.yml), [PyPI release](https://pypi.org/project/polars-anta/) |
 | Try online | [Quickstart notebook on Google Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
 | License | [Apache License 2.0](https://github.com/huuan26/polars-anta/blob/master/LICENSE) |
+
+---
+
+## Empirical validation across 3 real-world markets
+
+We evaluate the 4-stage `polars-anta` pipeline out of sample (`signal_lag = 1`) on **Global Crypto** (`data-api.binance.vision`, 24 liquid USDT pairs with real `taker_buy_volume` orderflow), **US Large-Cap Equities & Sector ETFs** (30 S&P bellwethers & Sector SPDRs), and **Vietnam `HOSE` Locked Holdout** (`2022-2026`, `<= 150` liquid stocks) alongside a controlled planted-factor synthetic ablation (see [Cross-Sectional Alpha Engineering](indicators/alpha-engineering.md)):
+
+| Market & Regime | Pipeline Stage | Rank IC (NW $t$) | Daily Turnover | Gross Margin (`bps`) | Gross Sharpe | Net Sharpe |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Crypto L/S** (`N=24`, `10 bps` OW) | 0. Raw Equal-Weight | `+0.0452` (`+4.45`) | `0.436` | `+8.31` | `+0.62` | `-0.13` |
+| **Crypto L/S** (`N=24`, `10 bps` OW) | 1. FWL + Lowdin (EW) | `+0.0307` (`+4.04`) | `0.586` | `+6.00` | `+0.86` | `-0.58` |
+| **US Equities L/S** (`N=30`, `10 bps` OW) | 2. Unpenalized Walk-Forward | `-0.0082` (`-1.63`) | `0.595` | `-2.25` | `-0.67` | `-3.65` |
+| **US Equities L/S** (`N=30`, `10 bps` OW) | 3. Cost-Aware RMT + FISTA + EMA | `+0.0003` (`+0.08`) | `0.049` | `+8.65` | `+0.24` | `-0.04` |
+| **Vietnam HOSE L/O** (`N<=150`, `30 bps` OW) | 0. Raw Equal-Weight | `+0.0138` (`+2.82`) | `0.385` | `-14.90` | `-0.59` | `-1.78` |
+| **Vietnam HOSE L/O** (`N<=150`, `30 bps` OW) | 3. Cost-Aware RMT + FISTA + EMA | `+0.0043` (`+1.41`) | `0.091` | `+12.68` | `+0.13` | `-0.17` |
 
 ---
 

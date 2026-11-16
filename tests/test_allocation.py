@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import polars as pl
 import pytest
@@ -288,6 +290,135 @@ def test_combine_alphas_walkforward_strict_causal_prefix_invariance() -> None:
         assert res_alt.weights_history.height > 0
 
 
+def test_combine_alphas_turnover_cost_discrimination_and_causal_smoothing() -> None:
+    """Cost-aware allocator must prefer low-turnover persistent alpha over equal-gross noisy alpha."""
+    rng = np.random.default_rng(202611)
+    n_dates, n_tickers = 75, 32
+    f_slow = np.zeros((n_dates, n_tickers), dtype=np.float64)
+    f_fast = np.zeros((n_dates, n_tickers), dtype=np.float64)
+
+    s_prev = rng.standard_normal(n_tickers)
+    s_prev = (s_prev - s_prev.mean()) / s_prev.std(ddof=1)
+    for t in range(n_dates):
+        if t > 0:
+            s_raw = 0.94 * s_prev + math.sqrt(1.0 - 0.94**2) * rng.standard_normal(n_tickers)
+            s_prev = (s_raw - s_raw.mean()) / s_raw.std(ddof=1)
+        f_slow[t] = s_prev
+        z_fast = rng.standard_normal(n_tickers)
+        # Orthogonalize f_fast wrt f_slow so both have identical gross alpha and zero correlation
+        z_fast = z_fast - ((z_fast @ s_prev) / (s_prev @ s_prev)) * s_prev
+        f_fast[t] = (z_fast - z_fast.mean()) / z_fast.std(ddof=1)
+
+    rows: list[dict[str, object]] = []
+    shocks = rng.normal(0.0, 0.012, size=(n_dates, n_tickers))
+    for t in range(n_dates):
+        for i in range(n_tickers):
+            # f_fast has HIGHER gross slope (0.0060) than f_slow (0.0048), but ~5x higher turnover
+            r_1 = (
+                0.0048 * float(f_slow[t, i]) + 0.0060 * float(f_fast[t, i]) + float(shocks[t, i])
+                if t + 1 < n_dates
+                else None
+            )
+            rows.append(
+                {
+                    "date": t,
+                    "ticker": f"A{i:02d}",
+                    "f_slow": float(f_slow[t, i]),
+                    "f_fast": float(f_fast[t, i]),
+                    "fwd_ret_1": r_1,
+                }
+            )
+    panel = pl.DataFrame(rows)
+
+    # Zero cost (also exercises asset_col=None in factor_return mode) -> prefers higher-gross f_fast
+    res_zero = combine_alphas_walkforward(
+        panel,
+        factor_cols=["f_slow", "f_fast"],
+        return_col="fwd_ret_1",
+        time_col="date",
+        asset_col=None,
+        lookback=25,
+        horizon=1,
+        signal_lag=1,
+        objective_mode="factor_return",
+        one_way_cost_bps=0.0,
+        turnover_penalty=0.005,
+    )
+    w_slow_zero = float(res_zero.weights_history["w_f_slow"].mean() or 0.0)
+    w_fast_zero = float(res_zero.weights_history["w_f_fast"].mean() or 0.0)
+    assert w_fast_zero > w_slow_zero
+
+    # Realistic 30 bps one-way cost -> flips preference decisively toward persistent low-turnover f_slow
+    for mode in ("factor_return", "ic"):
+        res_cost = combine_alphas_walkforward(
+            panel,
+            factor_cols=["f_slow", "f_fast"],
+            return_col="fwd_ret_1",
+            time_col="date",
+            asset_col="ticker",
+            lookback=25,
+            horizon=1,
+            signal_lag=1,
+            objective_mode=mode,  # type: ignore[arg-type]
+            one_way_cost_bps=30.0,
+            signal_ema_alpha=0.35,
+            turnover_penalty=0.005,
+        )
+        w_slow = float(res_cost.weights_history["w_f_slow"].mean() or 0.0)
+        w_fast = float(res_cost.weights_history["w_f_fast"].mean() or 0.0)
+        assert w_slow > w_fast + 0.30
+        assert w_slow > w_slow_zero + 0.30
+
+    # Prefix-Invariance of factor_return + one_way_cost_bps + signal_ema_alpha at t_cut = 55
+    t_cut = 55
+    full_c = combine_alphas_walkforward(
+        panel,
+        factor_cols=["f_slow", "f_fast"],
+        return_col="fwd_ret_1",
+        time_col="date",
+        asset_col="ticker",
+        lookback=20,
+        horizon=2,
+        signal_lag=1,
+        objective_mode="factor_return",
+        one_way_cost_bps=15.0,
+        signal_ema_alpha=0.4,
+    )
+    live_panel = panel.filter(pl.col("date") <= t_cut).with_columns(
+        pl.when(pl.col("date") > t_cut - 2)
+        .then(None)
+        .otherwise(pl.col("fwd_ret_1"))
+        .alias("fwd_ret_1")
+    )
+    live_c = combine_alphas_walkforward(
+        live_panel,
+        factor_cols=["f_slow", "f_fast"],
+        return_col="fwd_ret_1",
+        time_col="date",
+        asset_col="ticker",
+        lookback=20,
+        horizon=2,
+        signal_lag=1,
+        objective_mode="factor_return",
+        one_way_cost_bps=15.0,
+        signal_ema_alpha=0.4,
+    )
+    np.testing.assert_allclose(
+        live_c.weights_history.select(["w_f_slow", "w_f_fast"]).to_numpy(),
+        full_c.weights_history.filter(pl.col("date") <= t_cut)
+        .select(["w_f_slow", "w_f_fast"])
+        .to_numpy(),
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        live_c.data.sort(["date", "ticker"])["composite_alpha"].to_numpy(),
+        full_c.data.filter(pl.col("date") <= t_cut)
+        .sort(["date", "ticker"])["composite_alpha"]
+        .to_numpy(),
+        atol=1e-12,
+    )
+
+
 def test_allocation_and_covariance_validation_guards() -> None:
     np.testing.assert_allclose(
         project_simplex(np.array([2.0, 0.0, -1.0]), budget=1.0), [1.0, 0.0, 0.0]
@@ -362,3 +493,30 @@ def test_allocation_and_covariance_validation_guards() -> None:
             "r",
             lookback=2,
         )
+    tiny = pl.DataFrame(
+        {
+            "date": [1, 2, 3, 4, 5],
+            "ticker": ["A"] * 5,
+            "f1": [1.0] * 5,
+            "f2": [2.0] * 5,
+            "r": [0.1] * 5,
+        }
+    )
+    with pytest.raises(ValueError, match="horizon"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", horizon=0)
+    with pytest.raises(ValueError, match="signal_lag"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", signal_lag=-1)
+    with pytest.raises(ValueError, match="one_way_cost_bps"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", one_way_cost_bps=-1.0)
+    with pytest.raises(ValueError, match="objective_mode"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", objective_mode="bad")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="asset_col is required when one_way_cost_bps"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", one_way_cost_bps=5.0)
+    with pytest.raises(ValueError, match="signal_ema_alpha"):
+        combine_alphas_walkforward(
+            tiny, ["f1", "f2"], "r", asset_col="ticker", signal_ema_alpha=0.0
+        )
+    with pytest.raises(ValueError, match="asset_col is required when signal_ema_alpha"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", signal_ema_alpha=0.5)
+    with pytest.raises(ValueError, match="Panel timestamps"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", lookback=5)

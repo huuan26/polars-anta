@@ -6,7 +6,7 @@ Generated automatically by `benchmarks/alpha_engineering_validation.py`.
 
 - **Python**: `3.14.1` (`Windows 11`)
 - **Polars**: `2.1.0` | **NumPy**: `2.5.4` | **polars-anta**: `0.5.0`
-- **Random Seed**: `202605` | **Total Benchmark Runtime**: `2.16 s`
+- **Random Seed**: `202605` | **Total Benchmark Runtime**: `2.18 s`
 
 ## Table 1 - Exact Algebraic, KKT & Causal Prefix-Invariance Checks
 
@@ -26,11 +26,13 @@ Generated automatically by `benchmarks/alpha_engineering_validation.py`.
 | Ledoit-Wolf | `2.331` | `0.336` | `18.36` |
 | Marchenko-Pastur (RMT) | `2.093` | `0.332` | `12.26` |
 
-## Table 3 - Dollar-Neutral Long-Short Walk-Forward Ablation ($N = 150, T = 600$, `10 bps` Cost)
+## Table 3 - Controlled Synthetic Ablation: Planted Factor Structure ($N = 150, T = 600$, `10 bps` Cost)
+
+> **Note**: Controlled synthetic simulation isolating each algebraic and optimization mechanism under known planted factor SNR and sector/beta contamination. For real-market out-of-sample backtests across Global Crypto, US Equities, and Vietnam HOSE, see `docs/assets/real_market_alpha_engineering.md`.
 
 | Pipeline Stage | Rank IC | ICIR | Daily L1 Turnover | Gross Margin (`bps`) | Gross Sharpe | Net Sharpe (`10 bps`) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | 0. Raw Signals (Equal-Weight) | `+0.0288` | `+0.222` | `1.218` | `+5.33` | `+3.57` | `-3.13` |
 | 1. FWL + Lowdin Ortho (Equal-Weight) | `+0.0311` | `+0.436` | `1.128` | `+6.50` | `+7.75` | `-4.16` |
 | 2. Unpenalized Walk-Forward (Sample Cov) | `+0.0269` | `+0.372` | `1.151` | `+5.66` | `+6.77` | `-5.16` |
-| 3. Full Pipeline (RMT + EB + FISTA + Decay) | `+0.0397` | `+0.541` | `0.409` | `+22.61` | `+9.73` | `+5.42` |
+| 3. Full Pipeline (RMT + Cost-Aware FISTA + EMA) | `+0.0208` | `+0.365` | `0.457` | `+18.10` | `+9.26` | `+4.14` |

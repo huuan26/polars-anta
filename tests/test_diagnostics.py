@@ -174,6 +174,48 @@ def test_analyze_alpha_causal_adv_sub_universe_invariance_and_factor_only_mode()
     assert math.isnan(rep_slim.ic_stats["half_life"])
 
 
+def test_analyze_alpha_unbalanced_spread_attribution_and_sub_universe_margins() -> None:
+    """Daily equal-weight spread attribution must remain unbiased on expanding universes."""
+    rng = np.random.default_rng(707)
+    rows: list[dict[str, object]] = []
+    for d in range(40):
+        # Early bull regime has 10 stocks; later bear regime has 50 stocks
+        n_stk = 10 if d < 15 else 50
+        mkt_ret = 0.045 if d < 15 else -0.015
+        sig = np.linspace(-1.0, 1.0, n_stk)
+        ret = mkt_ret + 0.01 * sig + 0.002 * rng.standard_normal(n_stk)
+        for i in range(n_stk):
+            rows.append(
+                {
+                    "date": f"2025-{(d // 20) + 1:02d}-{(d % 20) + 1:02d}",
+                    "ticker": f"U{i:02d}",
+                    "close": 100.0 * (1.0 + float(ret[i])),
+                    "volume": 100_000.0 * (i + 1),
+                    "sig": float(sig[i]),
+                    "fwd_ret": float(ret[i]),
+                }
+            )
+    unbal = pl.DataFrame(rows)
+    rep = analyze_alpha(
+        unbal,
+        factor_col="sig",
+        return_col="fwd_ret",
+        close_col="close",
+        volume_col="volume",
+        quantiles=5,
+    )
+    assert np.isclose(
+        rep.implementability["long_leg_share"] + rep.implementability["short_leg_share"],
+        1.0,
+        atol=1e-12,
+    )
+    # Symmetric linear signal around daily market return must attribute ~50% long / ~50% short
+    assert abs(rep.implementability["long_leg_share"] - 0.5) < 0.05
+    assert "mean_turnover" in rep.sub_universe.columns
+    assert "gross_margin_bps" in rep.sub_universe.columns
+    assert np.all(rep.sub_universe["mean_turnover"].to_numpy() > 0.0)
+
+
 def test_marginal_alpha_report_redundancy_vs_orthogonal_edge() -> None:
     """Redundant linear combination must yield spanned_r2=1 & residual_ic=0; pure alpha > 0."""
     rng = np.random.default_rng(2026)

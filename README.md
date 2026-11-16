@@ -4,7 +4,7 @@
 
 **Cross-sectional alpha engineering, Alphalens-grade diagnostics, and cost-aware portfolio allocation in Polars.**
 
-[Alpha Engineering Benchmark](#dollar-neutral-long-short-alpha-engineering-benchmark) | [Factor Zoo Case Study](#why-standalone-signals-fail-150-signals-on-vietnamese-equities) | [Documentation](https://huuan26.github.io/polars-anta/) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Examples](examples/)
+[Alpha Engineering Benchmark](#cross-sectional-alpha-engineering--empirical-validation) | [Factor Zoo Case Study](#why-standalone-signals-fail-150-signals-on-vietnamese-equities) | [Documentation](https://huuan26.github.io/polars-anta/) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Examples](examples/)
 
 </div>
 
@@ -31,16 +31,35 @@
 
 ---
 
-## Dollar-neutral long-short alpha engineering benchmark
+## Cross-sectional alpha engineering & empirical validation
 
-In institutional cross-sectional equity and crypto portfolios, individual raw signals rarely survive transaction costs on their own due to sector/beta contamination, signal crowding, covariance estimation noise, and excessive daily turnover. [`benchmarks/alpha_engineering_validation.py`](benchmarks/alpha_engineering_validation.py) evaluates each stage of the `polars-anta` pipeline out of sample on a 150-asset, 10-sector dollar-neutral long-short universe ($T = 600$ days, $K = 6$ crowded and noisy candidate signals, `10 bps` one-way execution cost):
+### 1. Real-market out-of-sample validation (Global Crypto, US Equities, and Vietnam HOSE)
 
-| Pipeline Stage | Rank IC | ICIR | Daily L1 Turnover | Gross Margin (`bps`) | Gross Sharpe | Net Sharpe (`10 bps`) |
+[`benchmarks/real_market_alpha_engineering.py`](benchmarks/real_market_alpha_engineering.py) ([full output](docs/assets/real_market_alpha_engineering.md)) evaluates the 4-stage `polars-anta` pipeline out of sample (`signal_lag = 1`) using 6 standard public OHLCV/orderflow signals across three distinct real-world liquidity and friction regimes:
+
+- **Global Crypto Long-Short (`data-api.binance.vision`, `N = 24` liquid USDT pairs + real `taker_buy_volume` orderflow, `2024-08` to `2026-11`, `10 bps` one-way cost)**: Raw equal-weight captures significant cross-sectional orderflow and low-volatility predictability (`Rank IC = +0.0452`, `NW t = +4.45`, `+8.31 bps` gross margin - viable below `8.3 bps` maker/VIP fees, `-0.13` Net Sharpe at `10 bps` taker cost), while FWL sector + beta neutralization + Lowdin (`Stage 1`) lifts pure cross-sectional Gross Sharpe from `+0.62` to `+0.86` (`Rank IC = +0.0307`, `NW t = +4.04`).
+- **US Large-Cap Equities & Sector ETFs Long-Short (`N = 30` S&P bellwethers & Sector SPDRs, `2022-09` to `2026-11`, `10 bps` one-way cost)**: On an institutional large-cap universe where 6 textbook daily OHLCV signals carry near-zero standalone edge (`Raw IC = +0.0014`), naive unpenalized walk-forward (`Stage 2`) churns `59.5%`/day (`-3.65` Net Sharpe). The cost-aware pipeline (`Stage 3`) cuts turnover **12x** (`0.595 -> 0.049`), flips Gross Margin from `-2.25 bps` to **`+8.65 bps`** (`+0.24` Gross Sharpe), and preserves capital (`-0.04` Net Sharpe).
+- **Vietnam `HOSE` Long-Only Locked Holdout (`N <= 150` point-in-time liquid stocks, `2022-01` to `2026-11`, `30 bps` one-way / `60 bps` round-trip cost)**: FWL beta + size neutralization + Lowdin (`Stage 1`) lifts Newey-West $t$-stat from `+2.82` to `+4.25` (`+5.30` in `Stage 2`). The cost-aware pipeline (`Stage 3`) cuts daily turnover **4.3x** (`0.387 -> 0.091`) and lifts Gross Margin by **`+27.58 bps`** (`-14.90 -> +12.68 bps`, `-0.17` Net Sharpe vs `-1.78` Raw EW), while confirming that overcoming `HOSE`'s `60 bps` round-trip long-only hurdle requires deeper fundamental or intraday alpha beyond 6 public daily OHLCV formulas.
+
+| Market & Regime | Pipeline Stage | Rank IC (NW $t$) | Daily Turnover | Gross Margin (`bps`) | Gross Sharpe | Net Sharpe |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Crypto L/S** (`N=24`, `10 bps` OW) | 0. Raw Equal-Weight | `+0.0452` (`+4.45`) | `0.436` | `+8.31` | `+0.62` | `-0.13` |
+| **Crypto L/S** (`N=24`, `10 bps` OW) | 1. FWL + Lowdin (EW) | `+0.0307` (`+4.04`) | `0.586` | `+6.00` | `+0.86` | `-0.58` |
+| **US Equities L/S** (`N=30`, `10 bps` OW) | 2. Unpenalized Walk-Forward | `-0.0082` (`-1.63`) | `0.595` | `-2.25` | `-0.67` | `-3.65` |
+| **US Equities L/S** (`N=30`, `10 bps` OW) | 3. Cost-Aware RMT + FISTA + EMA | `+0.0003` (`+0.08`) | `0.049` | `+8.65` | `+0.24` | `-0.04` |
+| **Vietnam HOSE L/O** (`N<=150`, `30 bps` OW) | 0. Raw Equal-Weight | `+0.0138` (`+2.82`) | `0.385` | `-14.90` | `-0.59` | `-1.78` |
+| **Vietnam HOSE L/O** (`N<=150`, `30 bps` OW) | 3. Cost-Aware RMT + FISTA + EMA | `+0.0043` (`+1.41`) | `0.091` | `+12.68` | `+0.13` | `-0.17` |
+
+### 2. Controlled synthetic ablation & exact solver invariants
+
+To isolate each mathematical mechanism when stationary net-positive latent factors are known to exist, [`benchmarks/alpha_engineering_validation.py`](benchmarks/alpha_engineering_validation.py) ([full output](docs/assets/alpha_engineering_validation.md)) runs a **controlled synthetic ablation** on a 150-asset, 10-sector planted factor structure ($T = 600$ days, $K = 6$ crowded/noisy signals, `10 bps` one-way cost):
+
+| Pipeline Stage (Synthetic Planted Structure) | Rank IC | ICIR | Daily L1 Turnover | Gross Margin (`bps`) | Gross Sharpe | Net Sharpe (`10 bps`) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | 0. Raw Signals (Equal-Weight) | `+0.0288` | `+0.222` | `1.218` | `+5.33` | `+3.57` | `-3.13` |
 | 1. FWL + Lowdin Ortho (Equal-Weight) | `+0.0311` | `+0.436` | `1.128` | `+6.50` | `+7.75` | `-4.16` |
 | 2. Unpenalized Walk-Forward (Sample Cov) | `+0.0269` | `+0.372` | `1.151` | `+5.66` | `+6.77` | `-5.16` |
-| 3. Full Pipeline (RMT + EB + FISTA + Decay) | `+0.0397` | `+0.541` | `0.409` | `+22.61` | `+9.73` | `+5.42` |
+| 3. Full Pipeline (RMT + Cost-Aware FISTA + EMA) | `+0.0208` | `+0.365` | `0.457` | `+18.10` | `+9.26` | `+4.14` |
 
 Every solver and panel projection is verified against deterministic mathematical invariants ([`docs/assets/alpha_engineering_validation.md`](docs/assets/alpha_engineering_validation.md)):
 
@@ -73,15 +92,19 @@ marg = ortho.anta.marginal_alpha_report(
     time_col="date",
 )
 
-# 3. Causal embargo walk-forward allocation (Marchenko-Pastur RMT + EB + FISTA L1 turnover):
+# 3. Causal embargo walk-forward allocation (RMT + factor-return cost drag + FISTA + EMA):
 wf = ortho.anta.combine_alphas_walkforward(
     factor_cols=[f"{c}_neut_ortho" for c in raw_cols],
     return_col="fwd_1",
     time_col="date",
+    asset_col="ticker",
     lookback=60,
     horizon=1,
     signal_lag=1,
-    turnover_penalty=0.006,
+    objective_mode="factor_return",
+    one_way_cost_bps=10.0,
+    signal_ema_alpha=0.25,
+    turnover_penalty=0.01,
     constraint="box",
     lower_bound=-1.0,
     upper_bound=1.0,

@@ -166,9 +166,13 @@ def main() -> None:
         factor_cols=ortho_cols,
         return_col="fwd_1",
         time_col="date",
+        asset_col="ticker",
         lookback=60,
         horizon=1,
         signal_lag=1,
+        objective_mode="factor_return",
+        one_way_cost_bps=10.0,
+        signal_ema_alpha=0.35,
         risk_aversion=2.5,
         turnover_penalty=0.006,
         constraint="box",
@@ -176,16 +180,10 @@ def main() -> None:
         upper_bound=1.0,
         cov_estimator="marchenko_pastur",
         ic_shrinkage="empirical_bayes",
-        composite_col="composite_raw",
-    )
-    final_df = wf.data.sort(["ticker", "date"]).with_columns(
-        pl.col("composite_raw")
-        .ewm_mean(alpha=0.35, adjust=False)
-        .over("ticker")
-        .alias("composite_alpha")
+        composite_col="composite_alpha",
     )
 
-    diag = final_df.anta.analyze_alpha(
+    diag = wf.data.anta.analyze_alpha(
         factor_col="composite_alpha",
         close_col="close",
         volume_col="volume",

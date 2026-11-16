@@ -279,15 +279,85 @@ def solve_fista(
     )
 
 
+def _factor_return_and_turnover_matrices(
+    df: pl.DataFrame,
+    factors: list[str],
+    return_col: str,
+    time_col: str,
+    asset_col: str | None,
+    horizon: int,
+) -> tuple[pl.DataFrame, pl.DataFrame | None, pl.DataFrame]:
+    """Compute per-period dollar-neutral factor returns, asset-level turnovers, and return dispersion."""
+    work = df.sort([asset_col, time_col] if asset_col is not None else [time_col])
+    r_clean = pl.col(return_col).cast(pl.Float64).fill_nan(None)
+
+    w_exprs: list[pl.Expr] = []
+    w_ret_exprs: list[pl.Expr] = []
+    for i, c in enumerate(factors):
+        f_c = pl.col(c).cast(pl.Float64).fill_nan(None)
+        # Signal-only dollar-neutral weights (causal at t even when return_col is null)
+        dm_all = f_c - f_c.mean().over(time_col)
+        den_all = dm_all.abs().sum().over(time_col)
+        w_sig = (
+            pl.when(f_c.is_not_null() & (den_all > 1e-15))
+            .then(dm_all / den_all)
+            .otherwise(0.0)
+            .alias(f"_ws_{i}")
+        )
+        w_exprs.append(w_sig)
+
+        # Joint-support dollar-neutral weights for realized factor return r_{k,t}
+        valid_jr = f_c.is_not_null() & r_clean.is_not_null()
+        f_jr = pl.when(valid_jr).then(f_c).otherwise(None)
+        dm_jr = f_jr - f_jr.mean().over(time_col)
+        den_jr = dm_jr.abs().sum().over(time_col)
+        w_jr = pl.when(valid_jr & (den_jr > 1e-15)).then(dm_jr / den_jr).otherwise(None)
+        w_ret_exprs.append((w_jr * r_clean).alias(f"_fr_{i}"))
+
+    work = work.with_columns([*w_exprs, *w_ret_exprs, r_clean.alias("_anta_r_clean")])
+
+    ret_aggs = [
+        pl.when(pl.col(f"_fr_{i}").count() > 0)
+        .then(pl.col(f"_fr_{i}").sum())
+        .otherwise(None)
+        .alias(factors[i])
+        for i in range(len(factors))
+    ]
+    fac_ret_df = work.group_by(time_col).agg(ret_aggs).sort(time_col)
+    disp_df = (
+        work.group_by(time_col).agg(pl.col("_anta_r_clean").std().alias("_cs_disp")).sort(time_col)
+    )
+
+    if asset_col is None:
+        return fac_ret_df, None, disp_df
+
+    turn_exprs = [
+        (
+            pl.col(f"_ws_{i}")
+            - pl.col(f"_ws_{i}").shift(int(horizon), fill_value=0.0).over(asset_col)
+        )
+        .abs()
+        .alias(f"_ft_{i}")
+        for i in range(len(factors))
+    ]
+    turn_aggs = [pl.col(f"_ft_{i}").sum().alias(factors[i]) for i in range(len(factors))]
+    fac_turn_df = work.with_columns(turn_exprs).group_by(time_col).agg(turn_aggs).sort(time_col)
+    return fac_ret_df, fac_turn_df, disp_df
+
+
 def combine_alphas_walkforward(
     df: pl.DataFrame | pl.LazyFrame,
     factor_cols: Sequence[str],
     return_col: str,
     time_col: str = "date",
+    asset_col: str | None = None,
     lookback: int = 60,
     horizon: int = 1,
     signal_lag: int = 1,
     embargo: int | None = None,
+    objective_mode: Literal["ic", "factor_return"] = "ic",
+    one_way_cost_bps: float = 0.0,
+    signal_ema_alpha: float | None = None,
     risk_aversion: float = 2.0,
     turnover_penalty: float = 0.05,
     l2_reg: float = 1e-4,
@@ -305,12 +375,14 @@ def combine_alphas_walkforward(
     composite_col: str = "composite_alpha",
     equal_weight_col: str = "equal_weight_alpha",
 ) -> WalkForwardAllocationResult:
-    """Strictly causal walk-forward multi-factor allocator with overlapping-horizon embargo.
+    """Strictly causal walk-forward multi-factor allocator with embargo and stock-turnover cost control.
 
-    At decision index ``idx`` (`time_col[idx]`), uses only realized cross-sectional ICs up to
-    ``end_excl = idx - embargo`` where ``embargo = max(0, horizon + signal_lag - 1)``, ensuring
-    zero look-ahead leakage when ``horizon > 1`` and supporting live timestamps whose forward
-    return is ``null``.
+    At decision index ``idx`` (`time_col[idx]`), uses only realized observations up to
+    ``end_excl = idx - embargo`` where ``embargo = max(0, horizon + signal_lag - 1)``. Supports
+    optimizing either cross-sectional Information Coefficients (``objective_mode='ic'``) or
+    realized dollar-neutral factor portfolio returns (``objective_mode='factor_return'``), with
+    per-factor stock-level transaction cost deduction (``one_way_cost_bps``) and optional causal
+    exponential composite smoothing (``signal_ema_alpha``).
     """
     factors = list(factor_cols)
     k = len(factors)
@@ -322,16 +394,40 @@ def combine_alphas_walkforward(
         raise ValueError("horizon must be a positive integer")
     if signal_lag < 0:
         raise ValueError("signal_lag must be non-negative")
-    if no_trade_buffer < 0.0:
-        raise ValueError("no_trade_buffer must be non-negative")
+    if no_trade_buffer < 0.0 or one_way_cost_bps < 0.0:
+        raise ValueError("no_trade_buffer and one_way_cost_bps must be non-negative")
+    if objective_mode not in ("ic", "factor_return"):
+        raise ValueError("objective_mode must be 'ic' or 'factor_return'")
+    if one_way_cost_bps > 0.0 and asset_col is None:
+        raise ValueError("asset_col is required when one_way_cost_bps > 0")
+    if signal_ema_alpha is not None:
+        if not (0.0 < float(signal_ema_alpha) <= 1.0):
+            raise ValueError("signal_ema_alpha must lie in (0.0, 1.0]")
+        if asset_col is None:
+            raise ValueError("asset_col is required when signal_ema_alpha is set")
 
     emb = max(0, int(horizon) + int(signal_lag) - 1) if embargo is None else max(0, int(embargo))
     eager = df.collect() if isinstance(df, pl.LazyFrame) else df
+    eval_df = (
+        eager.sort([asset_col, time_col]).with_columns(
+            [
+                pl.col(c)
+                .cast(pl.Float64)
+                .fill_nan(None)
+                .ewm_mean(alpha=float(signal_ema_alpha), adjust=False)
+                .over(asset_col)
+                .alias(c)
+                for c in factors
+            ]
+        )
+        if (signal_ema_alpha is not None and asset_col is not None)
+        else eager
+    )
 
     # Master timeline from factor observations (includes live dates where return_col is null)
-    timeline_df = eager.select(time_col).unique().sort(time_col)
+    timeline_df = eval_df.select(time_col).unique().sort(time_col)
     realized_ic = ic_matrix(
-        eager,
+        eval_df,
         factor_cols=factors,
         return_col=return_col,
         group_by=time_col,
@@ -343,8 +439,29 @@ def combine_alphas_walkforward(
             f"Panel timestamps ({ic_aligned.height}) must exceed lookback + embargo ({lookback + emb})"
         )
 
+    need_fac_stats = (objective_mode == "factor_return") or (one_way_cost_bps > 0.0)
+    turn_arr: np.ndarray | None = None
+    disp_arr: np.ndarray | None = None
+    if need_fac_stats:
+        fac_ret_df, fac_turn_df, disp_df = _factor_return_and_turnover_matrices(
+            eval_df, factors, return_col, time_col, asset_col, horizon
+        )
+        ret_aligned = timeline_df.join(fac_ret_df, on=time_col, how="left").sort(time_col)
+        disp_aligned = timeline_df.join(disp_df, on=time_col, how="left").sort(time_col)
+        disp_arr = disp_aligned["_cs_disp"].to_numpy().astype(np.float64)
+        if fac_turn_df is not None:
+            turn_aligned = timeline_df.join(fac_turn_df, on=time_col, how="left").sort(time_col)
+            turn_arr = turn_aligned.select(factors).to_numpy().astype(np.float64)
+        obs_arr = (
+            ret_aligned.select(factors).to_numpy().astype(np.float64)
+            if objective_mode == "factor_return"
+            else ic_aligned.select(factors).to_numpy().astype(np.float64)
+        )
+    else:
+        obs_arr = ic_aligned.select(factors).to_numpy().astype(np.float64)
+
     times = ic_aligned[time_col].to_list()
-    ic_arr = ic_aligned.select(factors).to_numpy().astype(np.float64)
+    cost_rate = float(one_way_cost_bps) * 1e-4
 
     w_prev = np.full(
         k,
@@ -356,32 +473,61 @@ def combine_alphas_walkforward(
 
     for idx in range(lookback + emb, len(times)):
         end_excl = idx - emb
-        win_raw = ic_arr[end_excl - lookback : end_excl]
-        win = win_raw[np.isfinite(win_raw).all(axis=1)]
+        win_raw = obs_arr[end_excl - lookback : end_excl]
+        finite_rows = np.isfinite(win_raw).all(axis=1)
+        win = win_raw[finite_rows]
         if len(win) < 4:
             continue
 
+        if objective_mode == "factor_return":
+            d_win = (
+                disp_arr[end_excl - lookback : end_excl][finite_rows]
+                if disp_arr is not None
+                else np.ones(1, dtype=np.float64)
+            )
+            cs_scale = max(0.8 * float(np.nanmean(d_win)), 1e-4)
+            win_eff = win / cs_scale
+        else:
+            d_win = (
+                disp_arr[end_excl - lookback : end_excl][finite_rows]
+                if disp_arr is not None
+                else np.ones(1, dtype=np.float64)
+            )
+            cs_scale = max(0.8 * float(np.nanmean(d_win)), 1e-4)
+            win_eff = win
+
         if ic_ema_halflife is not None and ic_ema_halflife > 0.0:
             dec = np.exp(-np.log(2.0) / float(ic_ema_halflife))
-            ew = np.power(dec, np.arange(len(win) - 1, -1, -1, dtype=np.float64))
+            ew = np.power(dec, np.arange(len(win_eff) - 1, -1, -1, dtype=np.float64))
             ew /= np.sum(ew)
-            mu_hat = np.sum(win * ew[:, None], axis=0)
+            mu_hat = np.sum(win_eff * ew[:, None], axis=0)
         else:
-            mu_hat = np.mean(win, axis=0)
+            mu_hat = np.mean(win_eff, axis=0)
+
+        # Deduct asset-level transaction cost drag per factor before Empirical Bayes & FISTA
+        if cost_rate > 0.0 and turn_arr is not None:
+            t_win = turn_arr[end_excl - lookback : end_excl][finite_rows]
+            mean_tau = np.nanmean(t_win, axis=0)
+            mean_tau = np.where(np.isfinite(mean_tau), mean_tau, 0.0)
+            drag_vec = (cost_rate * mean_tau) / cs_scale
+            if constraint != "unconstrained" and float(lower_bound) >= 0.0:
+                mu_hat = mu_hat - drag_vec
+            else:
+                mu_hat = np.sign(mu_hat) * np.maximum(np.abs(mu_hat) - drag_vec, 0.0)
 
         if ic_shrinkage == "empirical_bayes":
-            se = np.maximum(np.std(win, axis=0, ddof=1) / np.sqrt(float(len(win))), 1e-8)
+            se = np.maximum(np.std(win_eff, axis=0, ddof=1) / np.sqrt(float(len(win_eff))), 1e-8)
             eb_df = empirical_bayes_shrinkage(mu_hat, se, prior="zero")
             mu_hat = eb_df["posterior_mean"].to_numpy().astype(np.float64)
 
         if cov_estimator == "ledoit_wolf":
-            cov_hat, _ = ledoit_wolf_shrinkage(win)
+            cov_hat, _ = ledoit_wolf_shrinkage(win_eff)
         elif cov_estimator == "marchenko_pastur":
-            cov_hat = marchenko_pastur_denoise(win)
+            cov_hat = marchenko_pastur_denoise(win_eff)
         elif cov_estimator == "exponential":
-            cov_hat = exponential_covariance(win, half_life=max(4.0, lookback / 2.0))
+            cov_hat = exponential_covariance(win_eff, half_life=max(4.0, lookback / 2.0))
         else:
-            cov_hat = sample_covariance(win)
+            cov_hat = sample_covariance(win_eff)
 
         opt = solve_fista(
             expected_ic=mu_hat,
@@ -414,7 +560,7 @@ def combine_alphas_walkforward(
         weight_rows.append(row)
 
     if not weight_rows:
-        raise ValueError("No out-of-sample periods had at least 4 finite realized IC observations")
+        raise ValueError("No out-of-sample periods had at least 4 finite realized observations")
 
     w_df = pl.DataFrame(weight_rows)
     w_cols = [f"w_{c}" for c in factors]
@@ -431,6 +577,19 @@ def combine_alphas_walkforward(
         cs_zscore(comp_raw, over=time_col).alias(composite_col),
         cs_zscore(ew_raw, over=time_col).alias(equal_weight_col),
     )
+
+    if signal_ema_alpha is not None and asset_col is not None:
+        out_panel = (
+            out_panel.sort([asset_col, time_col])
+            .with_columns(
+                pl.col(composite_col)
+                .ewm_mean(alpha=float(signal_ema_alpha), adjust=False)
+                .over(asset_col)
+                .alias(composite_col)
+            )
+            .with_columns(cs_zscore(pl.col(composite_col), over=time_col).alias(composite_col))
+            .sort([time_col, asset_col])
+        )
 
     nw_lags = max(1, int(horizon) - 1)
     comp_sum = ic_summary(

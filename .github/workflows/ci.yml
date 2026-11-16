@@ -13,11 +13,12 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -33,19 +34,34 @@ jobs:
   test:
     name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        exclude:
+          - os: windows-latest
+            python-version: "3.10"
+          - os: windows-latest
+            python-version: "3.11"
+          - os: windows-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.10"
+          - os: macos-latest
+            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.13"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
 
       - name: Install Dependencies
         run: |

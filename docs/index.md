@@ -4,40 +4,40 @@
   </div>
 
   <div class="anta-hero-title">
-    Build Alpha Signals in Polars - Then Test Whether They Are Real
+    Cross-Sectional Alpha Engineering & Cost-Aware Portfolio Allocation in Polars
   </div>
 
   <div class="anta-hero-subtitle">
-    An open-source Python library for quantitative research, built on Polars. Combine 223 high-performance primitives for technical indicators, formulaic alphas, microstructure and backtesting with statistical falsification tools: stationary block bootstrap, Benjamini-Hochberg FDR, Romano-Wolf stepdown, Hansen's SPA, CSCV probability of backtest overfitting, and transaction-cost accounting.
+    A pure-Python, zero-C quantitative library built on Polars and NumPy. Transform noisy, crowded multi-asset signals into risk-neutralized (FWL), symmetrically orthogonalized (Lowdin SVD), Alphalens-diagnosed, RMT-denoised, and turnover-controlled (FISTA) portfolio weights - backed by multiple-testing falsification.
   </div>
 
   <div class="anta-cta-group">
-    <a href="research/factor-zoo/" class="md-button md-button--primary anta-btn-primary">Read the Factor Zoo Case Study</a>
-    <a href="getting-started/" class="md-button anta-btn-secondary">Get Started in 60s</a>
-    <a href="indicators/" class="md-button anta-btn-secondary">Explore 223-Function API Catalog</a>
+    <a href="indicators/alpha-engineering/" class="md-button md-button--primary anta-btn-primary">Alpha Engineering Pipeline</a>
+    <a href="research/factor-zoo/" class="md-button anta-btn-secondary">Read the Factor Zoo Case Study</a>
+    <a href="indicators/" class="md-button anta-btn-secondary">Explore 241-Function API Catalog</a>
   </div>
 </div>
 
 <div class="anta-metrics-grid">
   <div class="anta-metric-card">
-    <div class="anta-metric-value">150</div>
-    <div class="anta-metric-label">Signals Tested</div>
-    <div class="anta-metric-desc">146 unique signals collapse to N_eff = 6.00 dimensions</div>
+    <div class="anta-metric-value">0.00</div>
+    <div class="anta-metric-label">Prefix Leakage</div>
+    <div class="anta-metric-desc">Causal embargo walk-forward verified at h = 5 bars</div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">38</div>
-    <div class="anta-metric-label">Holdout Replications</div>
-    <div class="anta-metric-desc">38 of 64 robust signals pass Romano-Wolf (59.4%)</div>
+    <div class="anta-metric-value">+22.6 bps</div>
+    <div class="anta-metric-label">Gross Margin</div>
+    <div class="anta-metric-desc">Up from +5.33 bps via FWL, Lowdin, RMT & FISTA control</div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">0</div>
-    <div class="anta-metric-label">Post-Cost Survivors</div>
-    <div class="anta-metric-desc">0 long-only Q5 strategies survive 60 bps execution costs</div>
+    <div class="anta-metric-value">150 -> 6</div>
+    <div class="anta-metric-label">Factor Zoo N_eff</div>
+    <div class="anta-metric-desc">150 standalone HOSE signals collapse to 6.00 dimensions</div>
   </div>
   <div class="anta-metric-card">
-    <div class="anta-metric-value">223</div>
+    <div class="anta-metric-value">241</div>
     <div class="anta-metric-label">Public Functions</div>
-    <div class="anta-metric-desc">Pure Polars expressions with zero C compiler dependencies</div>
+    <div class="anta-metric-desc">Pure Polars + NumPy with zero SciPy or C dependencies</div>
   </div>
 </div>
 

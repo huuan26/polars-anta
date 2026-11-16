@@ -6,7 +6,11 @@ This is the canonical instruction file for coding agents (Cursor, Claude, Copilo
 
 ## 🗺️ Repository Map
 
-- `src/polars_anta/`: Core library package (pure Polars, zero-C dependencies).
+- `src/polars_anta/`: Core library package (pure Polars + NumPy, zero-C dependencies).
+  - `conditioning.py`: Cross-sectional rank-Gaussianization (`cs_gaussianize`), two-stage FWL group + continuous risk neutralization (`neutralize_panel`), batched 3D Lowdin symmetric orthogonalization (`lowdin_matrix`, `orthogonalize_panel`), and collinearity metrics (`collinearity_summary`).
+  - `diagnostics.py`: Alphalens-grade cross-sectional diagnostics (`AlphaDiagnosticReport`, `analyze_alpha` with IC, decay half-life, turnover, gross margin bps, breakeven cost, long/short leg attribution, causal ADV sub-universe tiers, and yearly consistency) and marginal redundancy screening (`marginal_alpha_report`).
+  - `covariance.py`: Loop-free BLAS Ledoit-Wolf shrinkage (`ledoit_wolf_shrinkage`), Random Matrix Theory Marchenko-Pastur denoising (`marchenko_pastur_denoise`), exponential covariance (`exponential_covariance`), sample covariance (`sample_covariance`), and Higham SPD projection (`nearest_spd`).
+  - `allocation.py`: Exact joint Lagrangian box-simplex + $L_1$ proximal operator (`project_simplex`, `project_box_simplex`, `prox_l1_shifted`), Monotone FISTA solver (`solve_fista`, `OptimizationResult`), and causal embargo walk-forward allocator (`combine_alphas_walkforward`, `WalkForwardAllocationResult`).
   - `alpha.py`: WorldQuant 101 Formulaic Alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), cross-sectional operators (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`), and time-series primitives.
   - `trend.py`: Trend-following indicators (SMA, EMA, HMA, KAMA, SuperTrend, Ichimoku, ADX, PSAR, SSL Channel, Pivots).
   - `momentum.py`: Momentum oscillators (RSI, MACD, Stochastic, Squeeze Momentum, STC, CCI, Williams %R, TSI).

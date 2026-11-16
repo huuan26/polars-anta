@@ -1,9 +1,10 @@
 # API Reference & Indicator Catalog
 
-`polars-anta` provides **223 public functions** (225 exports in `__all__`, including `BacktestResult` and `FalsificationResult`) covering technical indicators, market microstructure estimators, AFML machine learning primitives, factor evaluation tools, statistical inference & multiple-testing falsification, and execution-realistic backtesting utilities organized across nine specialized modules:
+`polars-anta` provides **241 public functions** (246 exports in `__all__`, including structured result containers `AlphaDiagnosticReport`, `OptimizationResult`, `WalkForwardAllocationResult`, `BacktestResult`, and `FalsificationResult`) organized across specialised modules for cross-sectional alpha engineering, cost-aware portfolio allocation, statistical falsification, microstructure, and signal primitives:
 
 | Domain / Module | Count | Key Functionality | API Reference |
 | :--- | :---: | :--- | :--- |
+| **0. Cross-Sectional Alpha Engineering** (`conditioning`, `diagnostics`, `covariance`, `allocation`) | 20 | `cs_gaussianize`, FWL `neutralize_panel`, batched 3D SVD `lowdin_matrix` & `orthogonalize_panel`, `collinearity_summary`, `analyze_alpha`, `marginal_alpha_report`, `ledoit_wolf_shrinkage`, `marchenko_pastur_denoise`, `solve_fista`, causal `combine_alphas_walkforward` | [Alpha Engineering API ->](alpha-engineering.md) |
 | **1. Trend & Overlays** (`polars_anta.trend`) | 28 | Moving averages (`sma`, `ema`, `hma`, `kama`, `t3`, `alma`), `heikin_ashi`, `supertrend`, `ichimoku`, `adx`, `psar`, `ssl_channel`, `pivot_points` | [Trend API →](trend.md) |
 | **2. Momentum Oscillators** (`polars_anta.momentum`) | 22 | `rsi`, `macd`, `ppo`, `stochastic`, `stoch_rsi`, `squeeze_momentum`, `stc`, `tsi`, `fisher_transform`, `cci`, `williams_r`, `kst` | [Momentum API →](momentum.md) |
 | **3. Volatility & Channels** (`polars_anta.volatility`) | 20 | `atr`, `natr`, `bollinger_bands`, `keltner_channels`, `donchian_channels`, `chandelier_exit`, `parkinson_volatility`, `garman_klass_volatility`, `rogers_satchell_volatility`, `yang_zhang_volatility`, `ulcer_index` | [Volatility API →](volatility.md) |
@@ -20,6 +21,10 @@
 
 ```text
 polars_anta/
+├── conditioning.py # Rank-Gaussianize, FWL group+risk neutralize, batched 3D Lowdin SVD & VIF
+├── diagnostics.py  # Alphalens-grade analyze_alpha tearsheet (margin bps, ADV tiers) & marginal_alpha_report
+├── covariance.py   # Loop-free BLAS Ledoit-Wolf shrinkage, Marchenko-Pastur RMT denoiser & SPD projection
+├── allocation.py   # Joint box-simplex + L1 proximal FISTA solver & causal embargo walk-forward allocator
 ├── trend.py        # Moving averages, adaptive filters, Heikin-Ashi & structural pivots
 ├── momentum.py     # Velocity oscillators, Gaussian Fisher transform & squeeze detectors
 ├── volatility.py   # Parkinson/Garman-Klass/Rogers-Satchell/Yang-Zhang variance, Wilder ATR stops & price channels

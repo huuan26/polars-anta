@@ -316,7 +316,9 @@ def test_fractal_dimension_mathematical_parity():
 
 
 def test_package_version_and_metadata():
-    """Verify package version is 0.4.0 and matches project release."""
+    """Verify package version is 0.5.0 and top-level __all__ matches public attributes."""
     import polars_anta
 
-    assert polars_anta.__version__ == "0.4.0"
+    assert polars_anta.__version__ == "0.5.0"
+    for sym in polars_anta.__all__:
+        assert hasattr(polars_anta, sym)

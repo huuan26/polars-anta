@@ -2,9 +2,9 @@
 
 <img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/assets/banner.png" alt="polars-anta banner" width="100%" />
 
-**Build alpha signals in Polars, then test whether they are real.**
+**Cross-sectional alpha engineering, Alphalens-grade diagnostics, and cost-aware portfolio allocation in Polars.**
 
-[Case Study](#case-study-150-signals-on-vietnamese-equities) | [Documentation](https://huuan26.github.io/polars-anta/) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Examples](examples/) | [Report an Issue](https://github.com/huuan26/polars-anta/issues)
+[Alpha Engineering Benchmark](#dollar-neutral-long-short-alpha-engineering-benchmark) | [Factor Zoo Case Study](#why-standalone-signals-fail-150-signals-on-vietnamese-equities) | [Documentation](https://huuan26.github.io/polars-anta/) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Examples](examples/)
 
 </div>
 
@@ -12,26 +12,93 @@
 
 ## Overview
 
-`polars-anta` is an open-source Python library for quantitative research, built on [Polars](https://pola.rs/). It combines two things in one package:
+`polars-anta` is a pure-Python, zero-C quantitative research library built on [Polars](https://pola.rs/) and NumPy. Rather than acting only as a collection of technical indicators, it solves the complete mathematical pipeline required to turn noisy, crowded multi-asset signals (`time x asset x K factors`) into orthogonalized, turnover-controlled portfolio weights:
 
-1. **Signal building blocks.** 223 functions for technical indicators, formulaic alphas, market microstructure features, factor evaluation and vectorized backtesting, all written as native Polars expressions.
-2. **Tools to falsify those signals.** Block bootstrap tests, multiple-testing corrections (Benjamini-Hochberg, Romano-Wolf), Hansen's SPA test, probability of backtest overfitting, empirical-Bayes shrinkage and transaction-cost breakeven analysis.
-
-The motivation is simple: when you test hundreds of signals, many of them will look significant by chance. `polars-anta` is designed to help you find out which ones actually survive. The name stands for **A**lpha and **N**umerical **T**echnical **A**nalysis.
+1. **Cross-sectional signal conditioning (`polars_anta.conditioning`).** Rank-to-normal Gaussianization (`cs_gaussianize`), exact two-stage Frisch-Waugh-Lovell group + continuous risk neutralization (`neutralize_panel`), and loop-free batched 3D Lowdin symmetric SVD orthogonalization (`orthogonalize_panel`).
+2. **Alphalens-grade diagnostics and redundancy screening (`polars_anta.diagnostics`).** Causal tearsheets (`analyze_alpha`) measuring Rank IC, Newey-West HAC $t$-statistics, decay half-life, L1 turnover, gross margin (`bps` per dollar traded), breakeven cost, long/short leg attribution, and lagged ADV liquidity tiers, plus incremental factor screening (`marginal_alpha_report` for $\Delta N_{\text{eff}}$, spanned $R^2$, and Residual IC).
+3. **Random Matrix Theory denoising and cost-aware FISTA allocation (`polars_anta.covariance`, `polars_anta.allocation`).** Analytical Ledoit-Wolf shrinkage, Marchenko-Pastur spectral denoising, and Monotone FISTA optimization with an exact Lagrangian joint box-simplex + $L_1$ turnover proximal operator (`solve_fista`) and causal embargo walk-forward allocation (`combine_alphas_walkforward`).
+4. **Statistical falsification and signal primitives (`polars_anta.inference`, `alpha`, `stats`, ...).** Stationary block bootstrap, Romano-Wolf stepdown FWER, CSCV probability of backtest overfitting, empirical-Bayes shrinkage, microstructure estimators, information-driven bars, and 150+ vectorized signal primitives (`241` public functions, `246` total exports).
 
 | Project facts | |
 | :--- | :--- |
 | Install | `pip install polars-anta` or `uv add polars-anta` |
 | Python | 3.10, 3.11, 3.12, 3.13, 3.14 |
-| Runtime dependencies | `polars>=1.0.0`, `numpy>=1.24.0` (no C compiler required) |
-| Engine | Native Polars expressions on the multi-threaded Rust engine |
+| Runtime dependencies | `polars>=1.0.0`, `numpy>=1.24.0` (no SciPy, CVXPY, or C compiler required) |
+| Engine | Native Polars expressions + vectorized NumPy BLAS/LAPACK kernels |
 | Status | [CI workflow](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml), [Docs workflow](https://github.com/huuan26/polars-anta/actions/workflows/docs.yml), [PyPI release](https://pypi.org/project/polars-anta/) |
 | Try online | [Quickstart notebook on Google Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
 | License | [Apache License 2.0](LICENSE) |
 
 ---
 
-## Case study: 150 signals on Vietnamese equities
+## Dollar-neutral long-short alpha engineering benchmark
+
+In institutional cross-sectional equity and crypto portfolios, individual raw signals rarely survive transaction costs on their own due to sector/beta contamination, signal crowding, covariance estimation noise, and excessive daily turnover. [`benchmarks/alpha_engineering_validation.py`](benchmarks/alpha_engineering_validation.py) evaluates each stage of the `polars-anta` pipeline out of sample on a 150-asset, 10-sector dollar-neutral long-short universe ($T = 600$ days, $K = 6$ crowded and noisy candidate signals, `10 bps` one-way execution cost):
+
+| Pipeline Stage | Rank IC | ICIR | Daily L1 Turnover | Gross Margin (`bps`) | Gross Sharpe | Net Sharpe (`10 bps`) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| 0. Raw Signals (Equal-Weight) | `+0.0288` | `+0.222` | `1.218` | `+5.33` | `+3.57` | `-3.13` |
+| 1. FWL + Lowdin Ortho (Equal-Weight) | `+0.0311` | `+0.436` | `1.128` | `+6.50` | `+7.75` | `-4.16` |
+| 2. Unpenalized Walk-Forward (Sample Cov) | `+0.0269` | `+0.372` | `1.151` | `+5.66` | `+6.77` | `-5.16` |
+| 3. Full Pipeline (RMT + EB + FISTA + Decay) | `+0.0397` | `+0.541` | `0.409` | `+22.61` | `+9.73` | `+5.42` |
+
+Every solver and panel projection is verified against deterministic mathematical invariants ([`docs/assets/alpha_engineering_validation.md`](docs/assets/alpha_engineering_validation.md)):
+
+| Mathematical Invariant | Observed Error / Residual | Acceptance Bound |
+| :--- | :---: | :---: |
+| Simultaneous Sector + Continuous Risk Exposure $\max |\mathbf{X}_t^T \mathbf{F}_{\text{neut},t}|$ | `5.72e-13` | `< 1.00e-10` |
+| Batched Lowdin Orthogonality $\lVert \widetilde{\mathbf{F}}_t^T \widetilde{\mathbf{F}}_t / (N_t - 1) - \mathbf{I}_K \rVert_F$ | `4.14e-15` | `< 1.00e-10` |
+| Lowdin Permutation Equivariance $\max |\widetilde{\mathbf{F}}_{\pi} - \widetilde{\mathbf{F}}\mathbf{P}|$ | `3.55e-15` | `< 1.00e-11` |
+| Joint Box-Simplex + $L_1$ FISTA KKT Stationarity Residual | `5.09e-11` | `< 1.00e-07` |
+| Causal Embargo Prefix-Invariance Weight Leakage ($h=5, d=1$) | `0.00e+00` | `== 0.00e+00` |
+
+Run the complete global dollar-neutral long-short walkthrough in [`examples/07_cross_sectional_alpha_engineering.py`](examples/07_cross_sectional_alpha_engineering.py):
+
+```python
+import polars as pl
+import polars_anta as pa
+
+# 1. Gaussianize, neutralize sector + beta (FWL), and symmetrically orthogonalize (Lowdin SVD):
+ortho = (
+    panel.with_columns([pl.col(c).anta.cs_gaussianize(over="date") for c in raw_cols])
+    .anta.neutralize_panel(raw_cols, time_col="date", risk_cols=["beta"], group_col="sector")
+    .anta.orthogonalize_panel([f"{c}_neut" for c in raw_cols], time_col="date", method="lowdin")
+)
+
+# 2. Check whether a new candidate adds independent dimension (Delta N_eff & FWL Residual IC):
+marg = ortho.anta.marginal_alpha_report(
+    candidate_col="alpha_new_neut",
+    benchmark_cols=["alpha_1_neut_ortho", "alpha_2_neut_ortho"],
+    return_col="fwd_1",
+    time_col="date",
+)
+
+# 3. Causal embargo walk-forward allocation (Marchenko-Pastur RMT + EB + FISTA L1 turnover):
+wf = ortho.anta.combine_alphas_walkforward(
+    factor_cols=[f"{c}_neut_ortho" for c in raw_cols],
+    return_col="fwd_1",
+    time_col="date",
+    lookback=60,
+    horizon=1,
+    signal_lag=1,
+    turnover_penalty=0.006,
+    constraint="box",
+    lower_bound=-1.0,
+    upper_bound=1.0,
+    cov_estimator="marchenko_pastur",
+    ic_shrinkage="empirical_bayes",
+)
+
+# 4. Full Alphalens-grade tearsheet (IC, Margin bps, Breakeven Cost, Lagged ADV Sub-Universe):
+diag = wf.data.anta.analyze_alpha(
+    "composite_alpha", close_col="close", volume_col="volume", asset_col="ticker", time_col="date"
+)
+print(diag.report())
+```
+
+---
+
+## Why standalone signals fail: 150 signals on Vietnamese equities
 
 We ran every daily signal in `polars-anta` (**150** signals, **146** unique) through the library's own falsification pipeline on the most liquid stocks of the Ho Chi Minh Stock Exchange (`HOSE`). The analysis plan was committed to Git before any results were computed, and the `2022-2026` holdout was evaluated only after the discovery results were committed.
 
@@ -162,6 +229,7 @@ flowchart LR
 
 | Area | Examples of functionality | API docs |
 | :--- | :--- | :--- |
+| **Cross-sectional alpha engineering and allocation** | `cs_gaussianize`, two-stage FWL `neutralize_panel`, batched 3D SVD `lowdin_matrix` and `orthogonalize_panel`, `collinearity_summary`, Alphalens-grade `analyze_alpha` (`AlphaDiagnosticReport`) and `marginal_alpha_report`, `ledoit_wolf_shrinkage`, `marchenko_pastur_denoise`, exact joint-prox `solve_fista`, causal embargo `combine_alphas_walkforward` | [Alpha engineering](https://huuan26.github.io/polars-anta/indicators/alpha-engineering/) |
 | **Statistical inference and falsification** | Stationary bootstrap (`stationary_bootstrap_indices`, `bootstrap_test`), multiple testing (`adjust_pvalues`, `romano_wolf`, `spa_test`), backtest overfitting (`pbo_cscv`), empirical-Bayes shrinkage (`empirical_bayes_shrinkage`), out-of-sample and stability tests (`oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `breakeven_cost_from_backtest`), panel falsification (`ic_matrix`, `long_short_returns`, `falsify_factors`, `sweep_robustness`) | [Inference](https://huuan26.github.io/polars-anta/indicators/inference/) |
 | **AFML labeling, factor evaluation and backtesting** | `triple_barrier_labels`, `trend_scanning_labels`, `forward_returns`, `information_coefficient`, Newey-West HAC `ic_summary`, `ic_decay`, `quantile_analysis`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `vectorized_backtest`, `extract_trades` (MAE and MFE), `parameter_sweep` | [Evaluation and backtest](https://huuan26.github.io/polars-anta/indicators/evaluation-and-backtest/) |
 | **Alpha factors, microstructure and futures** | Cross-sectional operators (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`, `orthogonalize`), liquidity and order flow (`amihud_illiquidity`, `kyle_lambda`, `roll_spread`, `corwin_schultz_spread`, `vpin`, `ofi`), index futures (`futures_basis`, `oi_regime`), regime complexity (`hurst_exponent`, `fractal_dimension`, `entropy`) and 33 formulaic alphas (`alpha_001` to `alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`) | [Alpha](https://huuan26.github.io/polars-anta/indicators/alpha/) |
@@ -173,6 +241,10 @@ flowchart LR
 
 | Module (`src/polars_anta/`) | Contents |
 | :--- | :--- |
+| `conditioning.py` | Rank-Gaussianization, simultaneous FWL group + risk neutralization, batched 3D Lowdin SVD, VIF and $N_{\text{eff}}$ |
+| `diagnostics.py` | `analyze_alpha` (IC, half-life, turnover, margin bps, causal ADV sub-universe, yearly) and `marginal_alpha_report` |
+| `covariance.py` | Loop-free BLAS Ledoit-Wolf shrinkage, Marchenko-Pastur RMT denoiser, exponential covariance and SPD projection |
+| `allocation.py` | Exact joint box-simplex + $L_1$ proximal FISTA solver (`solve_fista`) and causal embargo `combine_alphas_walkforward` |
 | `inference.py` | Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, empirical Bayes and `falsify_factors` |
 | `evaluation.py` | AFML labeling, Newey-West Rank IC, IC decay, quantile analysis, PSR and DSR metrics |
 | `backtest.py` | Vectorized backtester, volatility targeting, MAE and MFE trade ledger, parameter sweeps |
@@ -322,7 +394,29 @@ print(bt.trades())  # Round-trip trade ledger with PnL, holding_bars, MAE and MF
 
 ## API reference
 
-All 223 public functions (225 exports in `__all__`, including `BacktestResult` and `FalsificationResult`) are exported at the top level (`import polars_anta as pa`) and registered on the `.anta` and `.ta` namespaces. Expand a module below for its function signatures, or visit the [online API reference](https://huuan26.github.io/polars-anta/indicators/).
+All 241 public functions (246 exports in `__all__`, including structured result containers `AlphaDiagnosticReport`, `OptimizationResult`, `WalkForwardAllocationResult`, `BacktestResult` and `FalsificationResult`) are exported at the top level (`import polars_anta as pa`) and registered on the `.anta` and `.ta` namespaces. Expand a module below for its function signatures, or visit the [online API reference](https://huuan26.github.io/polars-anta/indicators/).
+
+<details open>
+<summary><strong>0. Cross-sectional alpha engineering and cost-aware allocation</strong>: <code>conditioning</code>, <code>diagnostics</code>, <code>covariance</code>, <code>allocation</code> (<a href="docs/indicators/alpha-engineering.md">detailed docs</a>)</summary>
+
+<br/>
+
+| Function Signature | Output Type | Description |
+| :--- | :--- | :--- |
+| `cs_gaussianize(expr, over=None, clip_bound=4.0)` | `pl.Expr` (`Float64`) | Rank-to-normal (Van der Waerden) quantile transformation via Acklam rational approximation |
+| `neutralize_panel(df, factor_cols, time_col="date", risk_cols=None, group_col=None, standardize=True, ridge=0.0, suffix="_neut")` | `DataFrame` or `LazyFrame` | Exact two-stage Frisch-Waugh-Lovell residualization against categorical groups and continuous risks |
+| `lowdin_matrix(mat, rcond=1e-10, standardize=True)` | `np.ndarray` (`2D`/`3D`) | Minimum Frobenius-distortion SVD polar orthogonalization with rank-deficient truncation guard |
+| `orthogonalize_panel(df, factor_cols, time_col="date", method="lowdin", rcond=1e-10, standardize=True, suffix="_ortho")` | `pl.DataFrame` | Loop-free batched 3D Gram/SVD cross-sectional symmetric orthogonalization |
+| `collinearity_summary(df, factor_cols, time_col=None, rcond=1e-10)` | `pl.DataFrame` | Variance Inflation Factors (`vif`), participation-ratio `effective_rank` ($N_{\text{eff}}$), and `condition_number` |
+| `analyze_alpha(df, factor_col, return_col=None, close_col="close", volume_col="volume", asset_col="ticker", time_col="date", ...)` | `AlphaDiagnosticReport` | Alphalens-grade causal tearsheet: IC, Newey-West $t$-stat, half-life, turnover, margin bps, breakeven cost, long/short leg share, lagged ADV tiers, and yearly consistency |
+| `marginal_alpha_report(df, candidate_col, benchmark_cols, return_col, time_col="date", horizon=1)` | `dict[str, float]` | Incremental dimension $\Delta N_{\text{eff}}$, cross-sectional `spanned_r2`, and FWL-orthogonalized Residual IC |
+| `ledoit_wolf_shrinkage(data, target="constant_correlation")` | `(np.ndarray, float)` | Loop-free BLAS analytical Ledoit-Wolf (2004) optimal covariance shrinkage |
+| `marchenko_pastur_denoise(data_or_cov, n_obs=None, method="constant_residual", ...)` | `np.ndarray` | Random Matrix Theory bulk-noise spectral denoiser preserving trace and unit correlation diagonal |
+| `exponential_covariance(data, half_life=60.0)` / `sample_covariance(data, ddof=1)` / `nearest_spd(matrix)` | `np.ndarray` | SPD covariance estimators for multi-factor risk matrices |
+| `solve_fista(expected_ic, covariance, risk_aversion=1.0, turnover_penalty=0.0, w_prev=None, ...)` | `OptimizationResult` | Monotone FISTA solver with exact Lagrangian joint box-simplex + $L_1$ turnover proximal step and KKT residual |
+| `combine_alphas_walkforward(df, factor_cols, return_col, time_col="date", lookback=60, horizon=1, signal_lag=1, ...)` | `WalkForwardAllocationResult` | Strictly causal embargo walk-forward allocator preventing multi-horizon forward-return leakage |
+
+</details>
 
 <details>
 <summary><strong>1. Trend and overlays</strong>: <code>polars_anta.trend</code> (<a href="docs/indicators/trend.md">detailed docs</a>)</summary>

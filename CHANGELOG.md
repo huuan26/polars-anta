@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-11-16
+
+### Added
+- **Cross-Sectional Signal Conditioning (`polars_anta.conditioning`)**: Added native Polars inverse-normal rank transformation `cs_gaussianize`, simultaneous categorical + continuous Frisch-Waugh-Lovell residualization `neutralize_panel`, loop-free batched 3D spectral Lowdin symmetric orthogonalization `lowdin_matrix` and `orthogonalize_panel` (with rank-deficient truncation guard), and `collinearity_summary` (`vif`, `effective_rank`, `condition_number`).
+- **Alphalens-Grade Diagnostics & Redundancy (`polars_anta.diagnostics`)**: Added `AlphaDiagnosticReport`, `analyze_alpha` (predictive IC, decay half-life, L1 turnover, gross margin in bps, breakeven cost, long vs. short leg active spread share, strictly causal trailing ADV sub-universe tiers, and yearly consistency), and `marginal_alpha_report` ($\Delta N_{\text{eff}}$, spanned $R^2$, FWL Residual IC).
+- **Covariance Conditioning & Random Matrix Denoising (`polars_anta.covariance`)**: Added loop-free BLAS `ledoit_wolf_shrinkage` (`"constant_correlation"` and `"identity"` targets), Marchenko-Pastur spectral denoiser `marchenko_pastur_denoise`, `exponential_covariance`, `sample_covariance`, and `nearest_spd`.
+- **Cost-Aware Convex Allocation (`polars_anta.allocation`)**: Added `project_simplex`, `project_box_simplex`, `prox_l1_shifted`, Monotone FISTA solver `solve_fista` (`OptimizationResult` with exact joint Lagrangian box-simplex + $L_1$ proximal step and KKT stationarity residual), and strictly causal embargo walk-forward panel allocator `combine_alphas_walkforward` (`WalkForwardAllocationResult`).
+- **Validation & Examples**: Added `benchmarks/alpha_engineering_validation.py` (`docs/assets/alpha_engineering_validation.md`), `examples/07_cross_sectional_alpha_engineering.py`, and `docs/indicators/alpha-engineering.md`.
+
+### Changed
+- **Strategic Repositioning**: Repositioned `polars-anta` around the 4-stage Cross-Sectional Alpha Engineering & Cost-Aware Portfolio Allocation pipeline while retaining full backward compatibility across all 241 public functions and 5 result classes (`246` exports in `__all__`).
+
+---
+
 ## [0.4.0] - 2026-11-14
 
 ### Added

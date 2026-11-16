@@ -1,10 +1,14 @@
-"""polars-anta: Alpha & Numerical Technical Analysis library powered natively by Polars."""
+"""polars-anta: Cross-sectional alpha engineering, diagnostics, and cost-aware allocation in Polars."""
 
 from __future__ import annotations
 
 from . import (
+    allocation,
     alpha,
     backtest,
+    conditioning,
+    covariance,
+    diagnostics,
     evaluation,
     inference,
     momentum,
@@ -15,8 +19,12 @@ from . import (
     volatility,
     volume,
 )
+from .allocation import *  # noqa: F403
 from .alpha import *  # noqa: F403
 from .backtest import *  # noqa: F403
+from .conditioning import *  # noqa: F403
+from .covariance import *  # noqa: F403
+from .diagnostics import *  # noqa: F403
 from .evaluation import *  # noqa: F403
 from .inference import *  # noqa: F403
 from .momentum import *  # noqa: F403
@@ -26,9 +34,13 @@ from .trend import *  # noqa: F403
 from .volatility import *  # noqa: F403
 from .volume import *  # noqa: F403
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
+    *conditioning.__all__,
+    *diagnostics.__all__,
+    *covariance.__all__,
+    *allocation.__all__,
     *trend.__all__,
     *momentum.__all__,
     *volatility.__all__,

@@ -261,3 +261,68 @@ def test_df_namespace_alpha_primitives(sample_time_ohlcv_df: pl.DataFrame):
     assert "alpha_041" in res.columns
     assert "alpha_054" in res.columns
     assert "alpha_101" in res.columns
+
+
+def test_df_and_lazy_namespace_alpha_engineering_parity() -> None:
+    """Verify .anta and .ta parity across DataFrame, LazyFrame, and Expr for v0.5 pipeline."""
+    import numpy as np
+
+    rng = np.random.default_rng(11)
+    n_dates, n_tickers = 25, 16
+    panel = pl.DataFrame(
+        {
+            "date": np.repeat(np.arange(n_dates), n_tickers),
+            "ticker": [f"T{i:02d}" for i in np.tile(np.arange(n_tickers), n_dates)],
+            "sector": [
+                ["Fin", "Tech", "Ind", "Cons"][i % 4]
+                for i in np.tile(np.arange(n_tickers), n_dates)
+            ],
+            "close": 50.0 + np.abs(rng.normal(0, 5.0, size=n_dates * n_tickers)),
+            "volume": 100_000.0 + np.abs(rng.normal(0, 20_000.0, size=n_dates * n_tickers)),
+            "beta": rng.normal(1.0, 0.3, size=n_dates * n_tickers),
+            "f1": rng.standard_normal(n_dates * n_tickers),
+            "f2": rng.standard_normal(n_dates * n_tickers),
+        }
+    ).with_columns(
+        (0.1 * pl.col("f1") + 0.3 * rng.standard_normal(n_dates * n_tickers)).alias("fwd_ret")
+    )
+
+    # Expr & Frame .anta vs .ta parity for cs_gaussianize
+    g_anta = panel.select(pl.col("f1").anta.cs_gaussianize(over="date").alias("g"))["g"]
+    g_ta = panel.select(pl.col("f1").ta.cs_gaussianize(over="date").alias("g"))["g"]
+    assert g_anta.equals(g_ta)
+    assert "cs_gaussianized" in panel.anta.cs_gaussianize(col="f1", over="date").columns
+
+    # Panel conditioning, diagnostics, marginal report, and walk-forward allocation via .anta & .ta
+    neut_anta = panel.anta.neutralize_panel(
+        ["f1", "f2"], time_col="date", risk_cols=["beta"], group_col="sector"
+    )
+    neut_ta = (
+        panel.lazy()
+        .ta.neutralize_panel(["f1", "f2"], time_col="date", risk_cols=["beta"], group_col="sector")
+        .collect()
+    )
+    assert neut_anta.columns == neut_ta.columns
+
+    ortho_anta = neut_anta.anta.orthogonalize_panel(["f1_neut", "f2_neut"], time_col="date")
+    ortho_ta = neut_anta.ta.orthogonalize_panel(["f1_neut", "f2_neut"], time_col="date")
+    assert ortho_anta.equals(ortho_ta)
+
+    col_sum = ortho_anta.anta.collinearity_summary(
+        ["f1_neut_ortho", "f2_neut_ortho"], time_col="date"
+    )
+    assert col_sum.height == 2
+
+    diag = ortho_anta.anta.analyze_alpha(
+        "f1_neut_ortho", return_col="fwd_ret", time_col="date", asset_col="ticker"
+    )
+    assert diag.factor_name == "f1_neut_ortho"
+    marg = ortho_anta.ta.marginal_alpha_report(
+        "f2_neut_ortho", ["f1_neut_ortho"], "fwd_ret", time_col="date"
+    )
+    assert "delta_n_eff" in marg
+
+    wf = ortho_anta.anta.combine_alphas_walkforward(
+        ["f1_neut_ortho", "f2_neut_ortho"], return_col="fwd_ret", time_col="date", lookback=8
+    )
+    assert "composite_alpha" in wf.data.columns

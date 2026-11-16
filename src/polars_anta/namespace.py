@@ -10,8 +10,11 @@ from typing import Any, Generic, TypeVar
 import polars as pl
 
 from . import (
+    allocation,
     alpha,
     backtest,
+    conditioning,
+    diagnostics,
     evaluation,
     inference,
     momentum,
@@ -437,6 +440,7 @@ _EXPR_GROUP_BINDINGS: tuple[
             alpha.cs_rank,
             alpha.cs_zscore,
             alpha.cs_winsorize,
+            conditioning.cs_gaussianize,
             alpha.neutralize,
             alpha.orthogonalize,
             alpha.ts_scale,
@@ -637,6 +641,12 @@ _FRAME_PASSTHROUGHS: tuple[tuple[Callable[..., Any], str | None], ...] = (
     (inference.long_short_returns, None),
     (inference.falsify_factors, None),
     (inference.sweep_robustness, None),
+    (conditioning.neutralize_panel, None),
+    (conditioning.orthogonalize_panel, None),
+    (conditioning.collinearity_summary, None),
+    (diagnostics.analyze_alpha, None),
+    (diagnostics.marginal_alpha_report, None),
+    (allocation.combine_alphas_walkforward, None),
     (backtest.vectorized_backtest, "backtest"),
     (backtest.parameter_sweep, None),
 )
@@ -1000,6 +1010,15 @@ _FRAME_EXPR_SPECS: tuple[_FrameExprSpec, ...] = (
         lower=0.01,
         upper=0.99,
         threshold=3.0,
+    ),
+    _scalar_spec(
+        conditioning.cs_gaussianize,
+        _alias="cs_gaussianized",
+        _renames={"col": "expr"},
+        _has_gb=False,
+        col="close",
+        over=None,
+        clip_bound=4.0,
     ),
     _scalar_spec(
         alpha.orthogonalize,

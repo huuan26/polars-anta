@@ -41,18 +41,29 @@ This document outlines the development roadmap and strategic milestones for **po
   - Next-open / TWAP / VWAP execution, intraday EOD session flattening, volatility targeting, and no-trade buffer zones
   - Round-trip trade-level ledger (`BacktestResult.trades`, `extract_trades`) with MAE/MFE excursion analytics and multi-parameter sweeps (`parameter_sweep`)
 
-### Phase 4: Statistical Falsification & Empirical Evidence (v0.4.0)
+### Phase 4: Statistical Falsification & Empirical Evidence (v0.4.0 - Completed)
 - [x] **Statistical Inference & Falsification Engine (`polars_anta.inference`)**:
-  - Politis–Romano (1994) Stationary Bootstrap (`stationary_bootstrap_indices`, `bootstrap_test`)
-  - Multiple-testing FWER & FDR control (`adjust_pvalues`, Romano–Wolf stepdown `romano_wolf`, Hansen's SPA & White's Reality Check `spa_test`)
+  - Politis-Romano (1994) Stationary Bootstrap (`stationary_bootstrap_indices`, `bootstrap_test`)
+  - Multiple-testing FWER & FDR control (`adjust_pvalues`, Romano-Wolf stepdown `romano_wolf`, Hansen's SPA & White's Reality Check `spa_test`)
   - Combinatorially Symmetric Cross-Validation Probability of Backtest Overfitting (`pbo_cscv`)
-  - Efron–Morris / Jensen–Kelly–Pedersen Empirical-Bayes shrinkage (`empirical_bayes_shrinkage`)
+  - Efron-Morris / Jensen-Kelly-Pedersen Empirical-Bayes shrinkage (`empirical_bayes_shrinkage`)
   - Out-of-sample forecast & stability tests (`oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`)
   - Panel falsification pipeline (`ic_matrix`, `long_short_returns`, `falsify_factors`, `sweep_robustness`)
 - [x] **Pre-Specified Empirical Factor Zoo Study (`research/factor_zoo`)**:
-  - Point-in-time top-150 liquid Vietnamese equities (`HOSE`, 2014–2026) falsification of 150 scale-free daily OHLCV signals (146 unique; `PREREGISTRATION.md`, `REPORT.md`)
-- [ ] **Upcoming Research Study (Phase 5)**:
-  - *VN30F1M Intraday Lead–Lag via Path Signatures (Lévy Area) & Adaptive Conformal Position Sizing*
+  - Point-in-time top-150 liquid Vietnamese equities (`HOSE`, 2014-2026) falsification of 150 scale-free daily OHLCV signals (146 unique; `PREREGISTRATION.md`, `REPORT.md`)
+
+### Phase 5: Cross-Sectional Alpha Engineering & Cost-Aware Portfolio Solver (v0.5.0 - Completed)
+- [x] **Cross-Sectional Signal Conditioning & Batched Lowdin SVD (`polars_anta.conditioning`)**:
+  - Native Polars rank-to-normal transformation (`cs_gaussianize`) via Acklam rational quantile approximation
+  - Exact two-stage Frisch-Waugh-Lovell sector + continuous risk neutralization (`neutralize_panel`)
+  - Loop-free batched 3D Gram/SVD Lowdin symmetric orthogonalization (`lowdin_matrix`, `orthogonalize_panel`) and VIF / $N_{\text{eff}}$ diagnostics (`collinearity_summary`)
+- [x] **Alphalens-Grade Diagnostics & Redundancy Screening (`polars_anta.diagnostics`)**:
+  - One-call causal tearsheet (`analyze_alpha`, `AlphaDiagnosticReport`) reporting IC, Newey-West $t$-stat, half-life, L1 turnover, gross margin (`bps`), breakeven cost, long/short leg active spread share, lagged ADV sub-universe tiers, and yearly consistency
+  - Incremental factor screening (`marginal_alpha_report`) measuring $\Delta N_{\text{eff}}$, spanned $R^2$, and FWL Residual IC
+- [x] **Random Matrix Denoising & Cost-Aware FISTA Allocation (`polars_anta.covariance`, `polars_anta.allocation`)**:
+  - Loop-free BLAS Ledoit-Wolf shrinkage (`ledoit_wolf_shrinkage`) and Marchenko-Pastur RMT spectral denoiser (`marchenko_pastur_denoise`)
+  - Monotone FISTA with exact Lagrangian joint box-simplex + $L_1$ proximal operator (`solve_fista`) and KKT residual verification
+  - Causal embargo walk-forward panel allocator (`combine_alphas_walkforward`) preventing multi-horizon forward-return leakage
 
 ---
 

@@ -61,18 +61,25 @@ import polars_anta as pa
 rng = np.random.default_rng(7)
 tickers, n_days = ["AAPL", "MSFT", "NVDA", "XOM"], 30
 close = 100.0 * np.exp(np.cumsum(rng.normal(0.001, 0.015, (4, n_days)), axis=1)).ravel()
-df = pl.DataFrame({
-    "date": np.tile(np.arange(n_days), 4),
-    "ticker": np.repeat(tickers, n_days),
-    "open": close * 0.999, "high": close * 1.008, "low": close * 0.992, "close": close,
-})
+df = pl.DataFrame(
+    {
+        "date": np.tile(np.arange(n_days), 4),
+        "ticker": np.repeat(tickers, n_days),
+        "open": close * 0.999,
+        "high": close * 1.008,
+        "low": close * 0.992,
+        "close": close,
+    }
+)
 
 out = df.with_columns(
     pl.col("close").anta.frac_diff(d=0.4, window=15).over("ticker").alias("ffd"),
-    pl.col("open").anta.yang_zhang_volatility("high", "low", "close", period=15).over("ticker").round(2).alias("yz_vol"),
-).with_columns(
-    pl.col("ffd").anta.cs_gaussianize(over="date").round(3).alias("alpha_gauss")
-)
+    pl.col("open")
+    .anta.yang_zhang_volatility("high", "low", "close", period=15)
+    .over("ticker")
+    .round(2)
+    .alias("yz_vol"),
+).with_columns(pl.col("ffd").anta.cs_gaussianize(over="date").round(3).alias("alpha_gauss"))
 print(out.filter(pl.col("date") == 29).select("date", "ticker", "yz_vol", "alpha_gauss"))
 ```
 
@@ -169,7 +176,9 @@ vol_bars = cont_df.anta.resample_volume_bars(
         pl.col("ask_size").last(),
     ],
 )
-features = vol_bars.anta.session_vwap(session_by="trading_date", unnest=True, prefix="svwap_").with_columns(
+features = vol_bars.anta.session_vwap(
+    session_by="trading_date", unnest=True, prefix="svwap_"
+).with_columns(
     pl.col("close").anta.vpin("volume", period=20).alias("vpin_20"),
     pl.col("bid_price").anta.ofi("bid_size", "ask_price", "ask_size", period=5).alias("ofi_5"),
 )
@@ -179,8 +188,12 @@ features = vol_bars.anta.session_vwap(session_by="trading_date", unnest=True, pr
 
 ```python
 ml_dataset = (
-    df.with_columns(pl.col("close").anta.frac_diff(d=0.4, window=20).over("ticker").alias("close_ffd"))
-    .anta.triple_barrier_labels(horizon=12, pt_mult=2.0, sl_mult=1.5, unnest=True, group_by="ticker")
+    df.with_columns(
+        pl.col("close").anta.frac_diff(d=0.4, window=20).over("ticker").alias("close_ffd")
+    )
+    .anta.triple_barrier_labels(
+        horizon=12, pt_mult=2.0, sl_mult=1.5, unnest=True, group_by="ticker"
+    )
     .anta.trend_scanning_labels(min_window=5, max_window=20, unnest=True, group_by="ticker")
 )
 ```

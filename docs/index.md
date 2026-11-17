@@ -4,11 +4,11 @@
   </div>
 
   <div class="anta-hero-title">
-    Cross-Sectional Alpha Engineering & Cost-Aware Portfolio Allocation in Polars
+    Quantitative Alpha &amp; Portfolio Engineering in Polars
   </div>
 
   <div class="anta-hero-subtitle">
-    A pure-Python, zero-C quantitative library built on Polars and NumPy. Transform noisy, crowded multi-asset signals into risk-neutralized (FWL), symmetrically orthogonalized (Lowdin SVD), Alphalens-diagnosed, RMT-denoised, and turnover-controlled (FISTA) portfolio weights - backed by multiple-testing falsification.
+    A pure-Python, <code>mypy</code>-typed quantitative finance library built on Polars and NumPy (zero C, SciPy, or CVXPY dependencies). Transform raw multi-asset feeds into risk-neutralized (FWL), symmetrically orthogonalized (Lowdin SVD), statistically falsified (Romano-Wolf FWER, PBO), RMT-denoised, and turnover-controlled (FISTA) portfolios.
   </div>
 
   <div class="anta-cta-group">
@@ -47,6 +47,7 @@
 | Python | 3.10, 3.11, 3.12, 3.13, 3.14 |
 | Runtime dependencies | `polars>=1.0.0`, `numpy>=1.24.0` (no C compiler required) |
 | Engine | Native Polars expressions on the multi-threaded Rust engine |
+| Quality & Typing | Strict `mypy` static typing across 41 modular files (`99%` test coverage) |
 | Status | [CI workflow](https://github.com/huuan26/polars-anta/actions/workflows/ci.yml), [Docs workflow](https://github.com/huuan26/polars-anta/actions/workflows/docs.yml), [PyPI release](https://pypi.org/project/polars-anta/) |
 | Try online | [Quickstart notebook on Google Colab](https://colab.research.google.com/github/huuan26/polars-anta/blob/master/examples/quickstart_colab.ipynb) |
 | License | [Apache License 2.0](https://github.com/huuan26/polars-anta/blob/master/LICENSE) |
@@ -140,16 +141,16 @@ A cost sweep from 0 to 60 bps round-trip finds **0** significant long-only strat
 
 ## What is `polars-anta`?
 
-`polars-anta` (**A**lpha and **N**umerical **T**echnical **A**nalysis) is a quantitative finance library for **market microstructure estimation, derivatives analytics, machine learning labeling and stationarity (AFML), cross-sectional factor engineering, statistical alpha evaluation, and execution-realistic vectorized backtesting** in Python and [Polars](https://pola.rs/).
+`polars-anta` is a pure-Python **quantitative alpha & portfolio engineering** library for **market microstructure & information bars, AFML feature stationarity & labeling, FWL/Lowdin cross-sectional conditioning, multiple-testing statistical falsification, RMT covariance denoising, cost-aware FISTA allocation, and execution-realistic vectorized backtesting** in [Polars](https://pola.rs/) and NumPy.
 
-Built for **quantitative researchers, proprietary trading desks, index futures strategists (e.g. VN30F1M, CME E-mini, Crypto Perpetuals), and systematic portfolio managers**, `polars-anta` implements technical indicators, closed-form OLS regressions, 33 formulaic alphas from Kakushadze's *101 Formulaic Alphas*, and portfolio evaluation tools directly as native Polars expressions (`pl.Expr`).
+Built for **quantitative researchers, proprietary trading desks, index futures strategists (e.g. VN30F1M, CME E-mini, Crypto Perpetuals), and systematic portfolio managers**, `polars-anta` exposes `241` functions (`246` exports across `15` modular subpackages and modules) via top-level imports and fluent `.anta` / `.ta` namespaces.
 
 ```mermaid
 flowchart LR
-    A["1. Microstructure and Roll<br/>Volume/Dollar/Imbalance Bars<br/>stitch_futures_roll, VPIN, OFI"] --> B["2. Quant ML and Stationarity<br/>Fixed-Window FracDiff (FFD)<br/>Triple-Barrier, Trend-Scanning"]
-    B --> C["3. Factor Orthogonalization<br/>cs_winsorize, cs_zscore<br/>neutralize, orthogonalize (OLS)"]
-    C --> D["4. Statistical Validation<br/>Newey-West HAC t-stat<br/>IC Decay Half-Life, PSR and DSR"]
-    D --> E["5. Realistic Execution<br/>Next-Open/VWAP, Vol-Targeting<br/>No-Trade Buffer, MAE/MFE Ledger"]
+    A["1. Signal & Info Bars<br/>Volume/Dollar/Imbalance Bars<br/>stitch_futures_roll, FFD, VPIN, OFI"] --> B["2. Cross-Sectional Conditioning<br/>cs_gaussianize, neutralize_panel<br/>Batched 3D Lowdin SVD"]
+    B --> C["3. Diagnostics & Falsification<br/>analyze_alpha, Newey-West HAC<br/>Romano-Wolf FWER, PBO, CUSUM"]
+    C --> D["4. RMT & FISTA Allocation<br/>Ledoit-Wolf, Marchenko-Pastur<br/>Box-Simplex + L1 Walk-Forward"]
+    D --> E["5. Realistic Execution<br/>Next-Open/VWAP, Calendar Grid<br/>Vol-Target, Intrabar MAE/MFE"]
 ```
 
 ---
@@ -158,42 +159,42 @@ flowchart LR
 
 <div class="anta-pillars-grid">
   <div class="anta-pillar-card">
-    <div class="anta-pillar-title">1. Intraday Microstructure and Derivatives</div>
+    <div class="anta-pillar-title">1. Signal Engineering &amp; Microstructure Bars</div>
     <div class="anta-pillar-body">
-      Aggregate tick/minute feeds into information-driven bars (<code>resample_volume_bars</code>, <code>resample_dollar_bars</code>, <code>resample_imbalance_bars</code>), stitch continuous futures contracts (<code>stitch_futures_roll</code>), track intraday <code>session_vwap</code> deviation z-scores, quantify order flow toxicity (<code>vpin</code>, <code>ofi</code>), and monitor carry and positioning (<code>futures_basis</code>, <code>oi_regime</code>).
+      Aggregate tick/minute feeds into information-driven bars (<code>resample_volume_bars</code>, <code>resample_dollar_bars</code>, <code>resample_imbalance_bars</code>), stitch continuous futures contracts (<code>stitch_futures_roll</code>), preserve long memory via Fixed-Window Fractional Differentiation (<code>frac_diff</code>), and quantify order-flow toxicity and carry (<code>vpin</code>, <code>ofi</code>, <code>futures_basis</code>, <code>oi_regime</code>).
     </div>
     <div class="anta-pillar-links">
-      <a href="guides/resampling-and-dataframe-api/">Resampling and Roll Guide</a> | <a href="indicators/alpha/">Microstructure Docs</a>
+      <a href="guides/resampling-and-dataframe-api/">Resampling &amp; Roll Guide</a> | <a href="indicators/alpha/">Microstructure Docs</a>
     </div>
   </div>
 
   <div class="anta-pillar-card">
-    <div class="anta-pillar-title">2. Quant Machine Learning (AFML Primitives)</div>
+    <div class="anta-pillar-title">2. FWL Conditioning &amp; Lowdin Orthogonalization</div>
     <div class="anta-pillar-body">
-      Transform non-stationary price series into stationary, memory-preserving features via Fixed-Window Fractional Differentiation (<code>frac_diff</code>), generate path-dependent dynamic Triple-Barrier and Meta-Labeling targets (<code>triple_barrier_labels</code>), and extract multi-horizon OLS Trend-Scanning labels (<code>trend_scanning_labels</code>).
+      Gaussianize heavy-tailed cross-sections (<code>cs_gaussianize</code>), remove simultaneous sector and continuous risk exposures via two-stage FWL projection (<code>neutralize_panel</code>), and decorrelate crowded factor panels without ordering bias via batched 3D polar SVD (<code>orthogonalize_panel</code>, <code>collinearity_summary</code>).
     </div>
     <div class="anta-pillar-links">
-      <a href="indicators/stats/">Stats and FracDiff</a> | <a href="indicators/evaluation-and-backtest/">AFML Labeling</a>
+      <a href="indicators/alpha-engineering/">Alpha Engineering API</a> | <a href="guides/quant-theory-and-workflows/">Quant Theory Guide</a>
     </div>
   </div>
 
   <div class="anta-pillar-card">
-    <div class="anta-pillar-title">3. Cross-Sectional Factor Validation</div>
+    <div class="anta-pillar-title">3. Alphalens Diagnostics &amp; Factor Falsification</div>
     <div class="anta-pillar-body">
-      Clip extreme outliers (<code>cs_winsorize</code> via Quantile/Z-Score/MAD), sector-neutralize (<code>neutralize</code>), strip multi-factor risk exposures via Modified Gram-Schmidt OLS projection (<code>orthogonalize</code>), and validate with Newey-West HAC <em>t</em>-statistics (<code>ic_summary</code>), Alpha Half-Life (<code>ic_decay</code>), and Deflated Sharpe Ratios (<code>deflated_sharpe_ratio</code>).
+      Audit predictive IC, decay half-life, turnover, breakeven cost, and causal ADV sub-universe tiers (<code>analyze_alpha</code>, <code>marginal_alpha_report</code>), and subject factor catalogs to stationary bootstrap, Benjamini-Hochberg FDR, Romano-Wolf stepdown FWER, CSCV PBO, Empirical Bayes shrinkage, and OLS-CUSUM tests (<code>falsify_factors</code>).
     </div>
     <div class="anta-pillar-links">
-      <a href="guides/quant-theory-and-workflows/">Quant Theory Guide</a> | <a href="indicators/evaluation-and-backtest/">Factor Eval</a>
+      <a href="indicators/inference/">Statistical Inference API</a> | <a href="research/factor-zoo/">Factor Zoo Study</a>
     </div>
   </div>
 
   <div class="anta-pillar-card">
-    <div class="anta-pillar-title">4. Execution-Realistic Vectorized Backtesting</div>
+    <div class="anta-pillar-title">4. Cost-Aware FISTA Allocation &amp; Backtesting</div>
     <div class="anta-pillar-body">
-      Simulate realistic fills at next-bar open, TWAP, or VWAP (<code>execution_price="open"</code>), enforce mandatory intraday EOD/roll session flatten masks (<code>flat_mask</code>), apply ex-ante volatility targeting (<code>vol_target</code>) and hysteresis turnover buffers (<code>no_trade_buffer</code>), and audit round-trip MAE/MFE trade ledgers (<code>bt.trades()</code>).
+      Denoise covariance matrices via Ledoit-Wolf shrinkage and Random Matrix Theory (<code>marchenko_pastur_denoise</code>), optimize turnover-penalized weights under causal horizon embargoes (<code>solve_fista</code>, <code>combine_alphas_walkforward</code>), and simulate realistic fills with calendar regularization, vol-targeting, and intrabar MAE/MFE trade ledgers (<code>vectorized_backtest</code>).
     </div>
     <div class="anta-pillar-links">
-      <a href="indicators/evaluation-and-backtest/">Backtesting Engine</a> | <a href="guides/multi-asset/">Multi-Asset Scaling</a>
+      <a href="indicators/alpha-engineering/#4-cost-aware-fista-allocation-polars_antaallocation">FISTA Allocator</a> | <a href="indicators/evaluation-and-backtest/">Backtesting Engine</a>
     </div>
   </div>
 </div>

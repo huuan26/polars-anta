@@ -6,7 +6,7 @@ Generated automatically by `benchmarks/alpha_engineering_validation.py`.
 
 - **Python**: `3.14.1` (`Windows 11`)
 - **Polars**: `2.1.0` | **NumPy**: `2.5.4` | **polars-anta**: `0.5.0`
-- **Random Seed**: `202605` | **Total Benchmark Runtime**: `2.18 s`
+- **Random Seed**: `202605` | **Total Benchmark Runtime**: `2.29 s`
 
 ## Table 1 - Exact Algebraic, KKT & Causal Prefix-Invariance Checks
 
@@ -35,4 +35,4 @@ Generated automatically by `benchmarks/alpha_engineering_validation.py`.
 | 0. Raw Signals (Equal-Weight) | `+0.0288` | `+0.222` | `1.218` | `+5.33` | `+3.57` | `-3.13` |
 | 1. FWL + Lowdin Ortho (Equal-Weight) | `+0.0311` | `+0.436` | `1.128` | `+6.50` | `+7.75` | `-4.16` |
 | 2. Unpenalized Walk-Forward (Sample Cov) | `+0.0269` | `+0.372` | `1.151` | `+5.66` | `+6.77` | `-5.16` |
-| 3. Full Pipeline (RMT + Cost-Aware FISTA + EMA) | `+0.0208` | `+0.365` | `0.457` | `+18.10` | `+9.26` | `+4.14` |
+| 3. Full Pipeline (RMT + Cost-Aware FISTA + EMA) | `+0.0357` | `+0.504` | `0.455` | `+18.33` | `+9.30` | `+4.23` |

@@ -25,17 +25,17 @@ polars_anta/
 ├── diagnostics.py  # Alphalens-grade analyze_alpha tearsheet (margin bps, ADV tiers) & marginal_alpha_report
 ├── covariance.py   # Loop-free BLAS Ledoit-Wolf shrinkage, Marchenko-Pastur RMT denoiser & SPD projection
 ├── allocation.py   # Joint box-simplex + L1 proximal FISTA solver & causal embargo walk-forward allocator
-├── trend.py        # Moving averages, adaptive filters, Heikin-Ashi & structural pivots
-├── momentum.py     # Velocity oscillators, Gaussian Fisher transform & squeeze detectors
+├── trend/          # Moving averages, adaptive filters, Heikin-Ashi & structural pivots (_moving_averages, _channels, _overlays)
+├── momentum/       # Velocity oscillators, Gaussian Fisher transform & squeeze detectors (_oscillators, _trend_momentum)
 ├── volatility.py   # Parkinson/Garman-Klass/Rogers-Satchell/Yang-Zhang variance, Wilder ATR stops & price channels
 ├── volume.py       # Session-anchored VWAP, VWAP bands & money flow
 ├── stats.py        # Rolling moments, CAPM beta/alpha, closed-form OLS & FFD (frac_diff)
-├── alpha.py        # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 33 formulaic alphas
-├── evaluation.py   # Triple-Barrier, Trend-Scanning, Rank IC/ICIR, Newey-West HAC, IC decay & PSR/DSR
-├── inference.py    # Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, Empirical Bayes & falsify_factors
-├── backtest.py     # Execution-realistic vectorized backtester, MAE/MFE trade ledger & parameter_sweep
+├── alpha/          # Cross-sectional ops, Gram-Schmidt orthogonalize, VPIN/OFI, futures_basis & 33 formulaic alphas (_primitives, _microstructure, _wq_001_015, _wq_016_101)
+├── evaluation/     # Triple-Barrier, Trend-Scanning, Rank IC/ICIR, Newey-West HAC, IC decay & PSR/DSR (_metrics, _factors, _labeling)
+├── inference/      # Stationary bootstrap, Romano-Wolf, SPA, CSCV PBO, Empirical Bayes & falsify_factors (_validation, _bootstrap, _overfitting, _panel)
+├── backtest/       # Execution-realistic vectorized backtester, calendar regularization, MAE/MFE ledger & parameter_sweep (_signals, _trades, _helpers, _engine)
 ├── resample.py     # Time bars, Volume/Dollar/Imbalance bars, continuous futures roll & validation
-└── namespace.py    # Dual .anta and .ta registration across pl.Expr, pl.DataFrame & pl.LazyFrame
+└── namespace/      # Dual .anta and .ta registration across pl.Expr, pl.DataFrame & pl.LazyFrame (_binders, _expr_ns, _frame_specs, _frame_ns)
 ```
 
 ---

@@ -141,14 +141,15 @@ Executes a single-asset or multi-asset vectorized backtest with full execution r
 - **Intraday Session Flattening (`flat_mask`)**: Boolean expression forcing `position = 0.0` on matching bars (e.g., closing intraday VN30F1M positions prior to the 14:30 ATC auction).
 - **Dynamic Volatility Targeting (`vol_target`, `vol_lookback=20`, `max_leverage=2.0`)**: Scales position size by $\min\left(L_{\max},\, \frac{\sigma_{\text{target}}}{\hat{\sigma}_{t-1}\sqrt{N_{\text{ann}}}}\right)$.
 - **No-Trade Turnover Buffer (`no_trade_buffer=0.0`)**: Suppresses minor position adjustments where $|w_t^{\text{target}} - w_{t-1}| \le \delta_{\text{buf}}$ unless exiting to `0.0`.
+- **Dense Calendar Regularization (`regularize_calendar=False`)**: Reindexes multi-asset panels onto the dense `(time_col, group_by)` grid prior to computing returns and `signal_lag` shifts so halted or missing bars carry positions forward cleanly without stale-gap distortion.
 
 ---
 
-### `BacktestResult.trades()` & `extract_trades(bt_df, ...)`
+### `BacktestResult.trades()` & `extract_trades(bt_df, ..., high_col=None, low_col=None)`
 Extracts a complete **Round-Trip Trade Ledger** with intra-trade excursion analytics:
 - `trade_id`, `side` (`"LONG"` / `"SHORT"`), `entry_index`, `exit_index`, `entry_time`, `exit_time`, `holding_bars`, `avg_position`, `entry_price`, `exit_price`, `gross_return`, `cost`, `net_return`.
-- **`mae` (Maximum Adverse Excursion $\le 0.0$)**: Worst intra-trade cumulative drawdown from entry price.
-- **`mfe` (Maximum Favorable Excursion $\ge 0.0$)**: Highest intra-trade cumulative profit reached before exit.
+- **`mae` (Maximum Adverse Excursion $\le 0.0$)**: Worst intra-trade cumulative drawdown from entry price (incorporating intrabar `high_col` / `low_col` extremes when provided).
+- **`mfe` (Maximum Favorable Excursion $\ge 0.0$)**: Highest intra-trade cumulative profit reached before exit (incorporating intrabar `high_col` / `low_col` extremes when provided).
 
 ---
 

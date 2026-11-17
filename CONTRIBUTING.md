@@ -1,6 +1,6 @@
 # Contributing to polars-anta
 
-Thank you for your interest in contributing to **polars-anta**! We are building the fastest, most ergonomic technical analysis and factor library for the Polars ecosystem.
+Thank you for your interest in contributing to **polars-anta**! We are building a pure-Python quantitative alpha & portfolio engineering library for the Polars ecosystem.
 
 ---
 
@@ -46,10 +46,11 @@ To ensure architectural consistency, numerical rigor, and high performance stand
    pytest
    ```
 
-4. Format and lint your code:
+4. Format, lint, and type-check your code:
    ```bash
    ruff check --fix .
    ruff format .
+   mypy src/polars_anta
    ```
 
 ---
@@ -69,4 +70,4 @@ When implementing indicators:
 1. Push your branch to your fork: `git push origin feat/your-feature`.
 2. Open a Pull Request targeting `master` on `huuan26/polars-anta`.
 3. Through GitHub's [`.github/CODEOWNERS`](.github/CODEOWNERS) system, `@huuan26` is automatically designated as the lead reviewer.
-4. Once all CI checks (multi-platform tests across Python 3.10-3.13 and Ruff linting) pass and the PR is approved by `@huuan26`, your contribution will be merged into the project!
+4. Once all CI checks (multi-platform tests across Python 3.10-3.14, Ruff linting, and Mypy static type checking) pass and the PR is approved by `@huuan26`, your contribution will be merged into the project!

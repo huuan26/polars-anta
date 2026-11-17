@@ -83,7 +83,8 @@ Key execution-aware controls:
 
 - **`objective_mode`**: Optimize cross-sectional Rank/Linear ICs (`"ic"`) or realized dollar-neutral factor portfolio returns (`"factor_return"`).
 - **`one_way_cost_bps` + `asset_col`**: Deducts each factor's historical stock-level rebalancing drag $c \cdot \bar{\tau}_{k,t}$ before Empirical Bayes shrinkage and FISTA optimization, shifting capital away from high-churn signals toward persistent alphas.
-- **`signal_ema_alpha`**: Applies causal per-asset exponential smoothing to both basis turnover/payoff accounting and the final composite signal without look-ahead leakage.
+- **`signal_ema_alpha`**: Applies identical causal per-asset exponential smoothing across estimation, `composite_alpha`, and `equal_weight_alpha` (isolating the pure effect of FISTA + RMT while preserving un-mutated input factor columns in `panel`).
+- **`normalize_composite` & `min_weight_norm`**: Cross-sectionally Z-scores `composite_alpha` when `normalize_composite=True` (default), automatically outputting `0.0` whenever $\sum_k |w_{k,t}| \le \text{min\_weight\_norm}$ (`1e-8`) to prevent numerical noise amplification during cash/flat regimes.
 
 ```python
 import numpy as np

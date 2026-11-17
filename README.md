@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/assets/banner.png" alt="polars-anta banner" width="100%" />
 
-**Pure-Python quantitative finance engine in Polars: signal engineering, FWL/Lowdin conditioning, statistical falsification, RMT denoising, and FISTA allocation.**
+**Quantitative alpha & portfolio engineering in Polars: signal & info bars, FWL/Lowdin conditioning, statistical falsification, RMT denoising, and FISTA allocation.**
 
 [![PyPI version](https://img.shields.io/pypi/v/polars-anta?color=0275d8)](https://pypi.org/project/polars-anta/)
 [![Python versions](https://img.shields.io/pypi/pyversions/polars-anta)](https://pypi.org/project/polars-anta/)
@@ -350,7 +350,7 @@ Every daily signal in `polars-anta` (`150` signals, `146` unique) was tested on 
 | `0. Raw Signals (Equal-Weight)` | `+0.0288` | `+0.222` | `1.218` | `+5.33` | `+3.57` | `-3.13` |
 | `1. FWL + Lowdin Ortho (Equal-Weight)` | `+0.0311` | `+0.436` | `1.128` | `+6.50` | `+7.75` | `-4.16` |
 | `2. Unpenalized Walk-Forward (Sample Cov)` | `+0.0269` | `+0.372` | `1.151` | `+5.66` | `+6.77` | `-5.16` |
-| `3. Full Pipeline (RMT + Cost-Aware FISTA + EMA)` | `+0.0208` | `+0.365` | `0.457` | `+18.10` | `+9.26` | `+4.14` |
+| `3. Full Pipeline (RMT + Cost-Aware FISTA + EMA)` | `+0.0357` | `+0.504` | `0.455` | `+18.33` | `+9.30` | `+4.23` |
 
 </details>
 

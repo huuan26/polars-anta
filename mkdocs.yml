@@ -1,5 +1,5 @@
 site_name: polars-anta
-site_description: Cross-sectional alpha engineering, FWL/Lowdin orthogonalization, Alphalens-grade diagnostics, RMT covariance denoising, and cost-aware FISTA allocation in Polars.
+site_description: "Quantitative alpha & portfolio engineering in Polars: signal & info bars, FWL/Lowdin conditioning, statistical falsification, RMT denoising, and FISTA allocation."
 site_author: An Phan (Phan Bùi Hữu Ân)
 site_url: https://huuan26.github.io/polars-anta/
 repo_url: https://github.com/huuan26/polars-anta

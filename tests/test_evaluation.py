@@ -660,3 +660,45 @@ def test_tail_metrics_are_exported_from_package():
     for name in ("value_at_risk", "conditional_var", "omega_ratio", "tail_ratio"):
         assert hasattr(pa, name)
         assert name in pa.__all__
+
+
+def test_triple_barrier_no_backward_vol_leakage_and_degenerate_ic() -> None:
+    """Verify warm-up volatility in triple_barrier_labels is causal and degenerate IC is null."""
+    from polars_anta import triple_barrier_labels
+
+    # 1. Truncating future bars must not change earlier bars' triple-barrier volatility scaling
+    prices_full = [100.0, 100.5, 101.0, 100.8, 101.2, 102.0, 101.5, 130.0, 70.0, 140.0]
+    tb_full = (
+        pl.DataFrame({"close": prices_full})
+        .select(
+            triple_barrier_labels("close", volatility=None, horizon=2, vol_period=4).alias("tb")
+        )
+        .unnest("tb")
+    )
+    tb_short = (
+        pl.DataFrame({"close": prices_full[:7]})
+        .select(
+            triple_barrier_labels("close", volatility=None, horizon=2, vol_period=4).alias("tb")
+        )
+        .unnest("tb")
+    )
+    # First 2 bars (index 0, 1) lack 2 returns for rolling_std -> must remain null (no backward fill)
+    assert tb_full["label"][0] is None
+    assert tb_full["label"][1] is None
+    # Bars 2..4 (whose 2-bar horizon fits inside [:7]) must match identically
+    assert tb_full["label"].to_list()[2:5] == tb_short["label"].to_list()[2:5]
+
+    # 2. Constant cross-section produces null IC and is excluded from ic_summary instead of 0.0
+    panel = pl.DataFrame(
+        {
+            "date": ["d1"] * 4 + ["d2"] * 4,
+            "factor": [1.0, 2.0, 3.0, 4.0, 5.0, 5.0, 5.0, 5.0],
+            "ret": [0.01, 0.02, 0.03, 0.04, 0.01, 0.02, 0.03, 0.04],
+        }
+    )
+    ic_df = information_coefficient(panel, "factor", "ret", group_by="date", method="spearman")
+    assert ic_df["ic"][0] == pytest.approx(1.0)
+    assert ic_df["ic"][1] is None
+    ic_sum = ic_summary(panel, "factor", "ret", group_by="date", method="spearman")
+    assert ic_sum["n_periods"] == 1.0
+    assert ic_sum["ic_mean"] == pytest.approx(1.0)

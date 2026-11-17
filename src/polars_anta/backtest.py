@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -172,6 +173,8 @@ def extract_trades(
     price_col: str | None = "close",
     time_col: str | None = None,
     group_by: str | Sequence[str] | None = None,
+    high_col: str | None = None,
+    low_col: str | None = None,
 ) -> pl.DataFrame:
     """Extract a Round-Trip Trade Ledger with MAE and MFE from a backtest DataFrame.
 
@@ -180,12 +183,19 @@ def extract_trades(
     duration, gross/net returns, **Maximum Adverse Excursion (MAE)**, and
     **Maximum Favorable Excursion (MFE)**.
 
+    By default, MAE and MFE are measured along the bar-close cumulative gross return path
+    (``_cum_gross``). When both ``high_col`` and ``low_col`` are supplied and present in
+    ``bt_df`` alongside ``price_col``, MAE and MFE incorporate intrabar high/low excursions
+    relative to the prior reference price scaled by active ``position``.
+
     :param bt_df: Backtest DataFrame containing ``position``, ``gross_return``, ``cost``,
         and ``net_return`` columns.
     :param price_col: Optional price column name in ``bt_df`` for reporting ``entry_price``
         and ``exit_price`` (default ``'close'``).
     :param time_col: Optional timestamp/date column name for reporting ``entry_time`` and ``exit_time``.
     :param group_by: Optional symbol/ticker column(s) when ``bt_df`` is an unaggregated multi-asset panel.
+    :param high_col: Optional bar high price column name for intrabar-aware MAE/MFE.
+    :param low_col: Optional bar low price column name for intrabar-aware MAE/MFE.
     :return: Polars DataFrame with one row per round-trip trade.
     """
     if len(bt_df) == 0 or "position" not in bt_df.columns:
@@ -199,6 +209,13 @@ def extract_trades(
 
     has_price = price_col is not None and price_col in bt_df.columns
     has_time = time_col is not None and time_col in bt_df.columns
+    has_intrabar = (
+        has_price
+        and high_col is not None
+        and low_col is not None
+        and high_col in bt_df.columns
+        and low_col in bt_df.columns
+    )
 
     pos_sign = pl.col("position").sign().fill_null(0.0)
     prev_sign = (
@@ -239,6 +256,34 @@ def extract_trades(
             ((1.0 + pl.col("net_return")).cum_prod().over(seg_keys) - 1.0).alias("_cum_net"),
         ]
     )
+    if has_intrabar and high_col is not None and low_col is not None:
+        prev_eq = (1.0 + pl.col("_cum_gross")).shift(1, fill_value=1.0).over(seg_keys)
+        ref_p = pl.col("_entry_ref_price")
+        hi_step = pl.col("position") * ((pl.col(high_col).cast(pl.Float64) / ref_p) - 1.0)
+        lo_step = pl.col("position") * ((pl.col(low_col).cast(pl.Float64) / ref_p) - 1.0)
+        intra_hi = (
+            pl.when(ref_p > 0.0)
+            .then(prev_eq * (1.0 + hi_step) - 1.0)
+            .otherwise(pl.col("_cum_gross"))
+        )
+        intra_lo = (
+            pl.when(ref_p > 0.0)
+            .then(prev_eq * (1.0 + lo_step) - 1.0)
+            .otherwise(pl.col("_cum_gross"))
+        )
+        active = active.with_columns(
+            [
+                pl.min_horizontal(pl.col("_cum_gross"), intra_hi, intra_lo).alias("_bar_mae_path"),
+                pl.max_horizontal(pl.col("_cum_gross"), intra_hi, intra_lo).alias("_bar_mfe_path"),
+            ]
+        )
+    else:
+        active = active.with_columns(
+            [
+                pl.col("_cum_gross").alias("_bar_mae_path"),
+                pl.col("_cum_gross").alias("_bar_mfe_path"),
+            ]
+        )
 
     agg_exprs: list[pl.Expr] = [
         pl.when(pl.col("_pos_sign").first() > 0.0)
@@ -264,8 +309,8 @@ def extract_trades(
             pl.col("_cum_gross").last().alias("gross_return"),
             pl.col("cost").sum().alias("cost"),
             pl.col("_cum_net").last().alias("net_return"),
-            pl.min_horizontal(pl.col("_cum_gross").min(), pl.lit(0.0)).alias("mae"),
-            pl.max_horizontal(pl.col("_cum_gross").max(), pl.lit(0.0)).alias("mfe"),
+            pl.min_horizontal(pl.col("_bar_mae_path").min(), pl.lit(0.0)).alias("mae"),
+            pl.max_horizontal(pl.col("_bar_mfe_path").max(), pl.lit(0.0)).alias("mfe"),
         ]
     )
 
@@ -433,6 +478,7 @@ def vectorized_backtest(
     vol_lookback: int = 20,
     max_leverage: float = 2.0,
     no_trade_buffer: float = 0.0,
+    regularize_calendar: bool = False,
 ) -> BacktestResult:
     """Run a fast, loop-free vectorized backtest over single-asset or multi-asset Polars frames.
 
@@ -513,6 +559,25 @@ def vectorized_backtest(
     if group_by is not None:
         gb_cols = [group_by] if isinstance(group_by, str) else list(group_by)
 
+    if regularize_calendar and (gb_cols is None or time_col is None):
+        raise ValueError("regularize_calendar=True requires both group_by and time_col")
+
+    if (
+        entries is not None
+        and exits is not None
+        and gb_cols is not None
+        and time_col is not None
+        and aggregate_portfolio
+        and weight_scheme == "raw"
+    ):
+        warnings.warn(
+            "Using weight_scheme='raw' with multi-asset entries/exits and aggregate_portfolio=True "
+            "sums unnormalized +/-1.0 positions across active assets (scaling gross leverage with N). "
+            "Pass weight_scheme='dollar_neutral', 'long_only', or 'equal_weight' to normalize weights.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     total_cost_rate = float(fee_rate) + float(slippage_rate)
 
     if entries is not None and exits is not None:
@@ -580,22 +645,74 @@ def vectorized_backtest(
     else:
         exec_price_expr = pl.col(close_col).cast(pl.Float64)
 
-    if return_col is not None:
-        ret_expr = pl.col(return_col).cast(pl.Float64).fill_null(0.0).fill_nan(0.0)
-    else:
-        ret_expr = (
-            exec_price_expr.pct_change().over(gb_cols)
-            if gb_cols is not None
-            else exec_price_expr.pct_change()
+    drop_temp_cols = ["_anta_sig"]
+    if regularize_calendar and gb_cols is not None and time_col is not None:
+        step0 = step0.with_columns(
+            [
+                pl.lit(True).alias("_anta_has_bar"),
+                (
+                    pl.col(return_col).cast(pl.Float64)
+                    if return_col is not None
+                    else exec_price_expr
+                ).alias("_anta_cal_val"),
+            ]
         )
+        times_df = step0.select(time_col).unique()
+        assets_df = step0.select(gb_cols).unique()
+        grid = times_df.join(assets_df, how="cross")
+        step0 = (
+            grid.join(step0, on=[*gb_cols, time_col], how="left")
+            .sort([*gb_cols, time_col])
+            .with_columns(
+                [
+                    pl.col("_anta_has_bar").fill_null(False),
+                    pl.col("_anta_sig").forward_fill().over(gb_cols).fill_null(0.0),
+                ]
+            )
+        )
+        if return_col is not None:
+            ret_expr = pl.col("_anta_cal_val").fill_null(0.0).fill_nan(0.0)
+        else:
+            ret_expr = (
+                pl.col("_anta_cal_val")
+                .forward_fill()
+                .over(gb_cols)
+                .pct_change()
+                .over(gb_cols)
+                .fill_null(0.0)
+                .fill_nan(0.0)
+            )
+        base_sig = pl.col("_anta_sig")
+        raw_pos = (
+            base_sig.shift(signal_lag, fill_value=0.0).over(gb_cols) if signal_lag > 0 else base_sig
+        )
+        pos_expr = (
+            pl.when(pl.col("_anta_has_bar"))
+            .then(raw_pos)
+            .otherwise(None)
+            .forward_fill()
+            .over(gb_cols)
+            .fill_null(0.0)
+            .fill_nan(0.0)
+        )
+        drop_temp_cols.extend(["_anta_has_bar", "_anta_cal_val"])
+    else:
+        if return_col is not None:
+            ret_expr = pl.col(return_col).cast(pl.Float64).fill_null(0.0).fill_nan(0.0)
+        else:
+            ret_expr = (
+                exec_price_expr.pct_change().over(gb_cols)
+                if gb_cols is not None
+                else exec_price_expr.pct_change()
+            )
 
-    base_sig = pl.col("_anta_sig")
-    pos_expr = base_sig.shift(signal_lag, fill_value=0.0) if signal_lag > 0 else base_sig
-    if gb_cols is not None and signal_lag > 0:
-        pos_expr = base_sig.shift(signal_lag, fill_value=0.0).over(gb_cols)
+        base_sig = pl.col("_anta_sig")
+        pos_expr = base_sig.shift(signal_lag, fill_value=0.0) if signal_lag > 0 else base_sig
+        if gb_cols is not None and signal_lag > 0:
+            pos_expr = base_sig.shift(signal_lag, fill_value=0.0).over(gb_cols)
 
-    ret_expr = ret_expr.fill_null(0.0).fill_nan(0.0)
-    pos_expr = pos_expr.fill_null(0.0).fill_nan(0.0)
+        ret_expr = ret_expr.fill_null(0.0).fill_nan(0.0)
+        pos_expr = pos_expr.fill_null(0.0).fill_nan(0.0)
 
     if flat_mask is not None:
         f_mask = parse_expr(flat_mask).cast(pl.Boolean).fill_null(False)
@@ -606,7 +723,7 @@ def vectorized_backtest(
             pos_expr.alias("position"),
             ret_expr.alias("asset_return"),
         ]
-    ).drop("_anta_sig")
+    ).drop(drop_temp_cols)
 
     if vol_target is not None:
         r_std = pl.col("asset_return").rolling_std(window_size=vol_lookback, min_samples=2).shift(1)

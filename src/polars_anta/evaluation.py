@@ -488,9 +488,9 @@ def information_coefficient(
     cleaned = df.filter(valid_filter)
 
     if method == "spearman":
-        ic_expr = pl.corr(f_col.rank(), r_col.rank(), method="pearson").fill_nan(0.0).alias("ic")
+        ic_expr = pl.corr(f_col.rank(), r_col.rank(), method="pearson").fill_nan(None).alias("ic")
     else:
-        ic_expr = pl.corr(f_col, r_col, method="pearson").fill_nan(0.0).alias("ic")
+        ic_expr = pl.corr(f_col, r_col, method="pearson").fill_nan(None).alias("ic")
 
     count_expr = pl.len().cast(pl.Int64).alias("n_obs")
 
@@ -865,12 +865,7 @@ def triple_barrier_labels(
     c = parse_expr(close).cast(pl.Float64)
 
     if volatility is None:
-        vol_expr = (
-            c.pct_change()
-            .rolling_std(window_size=vol_period, min_samples=2)
-            .fill_null(strategy="backward")
-            .fill_null(0.01)
-        )
+        vol_expr = c.pct_change().rolling_std(window_size=vol_period, min_samples=2)
     elif isinstance(volatility, (int, float)) and not isinstance(volatility, bool):
         if volatility <= 0.0:
             raise ValueError("scalar volatility must be a positive number")

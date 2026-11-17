@@ -313,41 +313,80 @@ def entropy(
     :param bins: number of histogram bins for return discretization (default 5)
     :return: Polars expression
     """
-    c = parse_expr(close)
+    check_period(period, 1)
+    check_period(bins, 1, "bins")
+    c = parse_expr(close).cast(pl.Float64)
+    p_win = int(period)
+    n_bins = int(bins)
 
     def _calc_entropy(s: pl.Series) -> pl.Series:
-        vals = s.to_numpy()
+        vals = s.to_numpy().astype(np.float64, copy=False)
         n = len(vals)
         out = np.full(n, np.nan, dtype=np.float64)
-        for i in range(period, n):
-            window = vals[i - period : i + 1]
-            if np.isnan(window).any():
-                continue
-            rets = []
-            for j in range(1, len(window)):
-                p0 = window[j - 1]
-                p1 = window[j]
-                if p0 > 0 and p1 > 0:
-                    rets.append(math.log(p1 / p0))
-            if len(rets) < bins:
-                continue
-            min_r = min(rets)
-            max_r = max(rets)
-            if max_r == min_r:
-                out[i] = 0.0
-                continue
-            bin_width = (max_r - min_r) / bins
-            counts = [0] * bins
-            for r in rets:
-                b_idx = min(int((r - min_r) / bin_width), bins - 1)
-                counts[b_idx] += 1
-            total = len(rets)
-            ent = 0.0
-            for cnt in counts:
-                if cnt > 0:
-                    p = cnt / total
-                    ent -= p * math.log2(p)
-            out[i] = ent
+        if n <= p_win or p_win < n_bins:
+            return pl.Series(out, dtype=pl.Float64).fill_nan(None)
+
+        p0 = vals[:-1]
+        p1 = vals[1:]
+        pos_pair = np.isfinite(p0) & np.isfinite(p1) & (p0 > 0.0) & (p1 > 0.0)
+        safe_ratio = np.where(pos_pair, p1 / np.where(pos_pair, p0, 1.0), 1.0)
+        pair_ret = np.where(pos_pair, np.log(safe_ratio), np.nan)
+
+        win_vals = np.lib.stride_tricks.sliding_window_view(vals, p_win + 1)
+        win_rets = np.lib.stride_tricks.sliding_window_view(pair_ret, p_win)
+
+        no_nan_vals = ~np.isnan(win_vals).any(axis=1)
+        fin_rets = np.isfinite(win_rets)
+        cnt_rets = np.sum(fin_rets, axis=1)
+        eligible = no_nan_vals & (cnt_rets >= n_bins)
+        if not eligible.any():
+            return pl.Series(out, dtype=pl.Float64).fill_nan(None)
+
+        idx_elig = np.flatnonzero(eligible)
+        r_elig = win_rets[idx_elig]
+        f_elig = fin_rets[idx_elig]
+        c_elig = cnt_rets[idx_elig].astype(np.float64)
+
+        r_min = np.min(np.where(f_elig, r_elig, np.inf), axis=1, keepdims=True)
+        r_max = np.max(np.where(f_elig, r_elig, -np.inf), axis=1, keepdims=True)
+        span = r_max[:, 0] - r_min[:, 0]
+
+        ent_elig = np.zeros(len(idx_elig), dtype=np.float64)
+        non_flat = span > 0.0
+        if non_flat.any():
+            nf_pos = np.flatnonzero(non_flat)
+            r_nf = r_elig[nf_pos]
+            f_nf = f_elig[nf_pos]
+            min_nf = r_min[nf_pos]
+            bw_nf = span[nf_pos, None] / float(n_bins)
+            tot_nf = c_elig[nf_pos]
+
+            chunk = 16384
+            stride_bins = n_bins + 1
+            for start in range(0, len(nf_pos), chunk):
+                stop = min(start + chunk, len(nf_pos))
+                c_len = stop - start
+                r_blk = r_nf[start:stop]
+                f_blk = f_nf[start:stop]
+                bw_blk = bw_nf[start:stop]
+                min_blk = min_nf[start:stop]
+
+                scaled = np.where(f_blk, (r_blk - min_blk) / bw_blk, 0.0)
+                b_idx = np.where(
+                    f_blk,
+                    np.clip(scaled.astype(np.int64), 0, n_bins - 1),
+                    n_bins,
+                )
+                row_off = (np.arange(c_len, dtype=np.int64) * stride_bins)[:, None]
+                counts = np.bincount(
+                    (b_idx + row_off).ravel(), minlength=c_len * stride_bins
+                ).reshape(c_len, stride_bins)[:, :n_bins]
+                probs = counts.astype(np.float64) / tot_nf[start:stop, None]
+                safe_p = np.where(counts > 0, probs, 1.0)
+                ent_blk = -np.sum(np.where(counts > 0, probs * np.log2(safe_p), 0.0), axis=1)
+                ent_elig[nf_pos[start:stop]] = ent_blk
+
+        out[p_win + idx_elig] = ent_elig
         return pl.Series(out, dtype=pl.Float64).fill_nan(None)
 
     return c.map_batches(_calc_entropy, return_dtype=pl.Float64)

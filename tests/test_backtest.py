@@ -364,3 +364,82 @@ def test_round_trip_trades_mae_mfe_and_parameter_sweep() -> None:
 
     with pytest.raises(ValueError, match="signals mapping must contain at least one"):
         parameter_sweep(df, signals={})
+
+
+def test_backtest_raw_multi_asset_warning_calendar_reg_and_intrabar_excursions() -> None:
+    """Verify multi-asset raw warning, calendar regularization on halted bars, and intrabar MAE/MFE."""
+    from polars_anta import extract_trades
+
+    # 1. Warning on entries/exits + group_by + time_col + aggregate_portfolio=True + weight_scheme='raw'
+    panel = pl.DataFrame(
+        {
+            "date": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"] * 2,
+            "ticker": ["A"] * 4 + ["B"] * 4,
+            "close": [100.0, 102.0, 103.0, 101.0, 50.0, 51.0, 52.0, 50.0],
+            "enter": [True, False, False, False, True, False, False, False],
+            "exit": [False, False, False, True, False, False, False, True],
+        }
+    )
+    with pytest.warns(UserWarning, match="weight_scheme='raw'"):
+        _ = panel.anta.backtest(
+            entries="enter",
+            exits="exit",
+            group_by="ticker",
+            time_col="date",
+            aggregate_portfolio=True,
+        )
+
+    # 2. regularize_calendar=True handles missing/halted day (ticker B halted on 2026-01-03)
+    sparse = pl.DataFrame(
+        {
+            "date": [
+                "2026-01-01",
+                "2026-01-02",
+                "2026-01-03",
+                "2026-01-04",
+                "2026-01-01",
+                "2026-01-02",
+                "2026-01-04",
+            ],
+            "ticker": ["A"] * 4 + ["B"] * 3,
+            "close": [100.0, 102.0, 104.0, 106.0, 100.0, 100.0, 110.0],
+            "sig": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+        }
+    )
+    cal_res = vectorized_backtest(
+        sparse,
+        signal="sig",
+        group_by="ticker",
+        time_col="date",
+        aggregate_portfolio=False,
+        signal_lag=1,
+        regularize_calendar=True,
+    )
+    b_rows = cal_res.data.filter(pl.col("ticker") == "B").sort("date")
+    assert b_rows.height == 4
+    # On halted 2026-01-03 (index 2): holds existing 0.5 position with 0 turnover and 0 asset_return
+    assert b_rows["position"][2] == pytest.approx(0.5)
+    assert b_rows["turnover"][2] == pytest.approx(0.0)
+    assert b_rows["asset_return"][2] == pytest.approx(0.0)
+    # On resumption 2026-01-04 (index 3): realizes +10% return from 100 -> 110
+    assert b_rows["asset_return"][3] == pytest.approx(0.10)
+
+    with pytest.raises(ValueError, match="regularize_calendar=True requires"):
+        sparse.anta.backtest(signal="sig", regularize_calendar=True)
+
+    # 3. Intrabar-aware MAE/MFE via extract_trades(..., high_col='high', low_col='low')
+    intra_df = pl.DataFrame(
+        {
+            "open": [100.0, 100.0, 102.0, 103.0],
+            "high": [100.0, 108.0, 104.0, 103.0],
+            "low": [100.0, 94.0, 101.0, 103.0],
+            "close": [100.0, 102.0, 103.0, 103.0],
+            "sig": [1.0, 1.0, 0.0, 0.0],
+        }
+    )
+    bt_intra = intra_df.anta.backtest(signal="sig", signal_lag=1)
+    trades_c2c = extract_trades(bt_intra.data)
+    trades_hl = extract_trades(bt_intra.data, high_col="high", low_col="low")
+    assert trades_c2c["mae"][0] == pytest.approx(0.0)
+    assert trades_hl["mae"][0] == pytest.approx(-0.06)
+    assert trades_hl["mfe"][0] == pytest.approx(0.08)

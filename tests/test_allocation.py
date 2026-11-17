@@ -520,3 +520,74 @@ def test_allocation_and_covariance_validation_guards() -> None:
         combine_alphas_walkforward(tiny, ["f1", "f2"], "r", signal_ema_alpha=0.5)
     with pytest.raises(ValueError, match="Panel timestamps"):
         combine_alphas_walkforward(tiny, ["f1", "f2"], "r", lookback=5)
+    with pytest.raises(ValueError, match="min_weight_norm"):
+        combine_alphas_walkforward(tiny, ["f1", "f2"], "r", min_weight_norm=-1e-5)
+
+
+def test_combine_alphas_ema_symmetry_and_zero_weight_guard() -> None:
+    """Verify equal_weight_alpha uses identical EMA smoothing and zero weights yield 0.0 composite."""
+    rng = np.random.default_rng(1234)
+    n_dates, n_tickers = 40, 16
+    rows: list[dict[str, object]] = []
+    for t in range(n_dates):
+        for i in range(n_tickers):
+            rows.append(
+                {
+                    "date": t,
+                    "ticker": f"S{i:02d}",
+                    "f1": float(rng.standard_normal()),
+                    "f2": float(rng.standard_normal()),
+                    "r": float(rng.normal(0.0, 0.01)) if t + 1 < n_dates else None,
+                }
+            )
+    panel = pl.DataFrame(rows)
+
+    # 1. Prohibitive cost drags all weights to 0.0 -> composite_alpha must stay 0.0 (not amplified)
+    res_zero = combine_alphas_walkforward(
+        panel,
+        factor_cols=["f1", "f2"],
+        return_col="r",
+        time_col="date",
+        asset_col="ticker",
+        lookback=15,
+        horizon=1,
+        signal_lag=1,
+        objective_mode="factor_return",
+        one_way_cost_bps=5_000.0,
+        signal_ema_alpha=0.3,
+        constraint="box",
+        lower_bound=-1.0,
+        upper_bound=1.0,
+        min_weight_norm=1e-8,
+    )
+    assert res_zero.weights_history.select(["w_f1", "w_f2"]).to_numpy().max() == 0.0
+    assert res_zero.weights_history.select(["w_f1", "w_f2"]).to_numpy().min() == 0.0
+    np.testing.assert_allclose(res_zero.data["composite_alpha"].to_numpy(), 0.0, atol=1e-12)
+
+    # 2. Original factor columns are preserved un-mutated & equal_weight_alpha reflects EMA smoothing
+    joined_orig = res_zero.data.sort(["date", "ticker"])
+    valid_dates = joined_orig["date"].unique().implode()
+    orig_sub = panel.filter(pl.col("date").is_in(valid_dates)).sort(["date", "ticker"])
+    np.testing.assert_allclose(joined_orig["f1"].to_numpy(), orig_sub["f1"].to_numpy(), atol=1e-12)
+
+    ema_expected = (
+        panel.sort(["ticker", "date"])
+        .with_columns(
+            pl.col("f1").ewm_mean(alpha=0.3, adjust=False).over("ticker").alias("f1_e"),
+            pl.col("f2").ewm_mean(alpha=0.3, adjust=False).over("ticker").alias("f2_e"),
+        )
+        .with_columns(((pl.col("f1_e") + pl.col("f2_e")) * 0.5).alias("ew_raw"))
+        .with_columns(
+            (
+                (pl.col("ew_raw") - pl.col("ew_raw").mean().over("date"))
+                / pl.col("ew_raw").std().over("date")
+            ).alias("ew_z")
+        )
+        .filter(pl.col("date").is_in(valid_dates))
+        .sort(["date", "ticker"])
+    )
+    np.testing.assert_allclose(
+        joined_orig["equal_weight_alpha"].to_numpy(),
+        ema_expected["ew_z"].to_numpy(),
+        atol=1e-12,
+    )

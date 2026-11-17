@@ -785,3 +785,49 @@ def test_orthogonalize() -> None:
         pa.orthogonalize("raw_alpha", factors="beta", ridge=-1.0)
     with pytest.raises(ValueError, match="factors must contain at least one"):
         pa.orthogonalize("raw_alpha", factors=[])
+
+
+def test_entropy_vectorized_parity_and_edge_cases() -> None:
+    """Verify vectorized entropy matches scalar Shannon definition across edge cases."""
+    import math
+
+    import numpy as np
+
+    closes = [100.0, 102.0, 101.0, 104.0, 103.5, 103.5, 103.5, 103.5, 103.5, 105.0, 101.0, 109.0]
+    period, bins = 4, 3
+    df = pl.DataFrame({"close": closes})
+    got = df.select(entropy("close", period=period, bins=bins).alias("ent"))["ent"].to_list()
+
+    expected: list[float | None] = [None] * len(closes)
+    for i in range(period, len(closes)):
+        win = closes[i - period : i + 1]
+        rets = [math.log(win[j] / win[j - 1]) for j in range(1, len(win))]
+        lo, hi = min(rets), max(rets)
+        if hi == lo:
+            expected[i] = 0.0
+            continue
+        bw = (hi - lo) / bins
+        counts = [0] * bins
+        for r in rets:
+            counts[min(int((r - lo) / bw), bins - 1)] += 1
+        expected[i] = -sum((c / len(rets)) * math.log2(c / len(rets)) for c in counts if c > 0)
+
+    for g, e in zip(got, expected, strict=True):
+        if e is None:
+            assert g is None
+        else:
+            assert g == pytest.approx(e, abs=1e-12)
+
+    # NaNs, non-positive prices, short series, and flat series edge cases
+    edge = pl.DataFrame(
+        {"close": [10.0, 10.0, 10.0, 10.0, 10.0, -1.0, 11.0, 12.0, 13.0, float("nan"), 14.0]}
+    )
+    edge_ent = edge.select(entropy("close", period=4, bins=3).alias("e"))["e"].to_list()
+    assert edge_ent[4] == pytest.approx(0.0)
+    assert edge_ent[9] is None
+    assert np.isnan(edge_ent[0]) if edge_ent[0] is not None else True
+
+    with pytest.raises(ValueError, match="period must be a positive integer"):
+        entropy("close", period=0)
+    with pytest.raises(ValueError, match="bins must be a positive integer"):
+        entropy("close", bins=0)

@@ -372,6 +372,8 @@ def combine_alphas_walkforward(
     ic_shrinkage: Literal["none", "empirical_bayes"] = "none",
     ic_ema_halflife: float | None = None,
     no_trade_buffer: float = 0.0,
+    normalize_composite: bool = True,
+    min_weight_norm: float = 1e-8,
     composite_col: str = "composite_alpha",
     equal_weight_col: str = "equal_weight_alpha",
 ) -> WalkForwardAllocationResult:
@@ -382,7 +384,8 @@ def combine_alphas_walkforward(
     optimizing either cross-sectional Information Coefficients (``objective_mode='ic'``) or
     realized dollar-neutral factor portfolio returns (``objective_mode='factor_return'``), with
     per-factor stock-level transaction cost deduction (``one_way_cost_bps``) and optional causal
-    exponential composite smoothing (``signal_ema_alpha``).
+    exponential smoothing (``signal_ema_alpha``) applied symmetrically across factor estimation,
+    ``composite_alpha``, and ``equal_weight_alpha``.
     """
     factors = list(factor_cols)
     k = len(factors)
@@ -394,8 +397,10 @@ def combine_alphas_walkforward(
         raise ValueError("horizon must be a positive integer")
     if signal_lag < 0:
         raise ValueError("signal_lag must be non-negative")
-    if no_trade_buffer < 0.0 or one_way_cost_bps < 0.0:
-        raise ValueError("no_trade_buffer and one_way_cost_bps must be non-negative")
+    if no_trade_buffer < 0.0 or one_way_cost_bps < 0.0 or min_weight_norm < 0.0:
+        raise ValueError(
+            "no_trade_buffer, one_way_cost_bps, and min_weight_norm must be non-negative"
+        )
     if objective_mode not in ("ic", "factor_return"):
         raise ValueError("objective_mode must be 'ic' or 'factor_return'")
     if one_way_cost_bps > 0.0 and asset_col is None:
@@ -408,8 +413,14 @@ def combine_alphas_walkforward(
 
     emb = max(0, int(horizon) + int(signal_lag) - 1) if embargo is None else max(0, int(embargo))
     eager = df.collect() if isinstance(df, pl.LazyFrame) else df
-    eval_df = (
-        eager.sort([asset_col, time_col]).with_columns(
+    use_ema = signal_ema_alpha is not None and asset_col is not None
+    orig_backup_cols = [f"_anta_orig_{i}" for i in range(k)]
+    if use_ema:
+        assert asset_col is not None and signal_ema_alpha is not None
+        sorted_eager = eager.sort([asset_col, time_col])
+        eval_df = sorted_eager.with_columns(
+            [pl.col(c).alias(orig_c) for c, orig_c in zip(factors, orig_backup_cols, strict=True)]
+        ).with_columns(
             [
                 pl.col(c)
                 .cast(pl.Float64)
@@ -420,9 +431,8 @@ def combine_alphas_walkforward(
                 for c in factors
             ]
         )
-        if (signal_ema_alpha is not None and asset_col is not None)
-        else eager
-    )
+    else:
+        eval_df = eager
 
     # Master timeline from factor observations (includes live dates where return_col is null)
     timeline_df = eval_df.select(time_col).unique().sort(time_col)
@@ -564,32 +574,43 @@ def combine_alphas_walkforward(
 
     w_df = pl.DataFrame(weight_rows)
     w_cols = [f"w_{c}" for c in factors]
-    joined = eager.join(w_df.select([time_col, *w_cols]), on=time_col, how="inner")
+    joined = eval_df.join(w_df.select([time_col, *w_cols]), on=time_col, how="inner")
 
-    comp_raw = pl.sum_horizontal(
-        [
-            pl.col(c).cast(pl.Float64).fill_nan(0.0).fill_null(0.0) * pl.col(f"w_{c}")
-            for c in factors
-        ]
+    has_any_sig = pl.any_horizontal(
+        [pl.col(c).cast(pl.Float64).fill_nan(None).is_not_null() for c in factors]
+    )
+    w_abs_sum = pl.sum_horizontal([pl.col(f"w_{c}").abs() for c in factors])
+    comp_raw = (
+        pl.when(has_any_sig)
+        .then(
+            pl.sum_horizontal(
+                [
+                    pl.col(c).cast(pl.Float64).fill_nan(0.0).fill_null(0.0) * pl.col(f"w_{c}")
+                    for c in factors
+                ]
+            )
+        )
+        .otherwise(None)
     )
     ew_raw = pl.mean_horizontal([pl.col(c).cast(pl.Float64).fill_nan(None) for c in factors])
-    out_panel = joined.with_columns(
-        cs_zscore(comp_raw, over=time_col).alias(composite_col),
-        cs_zscore(ew_raw, over=time_col).alias(equal_weight_col),
-    )
 
-    if signal_ema_alpha is not None and asset_col is not None:
-        out_panel = (
-            out_panel.sort([asset_col, time_col])
-            .with_columns(
-                pl.col(composite_col)
-                .ewm_mean(alpha=float(signal_ema_alpha), adjust=False)
-                .over(asset_col)
-                .alias(composite_col)
-            )
-            .with_columns(cs_zscore(pl.col(composite_col), over=time_col).alias(composite_col))
-            .sort([time_col, asset_col])
-        )
+    comp_norm = cs_zscore(comp_raw, over=time_col) if normalize_composite else comp_raw
+    ew_norm = cs_zscore(ew_raw, over=time_col) if normalize_composite else ew_raw
+    comp_final = (
+        pl.when(~has_any_sig)
+        .then(None)
+        .when(w_abs_sum > float(min_weight_norm))
+        .then(comp_norm)
+        .otherwise(0.0)
+        .alias(composite_col)
+    )
+    out_panel = joined.with_columns(comp_final, ew_norm.alias(equal_weight_col))
+    if use_ema:
+        out_panel = out_panel.with_columns(
+            [pl.col(orig_c).alias(c) for c, orig_c in zip(factors, orig_backup_cols, strict=True)]
+        ).drop(orig_backup_cols)
+    if asset_col is not None:
+        out_panel = out_panel.sort([time_col, asset_col])
 
     nw_lags = max(1, int(horizon) - 1)
     comp_sum = ic_summary(

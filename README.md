@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/huuan26/polars-anta/master/assets/banner.png" alt="polars-anta banner" width="100%" />
 
-**Vectorized signal engineering, cross-sectional factor conditioning, statistical falsification, and portfolio allocation in Polars.**
+**Pure-Python quantitative finance engine in Polars: signal engineering, FWL/Lowdin conditioning, statistical falsification, RMT denoising, and FISTA allocation.**
 
 [![PyPI version](https://img.shields.io/pypi/v/polars-anta?color=0275d8)](https://pypi.org/project/polars-anta/)
 [![Python versions](https://img.shields.io/pypi/pyversions/polars-anta)](https://pypi.org/project/polars-anta/)
@@ -16,7 +16,7 @@
 
 ---
 
-`polars-anta` is a pure-Python quantitative finance library built on [Polars](https://pola.rs/) and NumPy (`polars>=1.0.0`, `numpy>=1.24.0`; no C compiler, SciPy, or CVXPY required). It exposes `241` functions (`246` exports across `15` modules) via top-level imports and `.anta` / `.ta` namespaces across four research stages:
+`polars-anta` is a pure-Python, `mypy`-typed quantitative finance library built on [Polars](https://pola.rs/) and NumPy (`polars>=1.0.0`, `numpy>=1.24.0`; no C compiler, SciPy, or CVXPY required). It exposes `241` functions (`246` exports across `15` modular subpackages and modules) via top-level imports and `.anta` / `.ta` namespaces across four research stages:
 
 | Research Stage | Core Functions | Method |
 | :--- | :--- | :--- |

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "polars-anta"
 version = "0.5.0"
-description = "Cross-sectional alpha engineering in Polars: FWL neutralization, Lowdin SVD orthogonalization, Alphalens-grade diagnostics, RMT covariance denoising, and cost-aware FISTA allocation."
+description = "Pure-Python quantitative finance engine in Polars: signal engineering, FWL/Lowdin conditioning, statistical falsification, RMT denoising, and FISTA allocation."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }

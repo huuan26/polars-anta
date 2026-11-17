@@ -8,14 +8,15 @@ To evaluate real-world performance, `polars-anta` provides an automated benchmar
 
 | Operation / Indicator | Dataset Scale | Pandas (s) | `polars-anta` (s) | Measured Speedup |
 | :--- | :--- | :---: | :---: | :---: |
-| **Linear Regression Slope (OLS)** | 1,000,000 bars | 2.3529 s | **0.0209 s** | **112.4x Faster** |
-| **Multi-Asset RSI (14)** | 500 tickers x 2k bars | 0.4398 s | **0.0545 s** | **8.1x Faster** |
-| **Multi-Asset SMA (20)** | 500 tickers x 2k bars | 0.1345 s | **0.0168 s** | **8.0x Faster** |
-| **Z-Score Normalization** | 1,000,000 bars | 0.0450 s | **0.0267 s** | **1.7x Faster** |
-| **Exponential Moving Average** | 1,000,000 bars | 0.0100 s | **0.0069 s** | **1.5x Faster** |
-| **Simple Moving Average** | 1,000,000 bars | 0.0170 s | **0.0153 s** | **1.1x Faster** |
+| **Linear Regression Slope (OLS)** | 1,000,000 bars | 1.8652 s | **0.0301 s** | **62.0x Faster** |
+| **Multi-Asset RSI (14)** | 500 tickers x 2k bars | 0.7096 s | **0.0589 s** | **12.0x Faster** |
+| **Multi-Asset SMA (20)** | 500 tickers x 2k bars | 0.2014 s | **0.0174 s** | **11.6x Faster** |
+| **Simple Moving Average (20)** | 1,000,000 bars | 0.0599 s | **0.0227 s** | **2.6x Faster** |
+| **Z-Score Normalization (20)** | 1,000,000 bars | 0.0873 s | **0.0427 s** | **2.0x Faster** |
+| **Exponential Moving Average (20)** | 1,000,000 bars | 0.0353 s | **0.0205 s** | **1.7x Faster** |
+| **Bollinger Bands (20, 2)** | 1,000,000 bars | 0.1464 s | **0.0964 s** | **1.5x Faster** |
 
-> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS). A fully vectorized pandas/NumPy OLS would narrow the 112.4x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
+> *Baselines are straightforward pandas implementations (`rolling().mean()`, `groupby().apply()`, and `rolling().apply()` for the WMA term of OLS), measured as the median of repeated GC-isolated runs after warmup. A fully vectorized pandas/NumPy OLS would narrow the 62.0x gap considerably; speedups vary by hardware. Reproduce with `python benchmarks/benchmark_speed.py`.*
 
 ---
 
@@ -30,7 +31,7 @@ $$
 \beta_1 = \frac{6}{N - 1} (\text{WMA} - \text{SMA})
 $$
 
-Because WMA and SMA execute in SIMD-vectorized Rust kernels, the rolling regression evaluates in **0.0209 seconds** instead of 2.35 seconds - over **112x faster**!
+Because WMA and SMA execute in SIMD-vectorized Rust kernels, the rolling regression evaluates in **0.0301 seconds** instead of 1.87 seconds - **62x faster**!
 
 ### 2. Multi-Threaded Partitioning (`.over()`)
 When processing multiple tickers, Polars automatically partitions data and distributes computation across all physical and logical CPU cores in Rust. Pandas `.groupby().apply()`, by contrast, iterates sequentially in a single Python thread.

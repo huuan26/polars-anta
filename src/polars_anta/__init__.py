@@ -13,6 +13,7 @@ from . import (
     inference,
     momentum,
     namespace,  # noqa: F401 - triggers Polars namespace registration
+    portfolio,
     resample,
     stats,
     trend,
@@ -28,6 +29,7 @@ from .diagnostics import *  # noqa: F403
 from .evaluation import *  # noqa: F403
 from .inference import *  # noqa: F403
 from .momentum import *  # noqa: F403
+from .portfolio import *  # noqa: F403
 from .resample import *  # noqa: F403
 from .stats import *  # noqa: F403
 from .trend import *  # noqa: F403
@@ -43,6 +45,7 @@ __all__ = [
     *allocation.__all__,
     *trend.__all__,
     *momentum.__all__,
+    *portfolio.__all__,
     *volatility.__all__,
     *volume.__all__,
     *stats.__all__,

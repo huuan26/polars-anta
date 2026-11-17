@@ -17,6 +17,7 @@ from .. import (
     evaluation,
     inference,
     momentum,
+    portfolio,
     resample,
     stats,
     trend,
@@ -33,6 +34,8 @@ from ._binders import (
 )
 
 _FRAME_PASSTHROUGHS: tuple[tuple[Callable[..., Any], str | None], ...] = (
+    (portfolio.hierarchical_risk_parity, None),
+    (portfolio.equal_risk_parity, None),
     (resample.resample_ohlcv, "resample"),
     (resample.validate_ohlcv, None),
     (resample.resample_volume_bars, None),

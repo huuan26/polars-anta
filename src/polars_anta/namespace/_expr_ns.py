@@ -215,6 +215,8 @@ _EXPR_GROUP_BINDINGS: tuple[
         (stats.rolling_cov, stats.rolling_corr, alpha.ts_correlation, alpha.ts_covariance),
     ),
     ("asset_returns", None, None, (stats.rolling_beta, stats.rolling_alpha)),
+    ("spread", None, None, (stats.ou_half_life,)),
+    ("asset", None, None, (stats.rolling_hedge_ratio,)),
     (
         "high",
         None,

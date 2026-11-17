@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import math
+
+import numpy as np
 import polars as pl
 import pytest
 
@@ -12,11 +15,13 @@ from polars_anta.stats import (
     linear_regression_r2,
     linear_regression_slope,
     linear_regression_stderr,
+    ou_half_life,
     percentile_rank,
     rolling_alpha,
     rolling_beta,
     rolling_corr,
     rolling_cov,
+    rolling_hedge_ratio,
     skewness,
     zscore,
 )
@@ -316,3 +321,98 @@ def test_namespace_forwards_bias():
     got = df.select(expr.alias("s"))["s"][-1]
     expected = _numpy_skew(BIAS_WINDOW, True)
     assert got == pytest.approx(expected, rel=1e-10, abs=1e-10)
+
+
+def _ar1_series(n: int = 4000, phi: float = 0.9, seed: int = 7) -> np.ndarray:
+    """Deterministic AR(1) path with a known mean-reversion half-life."""
+    rng = np.random.default_rng(seed)
+    eps = rng.normal(0.0, 1.0, n)
+    x = np.empty(n)
+    x[0] = 0.0
+    for i in range(1, n):
+        x[i] = phi * x[i - 1] + eps[i]
+    return x
+
+
+def test_ou_half_life_matches_full_sample_ols():
+    """Rolling half-life must agree with the closed-form OLS estimate on the whole path."""
+    x = _ar1_series(n=20000, phi=0.9, seed=7)
+    df = pl.DataFrame({"spread": x})
+    hl = df.select(ou_half_life(pl.col("spread"), period=250).alias("hl"))["hl"].drop_nulls()
+
+    lag = x[:-1]
+    delta = np.diff(x)
+    beta, _ = np.polyfit(lag, delta, 1)
+    expected = -math.log(2.0) / beta
+
+    assert hl.len() > 1000
+    assert abs(hl.mean() - expected) < 0.8
+    # and it sits in the right neighbourhood of the textbook value
+    assert abs(hl.mean() - 6.93) < 0.9
+
+
+def test_ou_half_life_discrete_versus_continuous():
+    """The exact AR(1) form is shorter than the continuous form for the same beta."""
+    x = _ar1_series(n=20000, phi=0.9, seed=21)
+    df = pl.DataFrame({"spread": x})
+    cont = df.select(ou_half_life(pl.col("spread"), period=250).alias("h"))["h"].drop_nulls()
+    disc = df.select(ou_half_life(pl.col("spread"), period=250, method="discrete").alias("h"))[
+        "h"
+    ].drop_nulls()
+
+    lag = x[:-1]
+    delta = np.diff(x)
+    beta, _ = np.polyfit(lag, delta, 1)
+    expected_disc = -math.log(2.0) / math.log(1.0 + beta)
+
+    assert abs(disc.mean() - expected_disc) < 0.8
+    assert disc.mean() < cont.mean()
+
+
+def test_ou_half_life_null_on_exploding_series():
+    """A diverging spread has beta > 0 in every window: no half-life, all nulls."""
+    n = 3000
+    x = np.empty(n)
+    x[0] = 1.0
+    rng = np.random.default_rng(5)
+    eps = rng.normal(0.0, 0.01, n)
+    for i in range(1, n):
+        x[i] = 1.02 * x[i - 1] + eps[i]
+    df = pl.DataFrame({"spread": x})
+    hl = df.select(ou_half_life(pl.col("spread"), period=250).alias("hl"))["hl"]
+    assert hl.is_null().all()
+
+
+def test_ou_half_life_null_on_straight_trend():
+    """A deterministic trend has zero first-difference variance: the slope is 0, so null."""
+    trend = np.arange(3000, dtype=np.float64)
+    df = pl.DataFrame({"spread": trend})
+    hl = df.select(ou_half_life(pl.col("spread"), period=250).alias("hl"))["hl"]
+    assert hl.is_null().all()
+
+
+def test_ou_half_life_rejects_bad_method():
+    """Unknown conversion methods fail loudly at expression-build time."""
+    with pytest.raises(ValueError, match="method must be"):
+        ou_half_life(pl.col("close"), period=20, method="bogus")
+
+
+def test_rolling_hedge_ratio_recovers_slope():
+    """A synthetic pair with beta = 2 must come back as ~2 on average."""
+    rng = np.random.default_rng(11)
+    b = np.cumsum(rng.normal(0.0, 1.0, 3000))
+    a = 2.0 * b + rng.normal(0.0, 0.5, 3000)
+    df = pl.DataFrame({"a": a, "b": b})
+    beta = df.select(rolling_hedge_ratio(pl.col("a"), pl.col("b"), period=250).alias("beta"))[
+        "beta"
+    ].drop_nulls()
+    assert beta.len() > 100
+    assert abs(beta.mean() - 2.0) < 0.10
+
+
+def test_ou_namespace_binding():
+    """The .anta expression namespace must match the plain function."""
+    df = pl.DataFrame({"spread": _ar1_series(n=1000)})
+    direct = df.select(ou_half_life(pl.col("spread"), period=60).alias("v"))["v"]
+    ns = df.select(pl.col("spread").anta.ou_half_life(period=60).alias("v"))["v"]
+    assert direct.equals(ns)

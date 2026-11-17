@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import textwrap
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -154,3 +155,54 @@ def test_readme_and_alpha_engineering_snippets_execute() -> None:
         exec(compile(code, loc, "exec"), ns_wf)
         if loc == readme_blocks[4][0]:
             assert ns_wf["ml_dataset"].height == n_bar
+
+
+def _notebook_code_cells(path: Path) -> list[str]:
+    """Executable source of every code cell in a notebook (stdlib json, no nbformat needed)."""
+    notebook = json.loads(path.read_text(encoding="utf-8"))
+    cells: list[str] = []
+    for cell in notebook["cells"]:
+        if cell.get("cell_type") != "code":
+            continue
+        lines = [
+            line
+            for line in "".join(cell["source"]).splitlines()
+            if not line.strip().startswith(("!pip", "%"))
+        ]
+        code = "\n".join(lines).strip()
+        if code:
+            cells.append(code)
+    return cells
+
+
+def test_example_07_vpin_order_flow_notebook_executes() -> None:
+    """Issue #59: the VPIN / OFI tutorial must run end to end on its synthetic tape."""
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+
+    notebook = REPO_ROOT / "examples" / "07_crypto_vpin_order_flow_toxicity.ipynb"
+    cells = _notebook_code_cells(notebook)
+    assert len(cells) >= 8
+
+    namespace: dict[str, Any] = {}
+    for index, code in enumerate(cells):
+        exec(compile(code, f"{notebook.name}:cell{index}", "exec"), namespace)
+
+    bars = namespace["bars"]
+    assert bars.height > 150
+    assert {"vpin", "toxic"} <= set(bars.columns)
+
+    vpin = bars["vpin"].drop_nulls()
+    assert vpin.len() > 0
+    assert vpin.min() >= 0.0
+    assert vpin.max() <= 1.0
+
+    ofi = namespace["ofi"]
+    assert {"ofi", "ofi_norm", "fwd_ret_60s"} <= set(ofi.columns)
+    corr = namespace["corr_60s"]
+    assert corr is not None and -1.0 <= corr <= 1.0
+    assert namespace["quintiles"].height == 5
+
+    import matplotlib.pyplot as plt
+
+    plt.close("all")

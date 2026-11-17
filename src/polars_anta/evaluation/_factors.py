@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import Literal, TypeVar
+from typing import Literal, TypeVar, cast
 
 import numpy as np
 import polars as pl
@@ -174,11 +174,11 @@ def ic_summary(
         }
 
     ic_series = ic_df["ic"]
-    mean_val = float(ic_series.mean() or 0.0)
-    std_val = float(ic_series.std() or 0.0) if n > 1 else 0.0
+    mean_val = float(cast(float, ic_series.mean() or 0.0))
+    std_val = float(cast(float, ic_series.std() or 0.0)) if n > 1 else 0.0
     icir_val = mean_val / std_val if std_val > 1e-12 else 0.0
     t_stat_val = (mean_val / (std_val / math.sqrt(float(n)))) if std_val > 1e-12 else 0.0
-    hit_rate_val = float((ic_series > 0.0).mean() or 0.0)
+    hit_rate_val = float(cast(float, (ic_series > 0.0).mean() or 0.0))
 
     if n > 1 and std_val > 1e-12:
         u = ic_series.to_numpy().astype(np.float64, copy=False) - mean_val
@@ -232,14 +232,22 @@ def ic_decay(
             raise ValueError("each horizon in horizons must be a positive integer")
 
     prefix = "_anta_decay_ret_"
-    with_fwd = forward_returns(
-        df,
-        close_col=close_col,
-        periods=horizons,
-        group_by=asset_col,
-        prefix=prefix,
-    )
-    eager_df = with_fwd.collect() if isinstance(with_fwd, pl.LazyFrame) else with_fwd
+    if isinstance(df, pl.LazyFrame):
+        eager_df = forward_returns(
+            df,
+            close_col=close_col,
+            periods=horizons,
+            group_by=asset_col,
+            prefix=prefix,
+        ).collect()
+    else:
+        eager_df = forward_returns(
+            df,
+            close_col=close_col,
+            periods=horizons,
+            group_by=asset_col,
+            prefix=prefix,
+        )
 
     rows: list[dict[str, float | int]] = []
     abs_ics: list[float] = []

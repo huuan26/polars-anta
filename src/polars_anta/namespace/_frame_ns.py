@@ -24,7 +24,7 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
     """
 
     def __init__(self, df: FrameType) -> None:
-        self._df = df
+        self._df: FrameType = df
 
     def add_indicators(
         self,
@@ -39,10 +39,10 @@ class TechnicalAnalysisFrame(Generic[FrameType]):
         """
         flat_exprs: list[pl.Expr] = []
         for item in exprs:
-            if isinstance(item, (list, tuple)):
-                flat_exprs.extend(item)
-            else:
+            if isinstance(item, pl.Expr):
                 flat_exprs.append(item)
+            else:
+                flat_exprs.extend(item)
         if group_by is not None:
             flat_exprs = [e.over(group_by) for e in flat_exprs]
         return self._df.with_columns(flat_exprs)

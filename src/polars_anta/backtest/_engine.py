@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import warnings
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import polars as pl
@@ -25,7 +25,7 @@ from ..evaluation import (
 from ._helpers import (
     _apply_no_trade_buffer,
     _empty_summary,
-    _normalize_signal_weights,
+    _prepare_signal_and_calendar,
     _resolve_exec_price_expr,
 )
 from ._signals import signals_to_positions
@@ -177,38 +177,22 @@ def vectorized_backtest(
         raw_sig_expr = parse_expr(signal)
 
     sig_expr = raw_sig_expr.cast(pl.Float64).fill_null(0.0).fill_nan(0.0)
-    step0 = _normalize_signal_weights(
-        df.with_columns(sig_expr.alias("_anta_sig")),
-        weight_scheme=weight_scheme,
-        time_col=time_col,
-    )
     exec_price_expr = _resolve_exec_price_expr(
         execution_price, open_col, high_col, low_col, close_col
+    )
+    step0 = _prepare_signal_and_calendar(
+        df,
+        sig_expr=sig_expr,
+        weight_scheme=weight_scheme,
+        time_col=time_col,
+        regularize_calendar=regularize_calendar,
+        gb_cols=gb_cols,
+        return_col=return_col,
+        exec_price_expr=exec_price_expr,
     )
 
     drop_temp_cols = ["_anta_sig"]
     if regularize_calendar and gb_cols is not None and time_col is not None:
-        step0 = step0.with_columns(
-            [
-                pl.lit(True).alias("_anta_has_bar"),
-                (
-                    pl.col(return_col).cast(pl.Float64)
-                    if return_col is not None
-                    else exec_price_expr
-                ).alias("_anta_cal_val"),
-            ]
-        )
-        grid = step0.select(time_col).unique().join(step0.select(gb_cols).unique(), how="cross")
-        step0 = (
-            grid.join(step0, on=[*gb_cols, time_col], how="left")
-            .sort([*gb_cols, time_col])
-            .with_columns(
-                [
-                    pl.col("_anta_has_bar").fill_null(False),
-                    pl.col("_anta_sig").forward_fill().over(gb_cols).fill_null(0.0),
-                ]
-            )
-        )
         if return_col is not None:
             ret_expr = pl.col("_anta_cal_val").fill_null(0.0).fill_nan(0.0)
         else:
@@ -352,10 +336,12 @@ def vectorized_backtest(
         else None,
     )
     n_rt = len(trades_df)
-    t_win_rate = float((trades_df["net_return"] > 0.0).mean() or 0.0) if n_rt > 0 else 0.0
-    avg_hold = float(trades_df["holding_bars"].mean() or 0.0) if n_rt > 0 else 0.0
-    avg_mae = float(trades_df["mae"].mean() or 0.0) if n_rt > 0 else 0.0
-    avg_mfe = float(trades_df["mfe"].mean() or 0.0) if n_rt > 0 else 0.0
+    t_win_rate = (
+        float(cast(float, (trades_df["net_return"] > 0.0).mean() or 0.0)) if n_rt > 0 else 0.0
+    )
+    avg_hold = float(cast(float, trades_df["holding_bars"].mean() or 0.0)) if n_rt > 0 else 0.0
+    avg_mae = float(cast(float, trades_df["mae"].mean() or 0.0)) if n_rt > 0 else 0.0
+    avg_mfe = float(cast(float, trades_df["mfe"].mean() or 0.0)) if n_rt > 0 else 0.0
 
     metrics_row = bt_df.select(
         [

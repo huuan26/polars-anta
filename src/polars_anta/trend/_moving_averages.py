@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import operator
+from functools import reduce
 
 import numpy as np
 import polars as pl
@@ -47,7 +49,9 @@ def wma(close: IntoExpr, period: int = 10) -> pl.Expr:
 
     total_weight = (period * (period + 1)) // 2
     c = parse_expr(close)
-    weighted_sum = sum(c.shift(period - weight) * weight for weight in range(1, period + 1))
+    weighted_sum: pl.Expr = reduce(
+        operator.add, (c.shift(period - weight) * weight for weight in range(1, period + 1))
+    )
     return weighted_sum / total_weight
 
 
@@ -164,7 +168,9 @@ def alma(
 
     weights = [math.exp(-((i - m) ** 2) / (2.0 * s * s)) for i in range(period)]
     c = parse_expr(close)
-    weighted_sum = sum(c.shift(period - 1 - i) * w for i, w in enumerate(weights))
+    weighted_sum: pl.Expr = reduce(
+        operator.add, (c.shift(period - 1 - i) * w for i, w in enumerate(weights))
+    )
     return weighted_sum / sum(weights)
 
 

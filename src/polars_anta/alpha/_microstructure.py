@@ -532,7 +532,9 @@ def futures_basis(
 
     if days_to_expiry is None:
         ann_basis = basis_pct
-    elif isinstance(days_to_expiry, (int, float)) and not isinstance(days_to_expiry, bool):
+    elif isinstance(days_to_expiry, bool):
+        raise TypeError("days_to_expiry cannot be a boolean")
+    elif isinstance(days_to_expiry, (int, float)):
         ann_basis = basis_pct * (float(annualization) / max(float(days_to_expiry), 1.0))
     else:
         ann_basis = basis_pct * (

@@ -136,14 +136,14 @@ def neutralize_panel(
     suffix: str = "_neut",
 ) -> FrameType:
     """Simultaneously neutralize factors against categorical groups and continuous risks (FWL)."""
-    factors = list(factor_cols)
+    factors: list[str] = list(factor_cols)
     if not factors:
         raise ValueError("factor_cols must contain at least one column name")
     if ridge < 0.0:
         raise ValueError("ridge must be non-negative")
 
-    risks = list(risk_cols) if risk_cols is not None else []
-    groups = (
+    risks: list[str] = list(risk_cols) if risk_cols is not None else []
+    groups: list[str] = (
         []
         if group_col is None
         else ([group_col] if isinstance(group_col, str) else list(group_col))

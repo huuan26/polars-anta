@@ -11,7 +11,9 @@ from ..core import IntoExpr, parse_expr
 
 def _parse_expr_or_scalar(val: IntoExpr | float | int) -> pl.Expr:
     """Convert column name, Polars expression, or numeric threshold into a Polars expression."""
-    if isinstance(val, (int, float)) and not isinstance(val, bool):
+    if isinstance(val, bool):
+        raise TypeError("threshold or signal cannot be a boolean")
+    if isinstance(val, (int, float)):
         return pl.lit(float(val))
     return parse_expr(val)
 

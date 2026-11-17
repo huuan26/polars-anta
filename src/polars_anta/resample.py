@@ -445,6 +445,8 @@ def resample_volume_bars(
     :return: Volume-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
         ``volume``, ``vwap``, and ``n_obs`` columns.
     """
+    working_df: FrameType
+    gb_cols: list[str]
     working_df, schema, gb_cols = _prepare_information_bar_frame(
         df, threshold, label, close_col, volume_col, group_by, time_col, sort, require_volume=True
     )
@@ -503,6 +505,8 @@ def resample_dollar_bars(
     """
     check_positive(threshold, "threshold")
     check_positive(multiplier, "multiplier")
+    working_df: FrameType
+    gb_cols: list[str]
     working_df, schema, gb_cols = _prepare_information_bar_frame(
         df, threshold, label, close_col, volume_col, group_by, time_col, sort, require_volume=True
     )
@@ -573,6 +577,8 @@ def resample_imbalance_bars(
     :return: Imbalance-bar DataFrame or LazyFrame with ``open``, ``high``, ``low``, ``close``,
         ``imbalance``, and ``n_obs`` (plus ``volume`` and ``vwap`` if ``volume_col`` is present).
     """
+    working_df: FrameType
+    gb_cols: list[str]
     working_df, schema, gb_cols = _prepare_information_bar_frame(
         df, threshold, label, close_col, volume_col, group_by, time_col, sort, require_volume=False
     )

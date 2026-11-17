@@ -56,7 +56,9 @@ def triple_barrier_labels(
 
     if volatility is None:
         vol_expr = c.pct_change().rolling_std(window_size=vol_period, min_samples=2)
-    elif isinstance(volatility, (int, float)) and not isinstance(volatility, bool):
+    elif isinstance(volatility, bool):
+        raise TypeError("volatility cannot be a boolean")
+    elif isinstance(volatility, (int, float)):
         if volatility <= 0.0:
             raise ValueError("scalar volatility must be a positive number")
         vol_expr = pl.lit(float(volatility), dtype=pl.Float64)

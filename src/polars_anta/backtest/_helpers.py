@@ -75,6 +75,92 @@ def _normalize_signal_weights(
     return step0.with_columns(norm_expr.alias("_anta_sig"))
 
 
+def _regularize_calendar_frame_typed(
+    step0: FrameType,
+    gb_cols: list[str],
+    time_col: str,
+    return_col: str | None,
+    exec_price_expr: pl.Expr,
+) -> FrameType:
+    """Reindex frame onto dense (time_col, group_by) calendar grid and forward-fill signals."""
+    flagged = step0.with_columns(
+        [
+            pl.lit(True).alias("_anta_has_bar"),
+            (
+                pl.col(return_col).cast(pl.Float64) if return_col is not None else exec_price_expr
+            ).alias("_anta_cal_val"),
+        ]
+    )
+    grid = flagged.select(time_col).unique().join(flagged.select(gb_cols).unique(), how="cross")
+    return (
+        grid.join(flagged, on=[*gb_cols, time_col], how="left")
+        .sort([*gb_cols, time_col])
+        .with_columns(
+            [
+                pl.col("_anta_has_bar").fill_null(False),
+                pl.col("_anta_sig").forward_fill().over(gb_cols).fill_null(0.0),
+            ]
+        )
+    )
+
+
+def _prepare_step0_typed(
+    frame: FrameType,
+    sig_expr: pl.Expr,
+    weight_scheme: Literal["raw", "dollar_neutral", "long_only", "equal_weight"],
+    time_col: str | None,
+    regularize_calendar: bool,
+    gb_cols: list[str] | None,
+    return_col: str | None,
+    exec_price_expr: pl.Expr,
+) -> FrameType:
+    """Normalize signal weights and optionally regularize calendar for a typed frame."""
+    norm = _normalize_signal_weights(
+        frame.with_columns(sig_expr.alias("_anta_sig")),
+        weight_scheme=weight_scheme,
+        time_col=time_col,
+    )
+    if regularize_calendar and gb_cols is not None and time_col is not None:
+        return _regularize_calendar_frame_typed(
+            norm, gb_cols, time_col, return_col, exec_price_expr
+        )
+    return norm
+
+
+def _prepare_signal_and_calendar(
+    df: pl.DataFrame | pl.LazyFrame,
+    sig_expr: pl.Expr,
+    weight_scheme: Literal["raw", "dollar_neutral", "long_only", "equal_weight"],
+    time_col: str | None,
+    regularize_calendar: bool,
+    gb_cols: list[str] | None,
+    return_col: str | None,
+    exec_price_expr: pl.Expr,
+) -> pl.DataFrame | pl.LazyFrame:
+    """Normalize signal weights and optionally regularize onto a dense calendar grid."""
+    if isinstance(df, pl.LazyFrame):
+        return _prepare_step0_typed(
+            df,
+            sig_expr,
+            weight_scheme,
+            time_col,
+            regularize_calendar,
+            gb_cols,
+            return_col,
+            exec_price_expr,
+        )
+    return _prepare_step0_typed(
+        df,
+        sig_expr,
+        weight_scheme,
+        time_col,
+        regularize_calendar,
+        gb_cols,
+        return_col,
+        exec_price_expr,
+    )
+
+
 def _resolve_exec_price_expr(
     execution_price: Literal["close", "open", "twap", "vwap"],
     open_col: str,

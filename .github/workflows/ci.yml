@@ -21,15 +21,19 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: "pip"
 
-      - name: Install Ruff
-        run: pip install ruff
+      - name: Install Lint & Type Check Tools
+        run: pip install -e .[dev]
 
       - name: Run Ruff Lint
         run: ruff check .
 
       - name: Run Ruff Format Check
         run: ruff format --check .
+
+      - name: Run Mypy Type Check
+        run: mypy src/polars_anta
 
   test:
     name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})

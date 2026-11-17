@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import polars as pl
@@ -226,9 +226,9 @@ def analyze_alpha(
             .filter(pl.col("_r_q1").is_not_null() & pl.col("_r_qk").is_not_null())
         )
         if daily_legs.height > 0:
-            r_u = float(daily_legs["_r_univ"].mean() or 0.0)
-            r_q1 = float(daily_legs["_r_q1"].mean() or 0.0)
-            r_qk = float(daily_legs["_r_qk"].mean() or 0.0)
+            r_u = float(cast(float, daily_legs["_r_univ"].mean() or 0.0))
+            r_q1 = float(cast(float, daily_legs["_r_q1"].mean() or 0.0))
+            r_qk = float(cast(float, daily_legs["_r_qk"].mean() or 0.0))
             if ic_stats["ic_mean"] >= 0.0:
                 long_act, short_act = r_qk - r_u, r_u - r_q1
             else:

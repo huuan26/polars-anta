@@ -11,17 +11,17 @@ This is the canonical instruction file for coding agents (Cursor, Claude, Copilo
   - `diagnostics.py`: Alphalens-grade cross-sectional diagnostics (`AlphaDiagnosticReport`, `analyze_alpha` with IC, decay half-life, turnover, gross margin bps, breakeven cost, long/short leg attribution, causal ADV sub-universe tiers, and yearly consistency) and marginal redundancy screening (`marginal_alpha_report`).
   - `covariance.py`: Loop-free BLAS Ledoit-Wolf shrinkage (`ledoit_wolf_shrinkage`), Random Matrix Theory Marchenko-Pastur denoising (`marchenko_pastur_denoise`), exponential covariance (`exponential_covariance`), sample covariance (`sample_covariance`), and Higham SPD projection (`nearest_spd`).
   - `allocation.py`: Exact joint Lagrangian box-simplex + $L_1$ proximal operator (`project_simplex`, `project_box_simplex`, `prox_l1_shifted`), Monotone FISTA solver (`solve_fista`, `OptimizationResult`), and causal embargo walk-forward allocator (`combine_alphas_walkforward`, `WalkForwardAllocationResult`).
-  - `alpha.py`: WorldQuant 101 Formulaic Alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), cross-sectional operators (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`), and time-series primitives.
-  - `trend.py`: Trend-following indicators (SMA, EMA, HMA, KAMA, SuperTrend, Ichimoku, ADX, PSAR, SSL Channel, Pivots).
-  - `momentum.py`: Momentum oscillators (RSI, MACD, Stochastic, Squeeze Momentum, STC, CCI, Williams %R, TSI).
+  - `alpha/`: WorldQuant 101 Formulaic Alphas (`alpha_001`–`alpha_030`, `alpha_041`, `alpha_054`, `alpha_101`), cross-sectional operators (`cs_rank`, `cs_zscore`, `cs_winsorize`, `neutralize`), microstructure & futures signals, and time-series primitives (`_primitives.py`, `_microstructure.py`, `_wq_001_015.py`, `_wq_016_101.py`).
+  - `trend/`: Trend-following indicators (SMA, EMA, HMA, KAMA, SuperTrend, Ichimoku, ADX, PSAR, SSL Channel, Pivots) split across `_moving_averages.py`, `_channels.py`, `_overlays.py`.
+  - `momentum/`: Momentum oscillators and trend-momentum indicators (RSI, MACD, Stochastic, Squeeze Momentum, STC, CCI, Williams %R, TSI) split across `_oscillators.py`, `_trend_momentum.py`.
   - `volatility.py`: Volatility estimators & bands (ATR, Bollinger Bands, Keltner, Donchian, Parkinson, Garman-Klass, Ulcer Index).
   - `volume.py`: Volume & money flow analytics (VWAP, VWAP Bands, OBV, CMF, MFI, ADL, Klinger, Force Index).
   - `stats.py`: Vectorized OLS regression (`slope`, `intercept`, `forecast`, `angle`) and rolling distribution statistics (`beta`, `alpha`, `skewness`, `kurtosis`).
-  - `evaluation.py`: Alphalens-style factor evaluation (`forward_returns`, `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`) and strategy performance & tail-risk metrics (`sharpe_ratio`, `sortino_ratio`, `calmar_ratio`, `max_drawdown`, `profit_factor`, `win_rate`, `value_at_risk`, `conditional_var`, `omega_ratio`, `tail_ratio`).
-  - `inference.py`: Econometric inference and factor falsification engine (`stationary_bootstrap_indices`, `bootstrap_test`, `adjust_pvalues`, `romano_wolf`, `spa_test`, `pbo_cscv`, `empirical_bayes_shrinkage`, `oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `breakeven_cost_from_backtest`, `ic_matrix`, `long_short_returns`, `FalsificationResult`, `falsify_factors`, `sweep_robustness`).
-  - `backtest.py`: Lightweight loop-free vectorized backtesting engine, crossover expressions (`crosses_above`, `crosses_below`), entry/exit state machine (`signals_to_positions`), portfolio weight schemes (`dollar_neutral`, `long_only`, `equal_weight`), tearsheets (`report()`), and `compare_strategies()`.
+  - `evaluation/`: Alphalens-style factor evaluation (`forward_returns`, `information_coefficient`, `ic_summary`, `quantile_analysis`, `factor_turnover`), triple-barrier labeling, and strategy performance & tail-risk metrics (`_metrics.py`, `_factors.py`, `_labeling.py`).
+  - `inference/`: Econometric inference and factor falsification engine (`stationary_bootstrap_indices`, `bootstrap_test`, `adjust_pvalues`, `romano_wolf`, `spa_test`, `pbo_cscv`, `empirical_bayes_shrinkage`, `oos_r2`, `clark_west_test`, `diebold_mariano_test`, `cusum_mean_test`, `breakeven_cost`, `breakeven_cost_from_backtest`, `ic_matrix`, `long_short_returns`, `FalsificationResult`, `falsify_factors`, `sweep_robustness`) split across `_validation.py`, `_bootstrap.py`, `_overfitting.py`, `_panel.py`.
+  - `backtest/`: Lightweight loop-free vectorized backtesting engine, crossover expressions (`crosses_above`, `crosses_below`), entry/exit state machine (`signals_to_positions`), portfolio weight schemes (`dollar_neutral`, `long_only`, `equal_weight`), tearsheets (`report()`), and `compare_strategies()` split across `_signals.py`, `_trades.py`, `_helpers.py`, `_engine.py`.
   - `resample.py`: Multi-timeframe OHLCV resampling (`resample_ohlcv`) and structural data integrity validation (`validate_ohlcv`).
-  - `namespace.py`: Fluent Polars Expression (`pl.Expr.anta` / `.ta`), DataFrame, and LazyFrame namespaces.
+  - `namespace/`: Fluent Polars Expression (`pl.Expr.anta` / `.ta`), DataFrame, and LazyFrame namespaces split across `_binders.py`, `_expr_ns.py`, `_frame_specs.py`, `_frame_ns.py`.
   - `core.py`: Internal expression parsers (`parse_expr`) and type definitions (`IntoExpr`).
 - `tests/`: Comprehensive Pytest test suite and numerical parity verification.
 - `examples/`: Standalone demonstration scripts and 1-click Google Colab notebooks.
@@ -80,6 +80,9 @@ ruff check .
 
 # 3. Check formatting with Ruff (zero unformatted files)
 ruff format --check .
+
+# 4. Run static type checking with Mypy
+mypy src/polars_anta
 ```
 
 ### Pull Request Expectations:
@@ -88,5 +91,5 @@ ruff format --check .
   2. Edge cases (flat prices, `NaN` / `null` handling, all zeros).
   3. Multi-asset `.over("symbol")` window evaluation.
   4. Namespace parity (`pl.col().anta.*`, `df.anta.*`, `lf.ta.*`).
-- **Code Coverage**: Code coverage across core modules (`namespace.py`, `backtest.py`, `evaluation.py`, `resample.py`) must remain $\ge 95\%$.
+- **Code Coverage**: Code coverage across core modules (`namespace/`, `backtest/`, `evaluation/`, `resample.py`) must remain $\ge 95\%$.
 - **Documentation**: If adding new functions or parameters, update `README.md` tables, docstrings, and `polars_anta/__init__.py`.

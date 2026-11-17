@@ -28,8 +28,10 @@ from ._moving_averages import (
     zlema,
 )
 from ._overlays import (
+    alligator,
     camarilla_pivots,
     center_of_gravity,
+    elder_ray,
     fibonacci_pivots,
     heikin_ashi,
     ichimoku,
@@ -66,4 +68,6 @@ __all__ = [
     "fibonacci_pivots",
     "camarilla_pivots",
     "woodie_pivots",
+    "elder_ray",
+    "alligator",
 ]

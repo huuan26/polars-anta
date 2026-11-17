@@ -7,12 +7,14 @@ import pytest
 
 from polars_anta.trend import (
     adx,
+    alligator,
     alma,
     aroon,
     camarilla_pivots,
     center_of_gravity,
     chop,
     dema,
+    elder_ray,
     ema,
     fibonacci_pivots,
     heikin_ashi,
@@ -422,3 +424,101 @@ def test_heikin_ashi(sample_ohlcv_df: pl.DataFrame):
         assert col in df_ha.columns
         assert expr_ha[col].equals(df_ha[col])
         assert (df_ha["ha_high"] >= df_ha["ha_low"]).all()
+
+
+def test_elder_ray():
+    df = pl.DataFrame(
+        {
+            "high": [10.0, 11.0, 12.0, 13.0, 14.0],
+            "low": [0.0, 1.0, 2.0, 3.0, 4.0],
+            "close": [1.0, 2.0, 3.0, 4.0, 5.0],
+        }
+    )
+    res = df.select(elder_ray("high", "low", "close", period=2).alias("er")).unnest("er")
+    assert res.columns == ["bull_power", "bear_power"]
+
+    # span=2, adjust=False => alpha = 2/3, seeded on the first close.
+    expected_ema = [1.0, 5.0 / 3.0, 23.0 / 9.0, 95.0 / 27.0, 365.0 / 81.0]
+    expected_bull = [h - e for h, e in zip(df["high"], expected_ema, strict=True)]
+    expected_bear = [lo - e for lo, e in zip(df["low"], expected_ema, strict=True)]
+    assert res["bull_power"].to_list() == pytest.approx(expected_bull)
+    assert res["bear_power"].to_list() == pytest.approx(expected_bear)
+
+    # Bull power is non-negative while the high stays above the EMA.
+    assert (res["bull_power"] >= 0).all()
+
+
+def test_elder_ray_invalid_period():
+    with pytest.raises(ValueError):
+        elder_ray("high", "low", "close", period=0)
+
+
+def test_alligator():
+    df = pl.DataFrame({"high": [10.0, 12.0, 14.0, 16.0, 18.0], "low": [0.0, 0.0, 0.0, 0.0, 0.0]})
+    res = df.select(
+        alligator(
+            "high",
+            "low",
+            jaw_period=2,
+            teeth_period=2,
+            lips_period=2,
+            jaw_offset=2,
+            teeth_offset=1,
+            lips_offset=0,
+        ).alias("g")
+    ).unnest("g")
+    assert res.columns == ["jaw", "teeth", "lips"]
+
+    # Median price = [5, 6, 7, 8, 9]; RMA(2) = [5, 5.5, 6.25, 7.125, 8.0625].
+    assert res["lips"].to_list() == pytest.approx([5.0, 5.5, 6.25, 7.125, 8.0625])
+    assert res["teeth"].to_list()[0] is None
+    assert res["teeth"].to_list()[1:] == pytest.approx([5.0, 5.5, 6.25, 7.125])
+    assert res["jaw"].to_list()[:2] == [None, None]
+    assert res["jaw"].to_list()[2:] == pytest.approx([5.0, 5.5, 6.25])
+
+
+def test_alligator_defaults_are_shifted():
+    df = pl.DataFrame({"high": [float(i) for i in range(40)], "low": [0.0] * 40})
+    res = df.select(alligator("high", "low").alias("g")).unnest("g")
+    # Default offsets: jaw 8, teeth 5, lips 3.
+    assert res["jaw"].to_list()[:8] == [None] * 8
+    assert res["jaw"].to_list()[8] is not None
+    assert res["teeth"].to_list()[:5] == [None] * 5
+    assert res["teeth"].to_list()[5] is not None
+    assert res["lips"].to_list()[:3] == [None] * 3
+    assert res["lips"].to_list()[3] is not None
+
+
+def test_alligator_invalid_offsets():
+    with pytest.raises(ValueError):
+        alligator("high", "low", jaw_offset=-1)
+
+
+def test_elder_ray_alligator_namespaces(sample_ohlcv_df: pl.DataFrame):
+    er_expr = sample_ohlcv_df.select(
+        pl.col("close").ta.elder_ray("high", "low", period=5).alias("er")
+    ).unnest("er")
+    er_df = sample_ohlcv_df.anta.elder_ray(period=5, unnest=True)
+    for col in ("bull_power", "bear_power"):
+        assert er_expr[col].equals(er_df[col])
+
+    g_expr = sample_ohlcv_df.select(
+        pl.col("high").ta.alligator("low", jaw_period=5, teeth_period=4, lips_period=3).alias("g")
+    ).unnest("g")
+    g_df = sample_ohlcv_df.anta.alligator(jaw_period=5, teeth_period=4, lips_period=3, unnest=True)
+    for col in ("jaw", "teeth", "lips"):
+        assert g_expr[col].equals(g_df[col])
+
+
+def test_elder_ray_over_ticker(sample_ohlcv_df: pl.DataFrame):
+    df = pl.concat(
+        [
+            sample_ohlcv_df.with_columns(pl.lit("A").alias("ticker")),
+            sample_ohlcv_df.with_columns(pl.lit("B").alias("ticker")),
+        ]
+    )
+    res = df.select(elder_ray("high", "low", "close", period=5).over("ticker").alias("er")).unnest(
+        "er"
+    )
+    assert res.height == df.height
+    assert res["bull_power"].null_count() == 0

@@ -64,6 +64,7 @@ _EXPR_CLOSE_FUNCS: tuple[Callable[..., pl.Expr], ...] = (
     trend.ssl_channel,
     trend.trend_intensity_index,
     trend.heikin_ashi,
+    trend.elder_ray,
     momentum.rsi,
     momentum.connors_rsi,
     momentum.macd,
@@ -145,6 +146,7 @@ _EXPR_GROUP_BINDINGS: tuple[
     ...,
 ] = (
     ("close", None, None, _EXPR_CLOSE_FUNCS),
+    ("high", None, None, (trend.alligator,)),
     (
         None,
         None,

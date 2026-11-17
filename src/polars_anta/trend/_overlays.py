@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from ..core import IntoExpr, parse_expr
+from ..core import IntoExpr, check_period, check_periods, parse_expr, wilder_smooth
 
 
 def center_of_gravity(
@@ -259,5 +259,91 @@ def heikin_ashi(
             ha_high.alias("ha_high"),
             ha_low.alias("ha_low"),
             ha_close.alias("ha_close"),
+        ]
+    )
+
+
+def elder_ray(
+    high: IntoExpr,
+    low: IntoExpr,
+    close: IntoExpr,
+    period: int = 13,
+) -> pl.Expr:
+    """Alexander Elder's Bull Power and Bear Power (Elder-Ray Index).
+
+    Bull Power measures how far the high pushes above a consensus EMA of the
+    close; Bear Power measures how far the low sits below that same EMA.
+    Positive bull power and negative bear power indicate buyer control.
+
+    Returns a struct with fields:
+        - 'bull_power': high - EMA(close, period)
+        - 'bear_power': low - EMA(close, period)
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param close: close price column or expression
+    :param period: EMA period (default 13)
+    :return: Polars Struct expression
+    """
+    check_period(period)
+
+    hi = parse_expr(high)
+    lo = parse_expr(low)
+    consensus = parse_expr(close).ewm_mean(span=period, adjust=False)
+
+    return pl.struct(
+        [
+            (hi - consensus).alias("bull_power"),
+            (lo - consensus).alias("bear_power"),
+        ]
+    )
+
+
+def alligator(
+    high: IntoExpr,
+    low: IntoExpr,
+    jaw_period: int = 13,
+    teeth_period: int = 8,
+    lips_period: int = 5,
+    jaw_offset: int = 8,
+    teeth_offset: int = 5,
+    lips_offset: int = 3,
+) -> pl.Expr:
+    """Bill Williams' Alligator (Jaw, Teeth, Lips).
+
+    Three Wilder-smoothed moving averages of the median price, each displaced
+    into the future. Intertwined lines mark a sleeping market; separated and
+    fanned-out lines mark a trend.
+
+    Returns a struct with fields:
+        - 'jaw': RMA(median price, jaw_period) shifted by jaw_offset
+        - 'teeth': RMA(median price, teeth_period) shifted by teeth_offset
+        - 'lips': RMA(median price, lips_period) shifted by lips_offset
+
+    :param high: high price column or expression
+    :param low: low price column or expression
+    :param jaw_period: jaw smoothing period (default 13)
+    :param teeth_period: teeth smoothing period (default 8)
+    :param lips_period: lips smoothing period (default 5)
+    :param jaw_offset: forward displacement of the jaw line (default 8)
+    :param teeth_offset: forward displacement of the teeth line (default 5)
+    :param lips_offset: forward displacement of the lips line (default 3)
+    :return: Polars Struct expression
+    """
+    check_periods(jaw_period, teeth_period, lips_period)
+    if jaw_offset < 0 or teeth_offset < 0 or lips_offset < 0:
+        raise ValueError("offsets must be non-negative integers")
+
+    median_price = (parse_expr(high) + parse_expr(low)) / 2.0
+
+    jaw = wilder_smooth(median_price, jaw_period).shift(jaw_offset)
+    teeth = wilder_smooth(median_price, teeth_period).shift(teeth_offset)
+    lips = wilder_smooth(median_price, lips_period).shift(lips_offset)
+
+    return pl.struct(
+        [
+            jaw.alias("jaw"),
+            teeth.alias("teeth"),
+            lips.alias("lips"),
         ]
     )

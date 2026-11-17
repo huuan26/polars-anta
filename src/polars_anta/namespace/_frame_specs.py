@@ -147,6 +147,18 @@ _FRAME_EXPR_SPECS: tuple[_FrameExprSpec, ...] = (
         col="close",
     ),
     _struct_spec(trend.heikin_ashi, open="open", high="high", low="low", close="close"),
+    _struct_spec(trend.elder_ray, period=13, high="high", low="low", close="close"),
+    _struct_spec(
+        trend.alligator,
+        jaw_period=13,
+        teeth_period=8,
+        lips_period=5,
+        jaw_offset=8,
+        teeth_offset=5,
+        lips_offset=3,
+        high="high",
+        low="low",
+    ),
     # Momentum
     _col_period_spec(momentum.rsi, 14),
     _scalar_spec(

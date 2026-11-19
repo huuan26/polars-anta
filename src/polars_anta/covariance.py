@@ -14,6 +14,7 @@ __all__ = [
     "exponential_covariance",
     "ledoit_wolf_shrinkage",
     "marchenko_pastur_denoise",
+    "nonlinear_shrinkage_qis",
 ]
 
 
@@ -249,3 +250,116 @@ def marchenko_pastur_denoise(
     np.fill_diagonal(c_denoised, 1.0)
     cov_denoised = c_denoised * denom_sd
     return nearest_spd(cov_denoised, eps=eps)
+
+
+def _epanechnikov_kernel(u: np.ndarray) -> np.ndarray:
+    """Epanechnikov kernel (3/4)(1 - u^2) supported on |u| <= 1."""
+    inside = np.abs(u) <= 1.0
+    return np.where(inside, 0.75 * (1.0 - u * u), 0.0)
+
+
+def _epanechnikov_hilbert(u: np.ndarray) -> np.ndarray:
+    """Hilbert transform of the Epanechnikov kernel (closed form).
+
+    (1/pi) * PV integral of k(t) / (x - t) equals
+        (3 / (4 pi)) * (2x + (1 - x^2) * log(abs((x + 1) / (x - 1))))
+    for every real x outside the poles x = +-1.
+    """
+    x = np.asarray(u, dtype=np.float64)
+    guard = 1e-9
+    near_pole = np.abs(np.abs(x) - 1.0) < guard
+    x = np.where(near_pole, np.sign(x) * (1.0 - guard), x)
+    log_term = np.log(np.abs((x + 1.0) / (x - 1.0)))
+    return (3.0 / (4.0 * np.pi)) * (2.0 * x + (1.0 - x * x) * log_term)
+
+
+def nonlinear_shrinkage_qis(
+    data: np.ndarray | pl.DataFrame | pl.LazyFrame,
+    assume_centered: bool = False,
+    bandwidth: float | None = None,
+    exclude: Sequence[str] = (),
+    eps: float = 1e-8,
+) -> np.ndarray:
+    """Analytical nonlinear eigenvalue shrinkage (Ledoit-Wolf QIS, pure NumPy).
+
+    A closed-form kernel estimate of the limiting eigenvalue density f and its
+    Hilbert transform H_f gives the optimal shrinkage intensity for every sample
+    eigenvalue lambda_i of S = X^T X / T, with c = K / T:
+
+        delta_i = lambda_i / ((pi * c * lambda_i * f(lambda_i))^2
+                              + (1 - c - pi * c * lambda_i * H_f(lambda_i))^2)
+
+    The density uses an Epanechnikov kernel on an adaptive relative bandwidth
+    h_i = lambda_i * K^(-1/3). One eigendecomposition plus vectorised K x K
+    arithmetic: no SciPy and no iterative optimisation.
+
+    The estimate is rescaled to preserve the sample covariance trace and projected
+    onto the SPD cone, so min(eigval) > 0 holds for both T > K and T <= K
+    (rank-deficient) regimes.
+
+    Parameters
+    ----------
+    data:
+        (T, K) observation matrix or Polars frame; non-finite rows are dropped.
+    assume_centered:
+        If True, rows are treated as already demeaned.
+    bandwidth:
+        Optional relative bandwidth overriding the K ** (-1/3) default.
+    exclude:
+        Column names removed from a Polars frame before estimation.
+    eps:
+        Floor for eigenvalues and for the SPD projection.
+    """
+    if bandwidth is not None and (not np.isfinite(bandwidth) or bandwidth <= 0.0):
+        raise ValueError("bandwidth must be a positive finite number")
+    x = _extract_2d_obs(data, exclude=exclude, min_rows=2)
+    t_obs, k_cols = x.shape
+    if not assume_centered:
+        x = x - np.mean(x, axis=0, keepdims=True)
+
+    t_f = float(t_obs)
+    s_cov = (x.T @ x) / t_f
+    s_cov = 0.5 * (s_cov + s_cov.T)
+
+    if k_cols == 1:
+        return nearest_spd(s_cov * (t_f / max(t_f - 1.0, 1.0)), eps=eps)
+
+    lam, eigvecs = np.linalg.eigh(s_cov)
+    lam_max = float(np.max(lam))
+    lam_floor = max(lam_max * 1e-12, float(eps))
+    lam_pos = np.maximum(lam, lam_floor)
+
+    c_ratio = float(k_cols) / t_f
+    rel_bw = float(k_cols) ** (-1.0 / 3.0) if bandwidth is None else float(bandwidth)
+    band = rel_bw * lam_pos
+
+    u_mat = (lam_pos[:, None] - lam_pos[None, :]) / band[:, None]
+    kern = _epanechnikov_kernel(u_mat)
+    hilb = _epanechnikov_hilbert(u_mat)
+
+    density = np.sum(kern, axis=1) / (float(k_cols) * band)
+    hilbert = np.sum(hilb, axis=1) / (float(k_cols) * band)
+
+    scaled = np.pi * c_ratio * lam_pos
+    denom = (scaled * density) ** 2 + (1.0 - c_ratio + scaled * hilbert) ** 2
+    delta = lam_pos / np.maximum(denom, 1e-300)
+
+    # Numerical guard: no shrunk eigenvalue may leave the SPD cone.
+    delta = np.clip(delta, lam_floor, max(lam_max, lam_floor) * 10.0)
+
+    if c_ratio >= 1.0:
+        # Null-space shrinkage: when T <= K the sample spectrum is singular, so the
+        # K - T null directions would collapse to zero. Lift them to a common floor
+        # proportional to the mean shrunk eigenvalue, which keeps the estimate SPD
+        # and bounds the condition number instead of inheriting the sample's rank
+        # deficiency (documented limitation: the c < 1 asymptotic theory does not
+        # cover this regime).
+        delta = np.maximum(delta, 0.1 * float(np.mean(delta)))
+
+    trace_target = float(np.trace(s_cov))
+    trace_est = float(np.sum(delta))
+    if trace_est > 0.0 and trace_target > 0.0:
+        delta = delta * (trace_target / trace_est)
+
+    est = (eigvecs * delta[None, :]) @ eigvecs.T
+    return nearest_spd(0.5 * (est + est.T), eps=eps)

@@ -14,6 +14,7 @@ from .covariance import (
     exponential_covariance,
     ledoit_wolf_shrinkage,
     marchenko_pastur_denoise,
+    nonlinear_shrinkage_qis,
     sample_covariance,
 )
 from .evaluation import ic_summary
@@ -366,7 +367,7 @@ def combine_alphas_walkforward(
     upper_bound: float = 1.0,
     budget: float = 1.0,
     cov_estimator: Literal[
-        "ledoit_wolf", "marchenko_pastur", "exponential", "sample"
+        "ledoit_wolf", "marchenko_pastur", "exponential", "sample", "qis"
     ] = "ledoit_wolf",
     ic_method: Literal["spearman", "pearson"] = "spearman",
     ic_shrinkage: Literal["none", "empirical_bayes"] = "none",
@@ -534,6 +535,8 @@ def combine_alphas_walkforward(
             cov_hat, _ = ledoit_wolf_shrinkage(win_eff)
         elif cov_estimator == "marchenko_pastur":
             cov_hat = marchenko_pastur_denoise(win_eff)
+        elif cov_estimator == "qis":
+            cov_hat = nonlinear_shrinkage_qis(win_eff)
         elif cov_estimator == "exponential":
             cov_hat = exponential_covariance(win_eff, half_life=max(4.0, lookback / 2.0))
         else:

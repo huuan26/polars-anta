@@ -1,26 +1,52 @@
 name: Feature Request
-description: Suggest an idea or new indicator for polars-anta
+description: Propose a quantitative research primitive, risk/portfolio model, statistical test, or core engine enhancement for polars-anta
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
-      value: Thank you for suggesting a new feature or technical indicator!
+      value: |
+        Thank you for proposing an enhancement to `polars-anta`.
+        Note: Starting with v0.5.0, `polars-anta` prioritizes cross-sectional alpha engineering, econometric falsification, covariance/risk modeling, cost-aware portfolio allocation, and execution-realistic backtesting rather than expanding standalone classic technical indicators.
+  - type: dropdown
+    id: domain
+    attributes:
+      label: Target Module / Stage
+      description: Which stage of the polars-anta pipeline does this proposal belong to?
+      options:
+        - Cross-Sectional Conditioning & Risk Models (conditioning / risk)
+        - Statistical Inference & Falsification (inference)
+        - Alpha Diagnostics & Capacity (diagnostics / evaluation)
+        - Covariance Denoising & Portfolio Allocation (covariance / allocation)
+        - Execution-Realistic Backtesting & Resampling (backtest / resample)
+        - Microstructure & Quantitative Statistics (alpha / stats)
+        - Engine Performance, Typing & Invariants (namespace / tests / CI)
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
-      label: Is your feature request related to a problem?
-      description: A clear description of the use case or indicator needed.
+      label: Motivation & Research Problem
+      description: What quantitative modeling, econometric, or engineering limitation does this solve?
     validations:
       required: true
   - type: textarea
     id: proposed_solution
     attributes:
-      label: Proposed Solution or Mathematical Formula
-      description: Mathematical formula, standard reference (e.g. TA-Lib / TradingView / Wilder), or expected output.
+      label: Mathematical Specification & Proposed API
+      description: Include equations, academic references (paper/textbook), expected Polars/NumPy API signature, and causal guarantees.
     validations:
       required: true
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Architectural Invariants Check
+      description: Proposals should align with polars-anta core engineering invariants (see AGENTS.md).
+      options:
+        - label: Pure Polars + NumPy implementation (zero C/Cython/SciPy/CVXPY dependencies)
+        - label: Strictly causal / zero look-ahead bias (or explicitly documented as forward-looking evaluation/labeling)
+        - label: Compatible with multi-asset panels (.over("ticker") / .over("date")) and strict mypy typing
   - type: textarea
     id: alternatives
     attributes:
-      label: Additional context or references
-      description: Links to papers, documentation, or alternative implementations.
+      label: References & Benchmarks
+      description: Links to papers, empirical studies, or validation criteria.

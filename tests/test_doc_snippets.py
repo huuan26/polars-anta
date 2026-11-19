@@ -175,12 +175,12 @@ def _notebook_code_cells(path: Path) -> list[str]:
     return cells
 
 
-def test_example_07_vpin_order_flow_notebook_executes() -> None:
+def test_example_08_vpin_order_flow_notebook_executes() -> None:
     """Issue #59: the VPIN / OFI tutorial must run end to end on its synthetic tape."""
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")
 
-    notebook = REPO_ROOT / "examples" / "07_crypto_vpin_order_flow_toxicity.ipynb"
+    notebook = REPO_ROOT / "examples" / "08_crypto_vpin_order_flow_toxicity.ipynb"
     cells = _notebook_code_cells(notebook)
     assert len(cells) >= 8
 
@@ -190,7 +190,8 @@ def test_example_07_vpin_order_flow_notebook_executes() -> None:
 
     bars = namespace["bars"]
     assert bars.height > 150
-    assert {"vpin", "toxic"} <= set(bars.columns)
+    assert {"vpin", "vpin_threshold", "toxic"} <= set(bars.columns)
+    assert int(bars["toxic"].sum()) > 0
 
     vpin = bars["vpin"].drop_nulls()
     assert vpin.len() > 0

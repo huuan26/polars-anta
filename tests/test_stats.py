@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import math
+
+import numpy as np
 import polars as pl
 import pytest
 
@@ -12,11 +15,13 @@ from polars_anta.stats import (
     linear_regression_r2,
     linear_regression_slope,
     linear_regression_stderr,
+    ou_half_life,
     percentile_rank,
     rolling_alpha,
     rolling_beta,
     rolling_corr,
     rolling_cov,
+    rolling_hedge_ratio,
     skewness,
     zscore,
 )
@@ -316,3 +321,189 @@ def test_namespace_forwards_bias():
     got = df.select(expr.alias("s"))["s"][-1]
     expected = _numpy_skew(BIAS_WINDOW, True)
     assert got == pytest.approx(expected, rel=1e-10, abs=1e-10)
+
+
+def _ar1_series(n: int = 4000, phi: float = 0.9, seed: int = 7) -> np.ndarray:
+    """Deterministic AR(1) path with a known mean-reversion half-life."""
+    rng = np.random.default_rng(seed)
+    eps = rng.normal(0.0, 1.0, n)
+    x = np.empty(n)
+    x[0] = 0.0
+    for i in range(1, n):
+        x[i] = phi * x[i - 1] + eps[i]
+    return x
+
+
+def test_ou_half_life_matches_full_sample_ols():
+    """Rolling half-life must agree with the closed-form OLS estimate on the whole path."""
+    x = _ar1_series(n=20000, phi=0.9, seed=7)
+    df = pl.DataFrame({"spread": x})
+    hl = df.select(ou_half_life(pl.col("spread"), period=250).alias("hl"))["hl"].drop_nulls()
+
+    lag = x[:-1]
+    delta = np.diff(x)
+    beta, _ = np.polyfit(lag, delta, 1)
+    expected = -math.log(2.0) / beta
+
+    assert hl.len() > 1000
+    assert abs(hl.mean() - expected) < 0.8
+    # and it sits in the right neighbourhood of the textbook value
+    assert abs(hl.mean() - 6.93) < 0.9
+
+
+def test_ou_half_life_discrete_versus_continuous():
+    """The exact AR(1) form is shorter than the continuous form for the same beta."""
+    x = _ar1_series(n=20000, phi=0.9, seed=21)
+    df = pl.DataFrame({"spread": x})
+    cont = df.select(ou_half_life(pl.col("spread"), period=250).alias("h"))["h"].drop_nulls()
+    disc = df.select(ou_half_life(pl.col("spread"), period=250, method="discrete").alias("h"))[
+        "h"
+    ].drop_nulls()
+
+    lag = x[:-1]
+    delta = np.diff(x)
+    beta, _ = np.polyfit(lag, delta, 1)
+    expected_disc = -math.log(2.0) / math.log(1.0 + beta)
+
+    assert abs(disc.mean() - expected_disc) < 0.8
+    assert disc.mean() < cont.mean()
+
+
+def test_ou_half_life_null_on_exploding_series():
+    """A diverging spread has beta > 0 in every window: no half-life, all nulls."""
+    n = 3000
+    x = np.empty(n)
+    x[0] = 1.0
+    rng = np.random.default_rng(5)
+    eps = rng.normal(0.0, 0.01, n)
+    for i in range(1, n):
+        x[i] = 1.02 * x[i - 1] + eps[i]
+    df = pl.DataFrame({"spread": x})
+    hl = df.select(ou_half_life(pl.col("spread"), period=250).alias("hl"))["hl"]
+    assert hl.is_null().all()
+
+
+def test_ou_half_life_null_on_straight_trend():
+    """A deterministic trend has zero first-difference variance: the slope is 0, so null."""
+    trend = np.arange(3000, dtype=np.float64)
+    df = pl.DataFrame({"spread": trend})
+    hl = df.select(ou_half_life(pl.col("spread"), period=250).alias("hl"))["hl"]
+    assert hl.is_null().all()
+
+
+def test_ou_half_life_rejects_bad_method():
+    """Unknown conversion methods fail loudly at expression-build time."""
+    with pytest.raises(ValueError, match="method must be"):
+        ou_half_life(pl.col("close"), period=20, method="bogus")
+
+
+def test_rolling_hedge_ratio_recovers_slope():
+    """A synthetic pair with beta = 2 must come back as ~2 on average."""
+    rng = np.random.default_rng(11)
+    b = np.cumsum(rng.normal(0.0, 1.0, 3000))
+    a = 2.0 * b + rng.normal(0.0, 0.5, 3000)
+    df = pl.DataFrame({"a": a, "b": b})
+    beta = df.select(rolling_hedge_ratio(pl.col("a"), pl.col("b"), period=250).alias("beta"))[
+        "beta"
+    ].drop_nulls()
+    assert beta.len() > 100
+    assert abs(beta.mean() - 2.0) < 0.10
+
+
+def test_ou_namespace_binding():
+    """Both .anta and .ta expression namespaces match top-level functions."""
+    import polars_anta as pa
+
+    df = pl.DataFrame(
+        {
+            "spread": _ar1_series(n=500, seed=1),
+            "a": 100.0 + _ar1_series(n=500, seed=2),
+            "b": 100.0 + _ar1_series(n=500, seed=3),
+        }
+    )
+    direct_hl = df.select(pa.ou_half_life(pl.col("spread"), period=60).alias("v"))["v"]
+    assert direct_hl.equals(
+        df.select(pl.col("spread").anta.ou_half_life(period=60).alias("v"))["v"]
+    )
+    assert direct_hl.equals(df.select(pl.col("spread").ta.ou_half_life(period=60).alias("v"))["v"])
+
+    direct_hr = df.select(pa.rolling_hedge_ratio("a", "b", period=60).alias("v"))["v"]
+    assert direct_hr.equals(
+        df.select(pl.col("a").anta.rolling_hedge_ratio("b", period=60).alias("v"))["v"]
+    )
+    assert direct_hr.equals(
+        df.select(pl.col("a").ta.rolling_hedge_ratio("b", period=60).alias("v"))["v"]
+    )
+
+
+def test_ou_and_hedge_ratio_validation_and_edge_cases():
+    """Rejects period < 2, guards float cancellation on large-offset trends, flat prices, and oscillatory AR(1)."""
+    with pytest.raises(ValueError, match="period"):
+        ou_half_life("spread", period=1)
+    with pytest.raises(ValueError, match="period"):
+        rolling_hedge_ratio("a", "b", period=1)
+
+    # Large-offset non-integer linear trend must not emit false half-lives from float cancellation
+    offset_trend = 1e6 + 0.1 * np.arange(1500, dtype=np.float64)
+    hl_trend = pl.DataFrame({"spread": offset_trend}).select(
+        ou_half_life("spread", period=250).alias("hl")
+    )["hl"]
+    assert hl_trend.is_null().all()
+
+    # Constant benchmark yields clean null (not NaN/inf)
+    flat_df = pl.DataFrame({"a": np.linspace(10.0, 20.0, 100), "b": np.full(100, 50.0)})
+    hr_flat = flat_df.select(rolling_hedge_ratio("a", "b", period=20).alias("hr"))["hr"]
+    assert hr_flat.is_null().all()
+
+    # Oscillatory alternating spread has beta = -2 <= -1 -> null in discrete mode
+    osc = np.where(np.arange(100) % 2 == 0, 1.0, -1.0)
+    hl_osc = pl.DataFrame({"spread": osc}).select(
+        ou_half_life("spread", period=20, method="discrete").alias("hl")
+    )["hl"]
+    assert hl_osc.is_null().all()
+
+    # Large price scale accuracy (BTC-level offset with exact slope 2.0)
+    rng = np.random.default_rng(1)
+    dx = np.cumsum(rng.normal(0.0, 0.5, 250))
+    btc_df = pl.DataFrame({"a": 90_000.0 + 2.0 * dx, "b": 90_000.0 + dx})
+    hr_btc = btc_df.select(rolling_hedge_ratio("a", "b", period=60).alias("hr"))["hr"].drop_nulls()
+    assert float((hr_btc - 2.0).abs().max()) < 1e-9
+
+
+def test_rolling_hedge_ratio_log_prices_and_multi_asset_over():
+    """Supports log_prices=True and isolates partitions cleanly under .over('pair')."""
+    rng = np.random.default_rng(31)
+    b1 = 100.0 * np.exp(np.cumsum(rng.normal(0.0, 0.01, 200)))
+    a1 = (b1**1.5) * np.exp(rng.normal(0.0, 1e-4, 200))
+    b2 = 50.0 * np.exp(np.cumsum(rng.normal(0.0, 0.01, 200)))
+    a2 = (b2**0.5) * np.exp(rng.normal(0.0, 1e-4, 200))
+
+    s1 = _ar1_series(n=200, phi=0.85, seed=101)
+    s2 = _ar1_series(n=200, phi=0.95, seed=202)
+
+    panel = pl.DataFrame(
+        {
+            "pair": ["P1"] * 200 + ["P2"] * 200,
+            "a": np.concatenate([a1, a2]),
+            "b": np.concatenate([b1, b2]),
+            "spread": np.concatenate([s1, s2]),
+        }
+    )
+    out = panel.with_columns(
+        pl.col("a")
+        .anta.rolling_hedge_ratio("b", period=60, log_prices=True)
+        .over("pair")
+        .alias("hr"),
+        pl.col("spread").anta.ou_half_life(period=60).over("pair").alias("hl"),
+    )
+
+    p1_hr = out.filter(pl.col("pair") == "P1")["hr"].drop_nulls()
+    p2_hr = out.filter(pl.col("pair") == "P2")["hr"].drop_nulls()
+    assert abs(float(p1_hr.mean()) - 1.5) < 0.02
+    assert abs(float(p2_hr.mean()) - 0.5) < 0.02
+
+    # Multi-asset .over("pair") must match standalone single-pair evaluation bit-for-bit
+    standalone_p2 = pl.DataFrame({"spread": s2}).select(
+        ou_half_life("spread", period=60).alias("hl")
+    )["hl"]
+    assert out.filter(pl.col("pair") == "P2")["hl"].equals(standalone_p2)

@@ -59,6 +59,7 @@ $$
 | :--- | :--- |
 | `ledoit_wolf_shrinkage(data, target="constant_correlation")` | Loop-free BLAS analytical Ledoit-Wolf (2004) optimal shrinkage estimator returning `(cov, delta)`. |
 | `marchenko_pastur_denoise(data_or_cov, n_obs=None, method="constant_residual")` | Random Matrix Theory denoiser estimating the Marchenko-Pastur bulk edge $\lambda_+ = \hat{\sigma}^2(1 + \sqrt{K/T})^2$ via fixed-point iteration and replacing bulk noise eigenvalues while preserving trace and unit correlation diagonal. |
+| `nonlinear_shrinkage_qis(data, assume_centered=False, bandwidth=None)` | Analytical nonlinear eigenvalue shrinkage (Ledoit-Wolf QIS) in pure NumPy: kernel-smoothed density and Hilbert transform of the sample spectrum give a closed-form per-eigenvalue intensity, trace-preserving and projected onto the SPD cone. Handles both `T > K` and `T <= K` (null-space floor) regimes. |
 | `exponential_covariance(data, half_life=60.0)` | Unbiased exponentially weighted covariance projected onto the SPD cone. |
 | `sample_covariance(data, ddof=1)` | Finite-row sample covariance guaranteed to return 2D `(K, K)` shape even for $K = 1$. |
 | `nearest_spd(matrix, eps=1e-8)` | Higham spectral projection onto Symmetric Positive Definite matrices. |

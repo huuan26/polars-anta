@@ -134,3 +134,14 @@ wf = ortho.anta.combine_alphas_walkforward(
 )
 print(wf.summary())
 ```
+
+---
+
+## 5. Risk-Budgeting Portfolio Allocation (`polars_anta.portfolio`)
+
+In addition to alpha-driven FISTA allocation, `polars-anta` provides pure-NumPy risk-budgeting allocators that require zero SciPy dependencies and compose directly with `polars_anta.covariance` estimators (`"ledoit_wolf"`, `"marchenko_pastur"`, `"exponential"`, `"sample"`):
+
+| Function | Description |
+| :--- | :--- |
+| `hierarchical_risk_parity(returns, method="ward", shrinkage="ledoit_wolf", ...)` | Lopez de Prado (2016) Hierarchical Risk Parity using vectorized Lance-Williams linkage (`"ward"` or `"single"`), quasi-diagonalization, and inverse-variance recursive bisection. |
+| `equal_risk_parity(returns, method="erc", shrinkage="ledoit_wolf", ...)` | Exact Equal Risk Contribution (`method="erc"`, solving $w_i (\boldsymbol{\Sigma}\mathbf{w})_i = \frac{1}{N} \mathbf{w}^T \boldsymbol{\Sigma}\mathbf{w}$ via Cyclical Coordinate Descent) or diagonal Inverse-Volatility baseline (`method="ivp"`). |

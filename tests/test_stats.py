@@ -411,8 +411,99 @@ def test_rolling_hedge_ratio_recovers_slope():
 
 
 def test_ou_namespace_binding():
-    """The .anta expression namespace must match the plain function."""
-    df = pl.DataFrame({"spread": _ar1_series(n=1000)})
-    direct = df.select(ou_half_life(pl.col("spread"), period=60).alias("v"))["v"]
-    ns = df.select(pl.col("spread").anta.ou_half_life(period=60).alias("v"))["v"]
-    assert direct.equals(ns)
+    """Both .anta and .ta expression namespaces match top-level functions."""
+    import polars_anta as pa
+
+    df = pl.DataFrame(
+        {
+            "spread": _ar1_series(n=500, seed=1),
+            "a": 100.0 + _ar1_series(n=500, seed=2),
+            "b": 100.0 + _ar1_series(n=500, seed=3),
+        }
+    )
+    direct_hl = df.select(pa.ou_half_life(pl.col("spread"), period=60).alias("v"))["v"]
+    assert direct_hl.equals(
+        df.select(pl.col("spread").anta.ou_half_life(period=60).alias("v"))["v"]
+    )
+    assert direct_hl.equals(df.select(pl.col("spread").ta.ou_half_life(period=60).alias("v"))["v"])
+
+    direct_hr = df.select(pa.rolling_hedge_ratio("a", "b", period=60).alias("v"))["v"]
+    assert direct_hr.equals(
+        df.select(pl.col("a").anta.rolling_hedge_ratio("b", period=60).alias("v"))["v"]
+    )
+    assert direct_hr.equals(
+        df.select(pl.col("a").ta.rolling_hedge_ratio("b", period=60).alias("v"))["v"]
+    )
+
+
+def test_ou_and_hedge_ratio_validation_and_edge_cases():
+    """Rejects period < 2, guards float cancellation on large-offset trends, flat prices, and oscillatory AR(1)."""
+    with pytest.raises(ValueError, match="period"):
+        ou_half_life("spread", period=1)
+    with pytest.raises(ValueError, match="period"):
+        rolling_hedge_ratio("a", "b", period=1)
+
+    # Large-offset non-integer linear trend must not emit false half-lives from float cancellation
+    offset_trend = 1e6 + 0.1 * np.arange(1500, dtype=np.float64)
+    hl_trend = pl.DataFrame({"spread": offset_trend}).select(
+        ou_half_life("spread", period=250).alias("hl")
+    )["hl"]
+    assert hl_trend.is_null().all()
+
+    # Constant benchmark yields clean null (not NaN/inf)
+    flat_df = pl.DataFrame({"a": np.linspace(10.0, 20.0, 100), "b": np.full(100, 50.0)})
+    hr_flat = flat_df.select(rolling_hedge_ratio("a", "b", period=20).alias("hr"))["hr"]
+    assert hr_flat.is_null().all()
+
+    # Oscillatory alternating spread has beta = -2 <= -1 -> null in discrete mode
+    osc = np.where(np.arange(100) % 2 == 0, 1.0, -1.0)
+    hl_osc = pl.DataFrame({"spread": osc}).select(
+        ou_half_life("spread", period=20, method="discrete").alias("hl")
+    )["hl"]
+    assert hl_osc.is_null().all()
+
+    # Large price scale accuracy (BTC-level offset with exact slope 2.0)
+    rng = np.random.default_rng(1)
+    dx = np.cumsum(rng.normal(0.0, 0.5, 250))
+    btc_df = pl.DataFrame({"a": 90_000.0 + 2.0 * dx, "b": 90_000.0 + dx})
+    hr_btc = btc_df.select(rolling_hedge_ratio("a", "b", period=60).alias("hr"))["hr"].drop_nulls()
+    assert float((hr_btc - 2.0).abs().max()) < 1e-9
+
+
+def test_rolling_hedge_ratio_log_prices_and_multi_asset_over():
+    """Supports log_prices=True and isolates partitions cleanly under .over('pair')."""
+    rng = np.random.default_rng(31)
+    b1 = 100.0 * np.exp(np.cumsum(rng.normal(0.0, 0.01, 200)))
+    a1 = (b1**1.5) * np.exp(rng.normal(0.0, 1e-4, 200))
+    b2 = 50.0 * np.exp(np.cumsum(rng.normal(0.0, 0.01, 200)))
+    a2 = (b2**0.5) * np.exp(rng.normal(0.0, 1e-4, 200))
+
+    s1 = _ar1_series(n=200, phi=0.85, seed=101)
+    s2 = _ar1_series(n=200, phi=0.95, seed=202)
+
+    panel = pl.DataFrame(
+        {
+            "pair": ["P1"] * 200 + ["P2"] * 200,
+            "a": np.concatenate([a1, a2]),
+            "b": np.concatenate([b1, b2]),
+            "spread": np.concatenate([s1, s2]),
+        }
+    )
+    out = panel.with_columns(
+        pl.col("a")
+        .anta.rolling_hedge_ratio("b", period=60, log_prices=True)
+        .over("pair")
+        .alias("hr"),
+        pl.col("spread").anta.ou_half_life(period=60).over("pair").alias("hl"),
+    )
+
+    p1_hr = out.filter(pl.col("pair") == "P1")["hr"].drop_nulls()
+    p2_hr = out.filter(pl.col("pair") == "P2")["hr"].drop_nulls()
+    assert abs(float(p1_hr.mean()) - 1.5) < 0.02
+    assert abs(float(p2_hr.mean()) - 0.5) < 0.02
+
+    # Multi-asset .over("pair") must match standalone single-pair evaluation bit-for-bit
+    standalone_p2 = pl.DataFrame({"spread": s2}).select(
+        ou_half_life("spread", period=60).alias("hl")
+    )["hl"]
+    assert out.filter(pl.col("pair") == "P2")["hl"].equals(standalone_p2)

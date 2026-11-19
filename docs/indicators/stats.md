@@ -1,6 +1,6 @@
 # Quantitative Statistics, CAPM & Regression Transforms (`polars_anta.stats`)
 
-The `polars_anta.stats` module provides **15 vectorized statistical, econometric, and stationarity primitives** engineered for factor standardization, systematic risk decomposition, rolling Ordinary Least Squares (OLS) regression, and memory-preserving fractional differentiation.
+The `polars_anta.stats` module provides **17 vectorized statistical, econometric, and stationarity primitives** engineered for factor standardization, systematic risk decomposition, rolling Ordinary Least Squares (OLS) regression, mean-reversion calibration, and memory-preserving fractional differentiation.
 
 ---
 
@@ -116,5 +116,36 @@ import polars_anta as pa
 
 df = df.with_columns(
     pl.col("close").anta.frac_diff(d=0.4, window=20).over("symbol").alias("close_ffd_04")
+)
+```
+
+---
+
+## 5. Mean-Reversion & Pairs Cointegration
+
+### `ou_half_life(spread, period=60, method="continuous")` & `rolling_hedge_ratio(asset, benchmark, period=60, log_prices=False)`
+**Mathematical Formulations:**
+
+- **Rolling OLS Hedge Ratio**: $\hat{\beta}_t = \frac{\operatorname{Cov}_t(Y, X)}{\operatorname{Var}_t(X)}$ (optionally on natural log prices when `log_prices=True`), with causal shift-centering to preserve precision on large price levels and zero-variance protection.
+- **Ornstein-Uhlenbeck Half-Life**: Regressing $\Delta x_t = \alpha + \beta x_{t-1} + \varepsilon_t$ over a trailing window gives:
+  $$T_{1/2}^{\text{continuous}} = -\frac{\ln 2}{\hat{\beta}}, \qquad T_{1/2}^{\text{discrete}} = -\frac{\ln 2}{\ln(1 + \hat{\beta})}$$
+  Non-mean-reverting windows ($\hat{\beta} \ge 0$) or oscillatory discrete windows ($\hat{\beta} \le -1$) return `null`.
+
+```python
+import polars as pl
+import polars_anta  # noqa: F401
+
+pairs = (
+    pairs.with_columns(
+        pl.col("asset_a")
+        .anta.rolling_hedge_ratio("asset_b", period=60, log_prices=True)
+        .alias("beta"),
+    )
+    .with_columns(
+        (pl.col("asset_a").log() - pl.col("beta") * pl.col("asset_b").log()).alias("spread")
+    )
+    .with_columns(
+        pl.col("spread").anta.ou_half_life(period=60, method="discrete").alias("half_life")
+    )
 )
 ```

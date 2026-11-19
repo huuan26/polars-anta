@@ -388,14 +388,17 @@ def frac_diff(
 
 
 def _rolling_ols_slope(y: IntoExpr, x: IntoExpr, period: int) -> pl.Expr:
-    """Closed-form rolling OLS slope of y on x from sample moments (no loops)."""
-    py, px = parse_expr(y), parse_expr(x)
-    scale = period / float(period - 1)
-    mean_xy = (py * px).rolling_mean(window_size=period)
-    cov = (
-        mean_xy - py.rolling_mean(window_size=period) * px.rolling_mean(window_size=period)
-    ) * scale
-    return cov / px.rolling_var(window_size=period)
+    """Closed-form rolling OLS slope of ``y`` on ``x`` with causal shift-centering."""
+    check_period(period, 2, "period", inclusive=True)
+    py = parse_expr(y).cast(pl.Float64)
+    px = parse_expr(x).cast(pl.Float64)
+    # Subtract the first finite observation (strictly causal) to prevent catastrophic
+    # floating-point cancellation on large price levels while preserving covariance/variance.
+    py_c = py - py.fill_nan(None).fill_null(0.0).first()
+    px_c = px - px.fill_nan(None).fill_null(0.0).first()
+    cov = rolling_cov(py_c, px_c, period=period)
+    var_x = px_c.rolling_var(window_size=period)
+    return pl.when(var_x > 1e-24).then(cov / var_x).otherwise(None)
 
 
 def ou_half_life(
@@ -405,36 +408,37 @@ def ou_half_life(
 ) -> pl.Expr:
     """Rolling Ornstein-Uhlenbeck mean-reversion half-life.
 
-    Discretises d x_t = theta (mu - x_t) dt + sigma dW_t as an AR(1) regression
-    of the first difference on the lagged level,
+    Discretizes ``d x_t = theta (mu - x_t) dt + sigma dW_t`` as an AR(1) regression
+    of the first difference on the lagged level:
 
         Delta x_t = alpha + beta x_{t-1} + eps_t,    beta ~= -theta dt
 
-    and converts the slope into the time the spread needs to revert halfway to
-    its long-run mean:
+    and converts the slope into the expected number of bars for the spread to
+    revert halfway to its long-run mean:
 
-    * method="continuous": T_half = -ln(2) / beta (the textbook continuous-time
-      form quoted in the issue),
-    * method="discrete": T_half = -ln(2) / ln(1 + beta), the exact AR(1)
-      answer; the two agree to first order in beta.
+    * ``method="continuous"``: ``T_half = -ln(2) / beta`` (continuous-time limit),
+    * ``method="discrete"``: ``T_half = -ln(2) / ln(1 + beta)`` (exact AR(1) form).
 
-    Windows whose slope is non-negative (random walk, exploding spread) return
-    null instead of inf: there is no half-life to report.
+    Windows whose slope is non-negative (random walk, trend, or diverging spread)
+    or oscillatory ``beta <= -1`` in discrete mode return ``null`` instead of ``inf``.
 
     :param spread: spread (or log-price pair) column or expression
-    :param period: rolling lookback window in bars (default 60)
-    :param method: "continuous" (default) or "discrete"
+    :param period: rolling lookback window in bars, must be >= 2 (default 60)
+    :param method: ``"continuous"`` (default) or ``"discrete"``
     :return: Polars expression
     """
+    check_period(period, 2, "period", inclusive=True)
     if method not in ("continuous", "discrete"):
         raise ValueError("method must be 'continuous' or 'discrete'")
-    p = parse_expr(spread)
-    lag = p.shift(1)
-    beta = _rolling_ols_slope(p - lag, lag, period)
+    p = parse_expr(spread).cast(pl.Float64)
+    p_c = p - p.fill_nan(None).fill_null(0.0).first()
+    lag = p_c.shift(1)
+    beta = _rolling_ols_slope(p_c - lag, lag, period)
     ln2 = math.log(2.0)
+    eps = 1e-12
     if method == "continuous":
-        return pl.when(beta < 0.0).then(-ln2 / beta).otherwise(None)
-    return pl.when((beta < 0.0) & (beta > -1.0)).then(-ln2 / (1.0 + beta).log()).otherwise(None)
+        return pl.when(beta < -eps).then(-ln2 / beta).otherwise(None)
+    return pl.when((beta < -eps) & (beta > -1.0)).then(-ln2 / (1.0 + beta).log()).otherwise(None)
 
 
 def rolling_hedge_ratio(
@@ -445,20 +449,21 @@ def rolling_hedge_ratio(
 ) -> pl.Expr:
     """Rolling OLS hedge ratio for a pairs spread.
 
-    Returns beta from spread_t = asset_t - beta * benchmark_t, i.e.
-    Cov(asset, benchmark) / Var(benchmark) over a rolling window. It is the
-    same closed form as CAPM beta, but named for the pairs-trading use: the
-    residual asset - beta * benchmark is the cointegration spread you then
-    z-score.
+    Returns ``beta`` from ``spread_t = asset_t - beta * benchmark_t``, i.e.
+    ``Cov(asset, benchmark) / Var(benchmark)`` over a rolling window, with
+    causal shift-centering and zero-variance protection.
 
     :param asset: asset price column or expression
     :param benchmark: benchmark price column or expression
-    :param period: rolling lookback window in bars (default 60)
-    :param log_prices: take the natural log of both sides first, which is the
-        usual choice when testing for cointegration (default False)
+    :param period: rolling lookback window in bars, must be >= 2 (default 60)
+    :param log_prices: take natural log of both series first (non-positive values
+        map to ``null``), typical when modeling cointegrated log prices (default False)
     :return: Polars expression
     """
-    pa_, pb_ = parse_expr(asset), parse_expr(benchmark)
+    check_period(period, 2, "period", inclusive=True)
+    pa_ = parse_expr(asset).cast(pl.Float64)
+    pb_ = parse_expr(benchmark).cast(pl.Float64)
     if log_prices:
-        pa_, pb_ = pa_.log(), pb_.log()
+        pa_ = pl.when(pa_ > 0.0).then(pa_.log()).otherwise(None)
+        pb_ = pl.when(pb_ > 0.0).then(pb_.log()).otherwise(None)
     return _rolling_ols_slope(pa_, pb_, period)

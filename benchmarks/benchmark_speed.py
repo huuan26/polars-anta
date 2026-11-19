@@ -7,7 +7,11 @@ Generates high-resolution visualization `benchmarks/benchmark_speed.png`.
 
 from __future__ import annotations
 
+import gc
+import shutil
+import statistics
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -16,6 +20,25 @@ import pandas as pd
 import polars as pl
 
 import polars_anta  # noqa: F401
+
+
+def _measure(fn: Callable[[], object], repeats: int = 5, warmup: int = 1) -> float:
+    """Return median wall-clock execution time in seconds with GC isolated per trial."""
+    for _ in range(warmup):
+        fn()
+    samples: list[float] = []
+    for _ in range(repeats):
+        gc.collect()
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            t0 = time.perf_counter()
+            fn()
+            samples.append(time.perf_counter() - t0)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
+    return float(statistics.median(samples))
 
 
 def generate_single_asset_data(n_rows: int = 1_000_000) -> tuple[pl.DataFrame, pd.DataFrame]:
@@ -87,69 +110,66 @@ def benchmark_single_asset(df_pl: pl.DataFrame, df_pd: pd.DataFrame) -> dict[str
 
     # 1. SMA (20)
     print("Benchmarking SMA(20)...")
-    # Pandas
-    t0 = time.perf_counter()
-    _ = df_pd["close"].rolling(20).mean()
-    t_pd = time.perf_counter() - t0
-
-    # Polars
-    t0 = time.perf_counter()
-    _ = df_pl.select(pl.col("close").anta.sma(20))
-    t_pl = time.perf_counter() - t0
+    t_pd = _measure(lambda: df_pd["close"].rolling(20).mean())
+    t_pl = _measure(lambda: df_pl.select(pl.col("close").anta.sma(20)))
     results["SMA (20)"] = {"pandas": t_pd, "polars_anta": t_pl}
 
     # 2. EMA (20)
     print("Benchmarking EMA(20)...")
-    t0 = time.perf_counter()
-    _ = df_pd["close"].ewm(span=20, adjust=False).mean()
-    t_pd = time.perf_counter() - t0
-
-    t0 = time.perf_counter()
-    _ = df_pl.select(pl.col("close").anta.ema(20))
-    t_pl = time.perf_counter() - t0
+    t_pd = _measure(lambda: df_pd["close"].ewm(span=20, adjust=False).mean())
+    t_pl = _measure(lambda: df_pl.select(pl.col("close").anta.ema(20)))
     results["EMA (20)"] = {"pandas": t_pd, "polars_anta": t_pl}
 
-    # 3. Bollinger Bands (20, 2)
+    # 3. Bollinger Bands (20, 2) - 5 fields: upper, middle, lower, bandwidth, percent_b
     print("Benchmarking Bollinger Bands(20, 2)...")
-    t0 = time.perf_counter()
-    m = df_pd["close"].rolling(20).mean()
-    s = df_pd["close"].rolling(20).std()
-    _ = m + 2.0 * s
-    _ = m - 2.0 * s
-    t_pd = time.perf_counter() - t0
 
-    t0 = time.perf_counter()
-    _ = df_pl.select(pl.col("close").anta.bollinger_bands(20, 2.0))
-    t_pl = time.perf_counter() - t0
+    def _bb_pd() -> pd.DataFrame:
+        c = df_pd["close"]
+        middle = c.rolling(20).mean()
+        std = c.rolling(20).std()
+        upper = middle + 2.0 * std
+        lower = middle - 2.0 * std
+        spread = upper - lower
+        bandwidth = np.where(middle > 0.0, spread / middle, 0.0)
+        percent_b = np.where(spread > 0.0, (c - lower) / spread, 0.5)
+        return pd.DataFrame(
+            {
+                "upper": upper,
+                "middle": middle,
+                "lower": lower,
+                "bandwidth": bandwidth,
+                "percent_b": percent_b,
+            }
+        )
+
+    t_pd = _measure(_bb_pd)
+    t_pl = _measure(lambda: df_pl.select(pl.col("close").anta.bollinger_bands(20, 2.0)))
     results["Bollinger (20,2)"] = {"pandas": t_pd, "polars_anta": t_pl}
 
     # 4. Z-Score (20)
     print("Benchmarking Z-Score(20)...")
-    t0 = time.perf_counter()
-    m = df_pd["close"].rolling(20).mean()
-    s = df_pd["close"].rolling(20).std()
-    _ = (df_pd["close"] - m) / s
-    t_pd = time.perf_counter() - t0
 
-    t0 = time.perf_counter()
-    _ = df_pl.select(pl.col("close").anta.zscore(20))
-    t_pl = time.perf_counter() - t0
+    def _zscore_pd() -> pd.Series:
+        m = df_pd["close"].rolling(20).mean()
+        s = df_pd["close"].rolling(20).std()
+        return (df_pd["close"] - m) / s
+
+    t_pd = _measure(_zscore_pd)
+    t_pl = _measure(lambda: df_pl.select(pl.col("close").anta.zscore(20)))
     results["Z-Score (20)"] = {"pandas": t_pd, "polars_anta": t_pl}
 
     # 5. Linear Regression Slope (14)
     print("Benchmarking Linear Regression Slope(14)...")
-    t0 = time.perf_counter()
-    # Pandas rolling linear regression slope
-    w = list(range(1, 15))
-    w_sum = sum(w)
-    wma_pd = df_pd["close"].rolling(14).apply(lambda x: np.dot(x, w) / w_sum, raw=True)
-    sma_pd = df_pd["close"].rolling(14).mean()
-    _ = (wma_pd - sma_pd) * (6.0 / 13.0)
-    t_pd = time.perf_counter() - t0
+    w = np.arange(1, 15, dtype=np.float64)
+    w_sum = float(w.sum())
 
-    t0 = time.perf_counter()
-    _ = df_pl.select(pl.col("close").anta.linear_regression_slope(14))
-    t_pl = time.perf_counter() - t0
+    def _linreg_pd() -> pd.Series:
+        wma_pd = df_pd["close"].rolling(14).apply(lambda x: np.dot(x, w) / w_sum, raw=True)
+        sma_pd = df_pd["close"].rolling(14).mean()
+        return (wma_pd - sma_pd) * (6.0 / 13.0)
+
+    t_pd = _measure(_linreg_pd, repeats=3, warmup=1)
+    t_pl = _measure(lambda: df_pl.select(pl.col("close").anta.linear_regression_slope(14)))
     results["Linear Reg (14)"] = {"pandas": t_pd, "polars_anta": t_pl}
 
     return results
@@ -160,18 +180,12 @@ def benchmark_multi_asset(df_pl: pl.DataFrame, df_pd: pd.DataFrame) -> dict[str,
     results: dict[str, dict[str, float]] = {}
 
     print("Benchmarking Multi-Asset (500 tickers): SMA(20)...")
-    t0 = time.perf_counter()
-    _ = df_pd.groupby("ticker", group_keys=False)["close"].rolling(20).mean()
-    t_pd = time.perf_counter() - t0
-
-    t0 = time.perf_counter()
-    _ = df_pl.select(pl.col("close").anta.sma(20).over("ticker"))
-    t_pl = time.perf_counter() - t0
+    t_pd = _measure(lambda: df_pd.groupby("ticker", group_keys=False)["close"].rolling(20).mean())
+    t_pl = _measure(lambda: df_pl.select(pl.col("close").anta.sma(20).over("ticker")))
     results["Multi-Asset SMA"] = {"pandas": t_pd, "polars_anta": t_pl}
 
     print("Benchmarking Multi-Asset (500 tickers): RSI(14)...")
 
-    # For Pandas, groupby apply custom RSI
     def _calc_rsi_pd(s: pd.Series) -> pd.Series:
         delta = s.diff()
         gain = delta.clip(lower=0)
@@ -181,13 +195,12 @@ def benchmark_multi_asset(df_pl: pl.DataFrame, df_pd: pd.DataFrame) -> dict[str,
         rs = avg_gain / avg_loss
         return 100.0 - (100.0 / (1.0 + rs))
 
-    t0 = time.perf_counter()
-    _ = df_pd.groupby("ticker", group_keys=False)["close"].apply(_calc_rsi_pd)
-    t_pd = time.perf_counter() - t0
-
-    t0 = time.perf_counter()
-    _ = df_pl.select(pl.col("close").anta.rsi(14).over("ticker"))
-    t_pl = time.perf_counter() - t0
+    t_pd = _measure(
+        lambda: df_pd.groupby("ticker", group_keys=False)["close"].apply(_calc_rsi_pd),
+        repeats=3,
+        warmup=1,
+    )
+    t_pl = _measure(lambda: df_pl.select(pl.col("close").anta.rsi(14).over("ticker")))
     results["Multi-Asset RSI"] = {"pandas": t_pd, "polars_anta": t_pl}
 
     return results
@@ -244,16 +257,20 @@ def plot_benchmark_chart(all_results: dict[str, dict[str, float]], output_path: 
     ax.legend(frameon=True, facecolor="white", edgecolor="#cccccc", fontsize=11, loc="lower right")
 
     # Annotate speedup factors
+    max_time = max(max(pl_times), max(pd_times))
+    min_time = min(min(pl_times), min(pd_times))
+    ax.set_xlim(min_time * 0.65, max_time * 3.8)
     for i, speedup in enumerate(speedups):
-        val_x = max(pl_times[i], pd_times[i]) * 1.25
+        val_x = max(pl_times[i], pd_times[i]) * 1.22
+        badge_text = f"{speedup:.1f}x FASTER" if speedup >= 1.05 else f"{speedup:.1f}x"
         ax.text(
             val_x,
             y_pos[i] - bar_height / 2,
-            f"{speedup:.1f}x FASTER",
+            badge_text,
             va="center",
             ha="left",
             fontsize=10.5,
-            fontweight="heavy",
+            fontweight="bold",
             color="#0275d8",
             bbox=dict(
                 boxstyle="round,pad=0.25", facecolor="#e8f4fd", edgecolor="#b6dcfb", alpha=0.9
@@ -264,6 +281,9 @@ def plot_benchmark_chart(all_results: dict[str, dict[str, float]], output_path: 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path, dpi=300)
     plt.close()
+    docs_chart_path = output_path.parent.parent / "docs" / "assets" / "benchmark_speed.png"
+    if docs_chart_path.parent.exists():
+        shutil.copy2(output_path, docs_chart_path)
     print(f"\n[OK] Benchmark chart successfully saved to: {output_path}")
 
 

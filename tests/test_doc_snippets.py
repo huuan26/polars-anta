@@ -81,11 +81,11 @@ def test_readme_and_alpha_engineering_snippets_execute() -> None:
         for loc, code in _PYTHON_BLOCKS
         if loc.startswith("docs/indicators/alpha-engineering.md:")
     ]
-    assert len(readme_blocks) == 6
+    assert len(readme_blocks) == 5
     assert len(alpha_blocks) == 1
 
     # 1. Standalone Quick Start & docs snippets execute in an empty namespace
-    for loc, code in (readme_blocks[0], readme_blocks[1], alpha_blocks[0]):
+    for loc, code in (readme_blocks[0], alpha_blocks[0]):
         exec(compile(code, loc, "exec"), {})
 
     # 2. Core Workflows 1-4 execute with canonical schema fixtures
@@ -112,7 +112,7 @@ def test_readme_and_alpha_engineering_snippets_execute() -> None:
         }
     )
     ns_alpha: dict[str, Any] = {"pl": pl, "pa": polars_anta, "panel": panel_alpha}
-    exec(compile(readme_blocks[2][1], readme_blocks[2][0], "exec"), ns_alpha)
+    exec(compile(readme_blocks[1][1], readme_blocks[1][0], "exec"), ns_alpha)
 
     n_bar = 60
     t0 = datetime(2026, 1, 2, 9, 0)
@@ -151,9 +151,9 @@ def test_readme_and_alpha_engineering_snippets_execute() -> None:
         "raw_contracts": raw_contracts,
         "df": df_bt,
     }
-    for loc, code in readme_blocks[3:]:
+    for loc, code in readme_blocks[2:]:
         exec(compile(code, loc, "exec"), ns_wf)
-        if loc == readme_blocks[4][0]:
+        if loc == readme_blocks[3][0]:
             assert ns_wf["ml_dataset"].height == n_bar
 
 
